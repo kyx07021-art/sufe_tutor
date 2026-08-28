@@ -1,8 +1,8 @@
 /**
- * Z-3-F1/U-3a rework F2：admin 用户名搜索必须返回与列表路径相同的完整行形状。
+ * /rework admin 用户名搜索必须返回与列表路径相同的完整行形状。
  * 断线类三（接口形状不一致）防线——dbSearchUsersByRole（complaints 轻量形状）喂给
  * renderAdminUserRow 会静默劣化行（无 meta/封禁态/日期），此处直调 dbAdminSearchUsers
- * 锁服务端契约（G1：核心路径直接测试 + G2：改回轻量形状必红）。
+ * 锁服务端契约（核心路径直接测试 + 改回轻量形状必红）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

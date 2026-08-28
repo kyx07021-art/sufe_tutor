@@ -25,7 +25,8 @@ import { LIMITS } from '../../../shared/config.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract, dbCreateContract, dbSetContractMd,
 } from './repo.js';
-import { dbGetConversationWithNames, dbCreateMessage, dbGetTeacherProfile } from '../../../../server/db.js';
+import { dbGetConversationWithNames, dbCreateMessage } from '../chat/repo.js';
+import { dbGetTeacherProfile } from '../teacher/repo.js';
 import { acceptEligibility } from '../teacher/api.js';
 import { notifyUser } from '../../core/notify.js';
 import { logEvent } from '../../core/log.js';
@@ -118,7 +119,7 @@ export function rebuildFullMd(ct, conv) {
   // drafter_signed_at / other_signed_at are keyed by "who drafted" (not by role), but the block
   // renders by role (甲方=student / 乙方=teacher) since the drafter may be either party
   // (handleCreateContract allows a student or teacher to draft). Map via the contract's own tuple
-  // so a teacher-drafted contract does not swap the two timestamps into the wrong party row (PA-1e-F1).
+  // so a teacher-drafted contract does not swap the two timestamps into the wrong party row ().
   const studentSignedAt = ct.drafter_user_id === ct.student_user_id ? ct.drafter_signed_at : ct.other_signed_at;
   const teacherSignedAt = ct.drafter_user_id === ct.teacher_user_id ? ct.drafter_signed_at : ct.other_signed_at;
   return contractWithLegal(biz) + buildSignatureBlock({
@@ -132,7 +133,7 @@ export function rebuildFullMd(ct, conv) {
 // usernames are surfaced by the frontend "party deactivated" tag; contract_md is never touched.
 
 // Build the editable business section of the contract. User-controlled fields strip the business
-// marker (Q-2e-F3) so a malicious embed cannot truncate the tail / mis-place the legal block.
+// marker () so a malicious embed cannot truncate the tail / mis-place the legal block.
 export function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
   const stripSep = v => String(v ?? '').split(CONTRACT_BUSINESS_END).join('');
   const methodName = method === 'offline' ? '线下授课' : '线上授课';
@@ -380,7 +381,7 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   // The confirmed/signed_at columns are keyed by "who drafted" (drafter vs other), not by role —
-  // rebuildFullMd maps them back to 甲方/乙方 using the contract's own tuple (PA-1e-F1).
+  // rebuildFullMd maps them back to 甲方/乙方 using the contract's own tuple ().
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   const signedCol = userId === ct.drafter_user_id ? 'drafter_signed_at' : 'other_signed_at';
   // Conditional UPDATE + changes winner: the status guard means a contract already cancelled or
@@ -525,7 +526,7 @@ export async function handleVerifyContract(db, contractId, req) {
   if (!ct) return errorMsg('CONTRACT_NOT_FOUND', 404);
   const isAdmin = requireAdminOrError(me) === null;
   if (!isAdmin && !isParticipant(ct, me.id)) return errorMsg('NO_PERMISSION', 403);
-  // PA-1e-F2: ledger-chain verification is only meaningful once the contract is committed to a
+  // ledger-chain verification is only meaningful once the contract is committed to a
   // signed terminal state. A signing-state contract is an in-flight draft: the ledger may hold a
   // stale partial-sign entry (handleModifyContract changes the body without touching the ledger),
   // so replaying the current draft body against that stale tail would misreport invalid. Report
@@ -615,7 +616,7 @@ export async function handleCancelContract(db, contractId, body, req) {
 }
 
 // ============================================================
-// contract domain route table (S5-14: aligned to interfaces I-44/45/46)
+// contract domain route table (aligned to interfaces /45/46)
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

@@ -8,14 +8,14 @@ import { TEXT } from '../constants/text.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDefault = v => (v == null ? '—' : Number(v).toLocaleString('zh-CN'));
 
-// Z-9-F3: module-level tracking of the current resize listener so re-renders detach the old
+// module-level tracking of the current resize listener so re-renders detach the old
 // one (was accumulating one permanent listener per render — leak) and expose a dispose exit
-// U-3j M-1: resize listeners are tracked per container (WeakMap). A single-slot handler let a
+// resize listeners are tracked per container (WeakMap). A single-slot handler let a
 // second chart in the same page remove the first one's resize listener — the traffic dashboard
 // renders two charts side by side. Each render only touches its own container's handler.
 const chartResizeHandlers = new WeakMap();
 
-// Z-9-F4: deterministic gradient id counter (was Math.random — non-deterministic and
+// deterministic gradient id counter (was Math.random — non-deterministic and
 // collision-prone across multiple charts in one document)
 let gradSeq = 0;
 
@@ -176,7 +176,7 @@ export function renderGlassLineChart(container, opts = {}) {
   draw();
   let t = null;
   const onResize = () => { clearTimeout(t); t = setTimeout(() => { if (container.isConnected) draw(); }, 120); };
-  // Z-9-F3 (no listener accumulation) + U-3j M-1 (per-container, so a second chart in the same
+  // (no listener accumulation) + (per-container, so a second chart in the same
   // page cannot detach the first one's resize listener).
   const prev = chartResizeHandlers.get(container);
   if (prev) window.removeEventListener('resize', prev);

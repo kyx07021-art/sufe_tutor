@@ -1,15 +1,15 @@
 /**
- * V-4-1a 存量数据校验（生产 D1 只读，发布 2.0.0 前置）：
- *   1. 通知：V-2-4 结构化（{type,params}）后，无「text 空且 type NULL」的不可渲染行；
- *      无「type 有值 params NULL」的半结构化行；type 值均在 NOTIFY_TYPES 键内；params 为合法 JSON。
- *      —— 生产若未落迁移（type/params 列缺失，2.0.0 未部署属预期），降级为 v1 形状校验：
- *      无空 text 行（v1 形状的不可渲染行），结构化校验改上线后复跑。
- *   2. region：student_demands.province 非空取值均在 SUFE_REGIONS.provinces[].id 内
- *      （真表为 student_demands；空串 = 用户未选择，属合法未选择态，不判违规）。
- *   3. 权限/脱敏：auth_sessions.token_hash 全为 SECURITY.TOKEN_HASH_HEX_LEN 位（SHA-256 摘要）；
- *      users.role 在共享 ROLES 内；需求地址含「号」报告式不硬判。
+ * 存量数据校验（生产 D1 只读，发布 2.0.0 前置）：
+ * 1. 通知：结构化（{type,params}）后，无「text 空且 type NULL」的不可渲染行；
+ * 无「type 有值 params NULL」的半结构化行；type 值均在 NOTIFY_TYPES 键内；params 为合法 JSON。
+ * —— 生产若未落迁移（type/params 列缺失，2.0.0 未部署属预期），降级为 v1 形状校验：
+ * 无空 text 行（v1 形状的不可渲染行），结构化校验改上线后复跑。
+ * 2. region：student_demands.province 非空取值均在 SUFE_REGIONS.provinces[].id 内
+ * （真表为 student_demands；空串 = 用户未选择，属合法未选择态，不判违规）。
+ * 3. 权限/脱敏：auth_sessions.token_hash 全为 SECURITY.TOKEN_HASH_HEX_LEN 位（SHA-256 摘要）；
+ * users.role 在共享 ROLES 内；需求地址含「号」报告式不硬判。
  * 只读保证：全部 SELECT/PRAGMA，经 scripts/wrangler-d1.mjs 的语义级只读闸门
- *   （changed_db=false 且 changes=0）+ 3 次网络重试。
+ * （changed_db=false 且 changes=0）+ 3 次网络重试。
  * 用法：node scripts/validate-prod-data.mjs（需 wrangler 已认证）。
  */
 import { d1ReadQuery, D1_DB_NAME } from './wrangler-d1.mjs';

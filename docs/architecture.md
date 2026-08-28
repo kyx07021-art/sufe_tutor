@@ -2,12 +2,12 @@
 
 面向后续功能开发。目标：增删改查任何功能都像搭积木——每块积木职责单一、接口明确。
 
-**本文档与 `test/architecture-v2.archtest.js` 的 11 条架构契约一一对应（V-3-2a + V-3-2c 互检契约）**：v2 架构契约门禁经 `npm run test:arch:v2` 受控；新站架构契约独立见 `test/architecture-new-site.archtest.js`（门禁 `npm run test:arch`）。每条契约在下文有对应章节；「文档提及的契约均能在测试中找到」由 V-3-2c 的互检断言锁住，防文档漂移。
+**本文档与 `test/architecture-v2.archtest.js` 的 11 条架构契约一一对应**：架构契约门禁经 `npm run test:arch:v2` 受控。每条契约在下文有对应章节；「文档提及的契约均能在测试中找到」由互检断言锁住，防文档漂移。
 
 ## 分层总览（v2）
 
 ```
-构建/部署：scripts/build.mjs → dist/（唯一部署对象）；hash-assets.mjs → manifest.js（内容哈希资产清单）
+构建/部署：scripts/build.mjs → dist/（唯一部署对象）；客户端经 esbuild code splitting 产出内容哈希资产（dist/assets/*）
   _worker.js（esbuild 打包 dist/_worker.js）只做编排：路由分发/静态回退/HTML 改写/体积闸门/初始化
 
 后端（src/server/）—— 七层咽喉 + 业务域自持，_worker 不写业务策略
@@ -46,9 +46,7 @@
 
 ## 契约 1：构建契约
 
-`scripts/build.mjs` 是唯一构建入口，输出到 `dist/`（`npm run build` / `npm run deploy` 只部署 dist）。它做：esbuild 打包 `_worker.js`（连 server/ 与 manifest.js 成单文件）→ esbuild 分包客户端 ESM 到 `dist/assets/` → 拷贝 web/ 资产 → 生成 `dist/index.html`（web/index.html 的 module 入口替换为哈希名；V-4-1h 起 v2 直接作为站点入口）→ 自检（worker bundle 体积、无源码相对 import、可被 Node import）。
-
-`node hash-assets.mjs` 生成 `manifest.js`（内容哈希资产清单：base 名 → 哈希名），**commit 前必须重跑**（规则 54）。manifest.js 是唯一产物勿手改。
+`scripts/build.mjs` 是唯一构建入口，输出到 `dist/`（`npm run build` / `npm run deploy` 只部署 dist）。它做：esbuild 打包 `_worker.js`（连 src/server/ 成单文件）→ esbuild 分包客户端 ESM 到 `dist/assets/`（内容哈希命名）→ 拷贝根静态资产 + web/ 壳脚本 + features/ 域样式 → 生成 `dist/index.html`（web/index.html 的 `/assets/app.js` module 入口替换为实际入口 chunk 名）→ 自检（worker bundle 体积、无源码相对 import、可被 Node import、assets 哈希名）。
 
 ## 契约 2：后端域自持
 

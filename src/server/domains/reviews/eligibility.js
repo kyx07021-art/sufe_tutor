@@ -2,14 +2,14 @@
  * Review eligibility gate (S6-R3: new trust model).
  *
  * A student may review a teacher only when all three conditions hold:
- *   1. A conversation exists for the (student, teacher) pair (active or previously closed).
- *   2. The two parties exchanged messages — the student sent >=1 message AND the teacher sent
- *      >=1 message, aggregated over all conversations of this pair.
- *   3. The teacher's verification is approved (teacher_verifications.status = 'approved').
+ * 1. A conversation exists for the (student, teacher) pair (active or previously closed).
+ * 2. The two parties exchanged messages — the student sent >=1 message AND the teacher sent
+ * >=1 message, aggregated over all conversations of this pair.
+ * 3. The teacher's verification is approved (teacher_verifications.status = 'approved').
  *
  * Self-review is rejected outright before any query runs.
  *
- * This module is the single source of the R3 gate for GET /api/reviews (I-31) and the review
+ * This module is the single source of the R3 gate for GET /api/reviews () and the review
  * creation path. It issues only read-only SELECTs against shared tables (conversations /
  * messages / teacher_verifications) and deliberately does NOT import chat/teacher repo
  * internals — cross-domain coupling is avoided by writing the SQL here directly.

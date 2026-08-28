@@ -13,9 +13,10 @@ import { dbCanReview } from './eligibility.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
   dbUpdateReview, dbGetReviewById,
-  dbGetReviewsAdmin, dbUpdateReviewStatus, dbRecomputeTeacherRating, dbDeleteReview,
-} from '../../../../server/db.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js'; // P12: dangerous operations require capToken (same as ban/content-penalty path)
+  dbGetReviewsAdmin, dbUpdateReviewStatus, dbDeleteReview,
+} from './repo.js';
+import { dbRecomputeTeacherRating } from '../auth/repo.js';
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // dangerous operations require capToken (same as ban/content-penalty path)
 import { logEvent } from '../../core/log.js';
 
 export async function handleCreateReview(db, body, req) {
@@ -71,7 +72,7 @@ export async function handleUpdateReview(db, reviewId, body, req) {
 // 公开列表（仅已通过）+ 「我的评价」（mine：凭令牌取本人任意状态的私有态，供写/改评价判定；
 // 访客无令牌则 mine=null，公开列表照常可见）
 export async function handleGetReviews(db, url, req) {
-  // PA-1f-F3 / C5 strict query parsing: teacherUserId must be /^\d+$/ (parseIdParam precedent).
+  // / C5 strict query parsing: teacherUserId must be /^\d+$/ (parseIdParam precedent).
   // Dirty input ('5abc', empty string) -> 400 INVALID_PARAMS; no parseInt prefix-truncation hitting the PK.
   // Absent param -> null (route-smoke path: returns an empty approved list, as before).
   const rawTeacherId = url.searchParams.get('teacherUserId');
@@ -84,13 +85,13 @@ export async function handleGetReviews(db, url, req) {
 }
 
 // ============================================================
-// 管理员：评价审核（V-1-4c 迁入，reviews 域自持）
+// 管理员：评价审核（迁入，reviews 域自持）
 // ============================================================
 export async function handleAdminReviews(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const status = url.searchParams.get('status') || '';
-  // PA-1f-F3 / C5: optional teacherUserId filter must be /^\d+$/; dirty input -> 400;
+  // / C5: optional teacherUserId filter must be /^\d+$/; dirty input -> 400;
   // absent -> null (no teacher filter in dbGetReviewsAdmin).
   const rawTeacherId = url.searchParams.get('teacherUserId');
   if (rawTeacherId !== null && !/^\d+$/.test(rawTeacherId)) return errorMsg('INVALID_PARAMS', 400);
@@ -105,7 +106,7 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return errorMsg('REVIEW_NOT_FOUND', 404); // 资源不存在统一 404（原误用默认 400）
-  // 审核 = 危险操作（改状态 + 触发评分重算，管理员令牌复用/泄露时一击改公开评分），须 capToken 二次认证（P12 同封禁/处罚口径）
+  // 审核 = 危险操作（改状态 + 触发评分重算，管理员令牌复用/泄露时一击改公开评分），须 capToken 二次认证（同封禁/处罚口径）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const wasApproved = review.status === STATUS.APPROVED; // 改动前的状态（status 在下方才被更新）
@@ -127,7 +128,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return errorMsg('REVIEW_NOT_FOUND', 404);
-  // 删除评价 = 危险操作（不可逆 + 触发评分重算），须 capToken 二次认证（P12 同封禁/处罚口径）
+  // 删除评价 = 危险操作（不可逆 + 触发评分重算），须 capToken 二次认证（同封禁/处罚口径）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteReview(db, reviewId);
   if (review.status === STATUS.APPROVED) await dbRecomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
@@ -137,7 +138,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
 }
 
 // ============================================================
-// reviews 域路由表（V-1-4c：评价 + 管理员评价审核）
+// reviews 域路由表（评价 + 管理员评价审核）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

@@ -1,6 +1,6 @@
 /**
- * Q-2g-F2 守护：域 schema DDL 零 localtime（库内 UTC 契约，规则 42）。
- * 审计 F2：域 DDL created_at/updated_at DEFAULT datetime('now','localtime') 违反「库内 UTC」——
+ * 守护：域 schema DDL 零 localtime（库内 UTC 契约，规则 42）。
+ * 审计 域 DDL created_at/updated_at DEFAULT datetime('now','localtime') 违反「库内 UTC」——
  * 生产 Worker TZ=UTC 掩盖，非 UTC 环境（本地 dev）时间域陷阱（写入 UTC 读 localtime 差 8h）。
  * 修复：全站 schema DDL + 业务写入点 + 配套查询 localtime→UTC（rate_limits 窗口自洽域除外）。
  * 变异：任一 schema.js 的 created_at DEFAULT 加回 datetime('now','localtime') → 红。

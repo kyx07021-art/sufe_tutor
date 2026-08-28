@@ -21,7 +21,7 @@ test('dist/_worker.js size > 100KB, no source-relative imports, bundle markers p
   for (const bad of ['from "./server/', 'from "./src/', "from './server/", "from './src/"]) {
     assert.ok(!src.includes(bad), `must not contain ${bad}`);
   }
-  assert.ok(src.includes('worker_default'), 'bundle markers missing'); // S0-22: injectManifest/versionedBase removed; worker_default is the sole esbuild default-export marker
+  assert.ok(src.includes('worker_default'), 'bundle markers missing'); // injectManifest/versionedBase removed; worker_default is the sole esbuild default-export marker
 });
 
 test('esbuild write:false compiles _worker.js to a complete output file', async () => {

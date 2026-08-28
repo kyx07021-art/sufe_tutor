@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { productionConfigChecks, productionReady, notReadyResponse } from '../server/startup.js';
+import { productionConfigChecks, productionReady, notReadyResponse } from '../src/server/core/startup.js';
 import { LEGACY_ADMIN_PASSWORD } from '../src/server/core/legacy-credentials.js';
 
 const PROD = { CF_PAGES_URL: 'https://sufe-tutor.pages.dev' };
@@ -14,7 +14,7 @@ const PROD = { CF_PAGES_URL: 'https://sufe-tutor.pages.dev' };
 const goodSecrets = {
   ...PROD,
   LOG_ENCRYPT_KEY: 'TExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEw=', // 32 字节合法 base64 占位（非真实密钥）
-  FIELD_ENC_KEY: 'RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkY=', // 32 字节合法 base64（Q-2a-F4 Gate 校验可导入性；非真实密钥）
+  FIELD_ENC_KEY: 'RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkY=', // 32 字节合法 base64（Gate 校验可导入性；非真实密钥）
   FIELD_ENC_KEY_OLD: 'OLD_FIELD_ENC_KEY_0000000000000000000000',
   LOG_ENCRYPT_KEY_OLD: 'OLD_LOG_ENCRYPT_KEY_0000000000000000000000',
   SMS_OTP_TEMPLATE_CODE: 'sms-template-code',

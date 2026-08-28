@@ -1,15 +1,15 @@
 /**
  * 文本审核咽喉 —— 全站自由文本字段统一审核入口（v1.5.0 起 fail-closed）
  *
- * L1 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
- * L2 语义层（外接必配）：DeepSeek chat/completions（OpenAI 兼容）判断自由文本是否含可定位住址描述
- *   （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
+ * 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
+ * 语义层（外接必配）：DeepSeek chat/completions（OpenAI 兼容）判断自由文本是否含可定位住址描述
+ * （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
  *
  * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
- * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 L1。
+ * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 。
  */
 import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from '../../shared/config.js';
-import { getSecret } from '../../../server/secrets.js';
+import { getSecret } from './secrets.js';
 import { safeJsonObject } from './json.js'; // JSON deserialization single-point
 
 let AUDIT_ENV = null;
@@ -17,11 +17,11 @@ let AUDIT_ENV = null;
 export function bindTextAuditEnv(env) { AUDIT_ENV = env; }
 
 // ============================================================
-// L1 规则层
+// 规则层
 // ============================================================
 // 数字谐音后缀表（用户实证「2788好」——「号」写成谐音字绕过门控）：好/昊/豪/浩/耗/壕
 const HOU_HARMONY = '号好昊豪浩耗壕';
-// Z-2-F8：捕获组 1 = 完整数字串——匹配后 JS 排除 4 位 19xx/20xx 年份（「2019好老师」等合法年份+
+// 捕获组 1 = 完整数字串——匹配后 JS 排除 4 位 19xx/20xx 年份（「2019好老师」等合法年份+
 // 普通形容词不再误判；原正则命中任意 ≥2 位数字接谐音字即拦）。(?!线) 同 ADDRESS_GUARD：
 // 地铁/公交「十二号线」不误伤；g 标志供 matchAll 逐命中排除
 const HARMONIC_GUARD = new RegExp(
@@ -35,7 +35,7 @@ function isYearLike(numStr) {
 }
 
 // ============================================================
-// L2 语义层（v1.5.0：必配，fail-closed）
+// 语义层（v1.5.0：必配，fail-closed）
 // ============================================================
 const AUDIT_TIMEOUT_MS = TEXT_AUDIT.TIMEOUT_MS; // 超时 = 拒绝写入（不再 fail-open）
 const auditModel = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_MODEL') || '').trim() || TEXT_AUDIT.MODEL;
@@ -99,7 +99,7 @@ async function auditSemantic(text) {
 export async function auditFreeText(text) {
   const s = String(text || '').trim();
   if (!s) return { ok: true, layer: 'rule' }; // 空值放行（调用方自有必填校验）
-  // Z-2-F8：谐音命中逐条排除 4 位 19xx/20xx 年份（任一非年份命中即拦——多命中场景不漏）
+  // 谐音命中逐条排除 4 位 19xx/20xx 年份（任一非年份命中即拦——多命中场景不漏）
   const harmonicHits = [...s.matchAll(HARMONIC_GUARD)];
   if (ADDRESS_GUARD.test(s) || harmonicHits.some(m => !isYearLike(m[1]))) {
     return { ok: false, layer: 'rule', reason: 'ADDRESS_TOO_DETAILED' };

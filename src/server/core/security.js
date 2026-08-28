@@ -35,7 +35,7 @@ export async function authUser(db, req) {
   const p = (async () => {
     const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,u.deactivated,s.expires_at AS token_expires
       FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
-    // Q-2a-F6: 注销账户若残留会话（半程注销/异常状态），令牌路径与登录路径判定必须一致——
+    // 注销账户若残留会话（半程注销/异常状态），令牌路径与登录路径判定必须一致——
     // 登录路径（handleLogin）查 deactivated，authUser 只查 banned 会口径分裂放行死账户。
     if (!u || u.banned || u.deactivated) return null;
     const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
@@ -82,7 +82,7 @@ const rlSweep = now => {
   if (RL.hits.size < RATE_LIMITS.sweepSize) return;
   for (const [k, v] of RL.hits) if (v.reset < now) RL.hits.delete(k);
   for (const [k, until] of RL.blocked) if (until < now) RL.blocked.delete(k);
-  // Z-1-F5：strikes 未达封禁阈值的 IP 三元组随攻击 IP 累积，sweep 漏清致 isolate 内内存膨胀
+  // strikes 未达封禁阈值的 IP 三元组随攻击 IP 累积，sweep 漏清致 isolate 内内存膨胀
   for (const [k, s] of RL.strikes) if (s.reset < now) RL.strikes.delete(k);
 };
 
@@ -94,7 +94,7 @@ const rlBump = (key, limit, windowMs, now) => {
 };
 
 // 内存三振（与 D1 rlStrikeD1 同窗口语义：strike.windowMs 内满 strike.count 次 → 封 block.windowMs）
-// PA-2-F8：已封禁 IP 直接短路（不累计 strikes、不重置 block deadline）——否则认证路由对每个
+// 已封禁 IP 直接短路（不累计 strikes、不重置 block deadline）——否则认证路由对每个
 // 429 都调 authRateBlock → rlStrike，每满 strike.count 次就把 block 续期到一个全新窗口，
 // 重试循环自我延续锁死（实证：并发 agent 打满登录桶后纯 D1 过期永不解除，需清桶+重部署才恢复）
 const rlStrike = (ip, now) => {
@@ -111,8 +111,8 @@ const rlStrike = (ip, now) => {
 };
 
 // 双写限流：内存 + D1 各自独立计数，两者都放行才算过。
-//  - D1 失败（写/读抛错）→ 只以内存为准（降级不 fail-open，网安 N-06）
-//  - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 N-08）
+// - D1 失败（写/读抛错）→ 只以内存为准（降级不 fail-open，网安 ）
+// - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 ）
 // upsert + 回读合成单次 db.batch（写路径 2 D1 → 1 D1；与 authRateBatch 同款 batch 形状，
 // r[1].results[0].n 判读同 verdict 口径）
 const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) => {
@@ -128,7 +128,7 @@ const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) =>
   return true;
 };
 
-// rate_limits 过期行清理节流（每分钟至多一次；N-07 桶已按 IP 上界，清理仅兜底）
+// rate_limits 过期行清理节流（每分钟至多一次；桶已按 IP 上界，清理仅兜底）
 let lastRateCleanup = 0;
 const maybeCleanRateLimits = async (db, now) => {
   if (now - lastRateCleanup < SECURITY.RATE_CLEANUP_THROTTLE_MS) return;
@@ -137,7 +137,7 @@ const maybeCleanRateLimits = async (db, now) => {
 };
 
 // D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行。
-// D1 异常不阻断请求（内存三振已生效），网安 N-06 同口径。
+// D1 异常不阻断请求（内存三振已生效），网安 同口径。
 // 本函数只被 authRateBlock 调用（认证路径的 block 行由 authRateBatch 读取 → 跨实例生效）；
 // rateGate 的非认证路径三振走纯内存（热路径零 D1 往返，非认证写面已有 rlDual 的 D1 写限流兜底，
 // 跨实例硬封禁仅认证路径需要）。
@@ -150,7 +150,7 @@ const rateWindowArg = windowMs => '+' + Math.round(windowMs / 1000) + ' seconds'
 
 const rlStrikeD1 = async (db, ip) => {
   try {
-    // PA-2-F8：D1 block 行已存活则短路——INSERT OR REPLACE 会每次重写 reset_at 到全新窗口，
+    // D1 block 行已存活则短路——INSERT OR REPLACE 会每次重写 reset_at 到全新窗口，
     // 认证路由对每个 429 都调 authRateBlock → 并发/持续重试让 block 行永不过期（跨实例自我延续）。
     const live = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]);
     if (live) return;
@@ -168,8 +168,8 @@ const rlStrikeD1 = async (db, ip) => {
  * 限流闸门（_worker 每请求调用；超限一律 429，细节不回显）。
  * 全局限流走内存（最热路径零额外延迟）；写/用户名探测走内存+D1 双写（跨实例生效、D1 失败降级内存）。
  * 认证路由（login/register/reauth）的写+认证限流已下沉到路由内 authRateBatch（与取数同批 1 次往返），
- * 此处只留全局内存闸（B1：把登录路径的 D1 往返从 5 次砍到路由批内的 1 次）。
- * 登录桶按 IP 计数（网安 N-07：原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits）。
+ * 此处只留全局内存闸（把登录路径的 D1 往返从 5 次砍到路由批内的 1 次）。
+ * 登录桶按 IP 计数（网安 原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits）。
  * 用户名探测为软限制，不记三振。
  */
 export async function rateGate(ip, p, method, body, now, db) { // body 参数预留（限流策略升级用），当前未消费
@@ -182,14 +182,14 @@ export async function rateGate(ip, p, method, body, now, db) { // body 参数预
     if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); return false; } // 同上：内存三振即可
   }
   if (p === '/api/auth/check' && !(await rlDual(db, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, `c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now))) return false;
-  // Q-2a-F3: OTP 请求专用 per-IP 桶——防短信/邮件轰炸成本放大（换号打真实投递通道）。
+  // OTP 请求专用 per-IP 桶——防短信/邮件轰炸成本放大（换号打真实投递通道）。
   // 桶键 o:${ip} 与 OTP 单日桶（otp:<channel>:<hash>）及 w:/c: 写/探测桶零冲突。
   if (p === '/api/auth/otp/request' && !(await rlDual(db, RATE_LIMITS.otp.limit, RATE_LIMITS.otp.windowMs, `o:${ip}`, RATE_LIMITS.otp.limit, RATE_LIMITS.otp.windowMs, now))) return false;
   return true;
 }
 
 // ============================================================
-// 认证路由组合限流（B1）：封禁查 + 写限流 + 认证限流 + 调用方附加查询 一次 db.batch（1 次往返）。
+// 认证路由组合限流（）：封禁查 + 写限流 + 认证限流 + 调用方附加查询 一次 db.batch（1 次往返）。
 // 用法：const gate = authRateBatch(db, ip, 'login', [extraStmt]);
 //      let r; try { r = await db.batch(gate.stmts); } catch { return 429; }  // D1 异常保守拒绝
 //      if (gate.verdict(r)) { await authRateBlock(db, ip); return 429; }
@@ -214,7 +214,7 @@ export function authRateBatch(db, ip, kind, extraStmts = []) {
     verdict(results) {
       const blk = results[0] && results[0].results && results[0].results.length ? 1 : 0;
       const aN = results[3] && results[3].results && results[3].results[0] ? results[3].results[0].n : 0;
-      // Q-2a-F2: 认证路径不再判写桶 w:ip（wN > write.limit）——活跃用户（高频聊天/共享 NAT）
+      // 认证路径不再判写桶 w:ip（wN > write.limit）——活跃用户（高频聊天/共享 NAT）
       // 写满 60/min 后登录被误伤 429 + 三振封禁。认证限流由 authKey 独立桶承担。
       // 死 SELECT（原 index 2 读 w:ip）已在回滚重做时删除（verdict 不消费它）。
       return blk || aN > cfg.limit;

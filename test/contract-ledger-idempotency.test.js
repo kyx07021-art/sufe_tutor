@@ -1,5 +1,5 @@
 /**
- * Z-5-F3 回归：合同台账跨秒幂等（幂等键 = contract_id + body_hash，与 createdAt 解耦）。
+ * 回归：合同台账跨秒幂等（幂等键 = contract_id + body_hash，与 createdAt 解耦）。
  *
  * 原缺陷：content_hash 含 toDbTime()（UTC 秒级）→ 签约 500 后跨秒重试（或并发抢签败者重试）
  * 同正文算出不同 content_hash → NOT EXISTS(content_hash) 判定不命中 → 同正文重复挂链。

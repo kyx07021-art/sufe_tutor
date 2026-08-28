@@ -1,21 +1,21 @@
 /**
  * S6-C4 feedbacks anonymous identity model (server side).
  *
- * New-site interface contract (docs/interfaces.md §15, M5 feedback float window):
- *   POST /api/feedbacks      - anonymous submit: body { kind: bug|suggestion|report, title,
- *                               content, contact?, attrs{} }; clientToken identifies the
- *                               anonymous author (X-Client-Token header or body.clientToken).
- *   GET  /api/feedbacks/mine - anonymous tickets: clientToken via header or query.
- *   Logged-in users use the same endpoints; user id takes priority over clientToken.
+ * New-site interface contract (docs/interfaces.md , feedback float window):
+ * POST /api/feedbacks - anonymous submit: body { kind: bug|suggestion|report, title,
+ * content, contact?, attrs{} }; clientToken identifies the
+ * anonymous author (X-Client-Token header or body.clientToken).
+ * GET /api/feedbacks/mine - anonymous tickets: clientToken via header or query.
+ * Logged-in users use the same endpoints; user id takes priority over clientToken.
  *
  * Behaviors locked here (revert any of these and the corresponding test turns red):
- *   M1  anonymous rows store client_token with NULL user_id (revert = drop client_token from INSERT).
- *   M2  anonymous submit without clientToken -> 400 (revert = drop the clientToken check).
- *   M3  kind whitelist bug|suggestion|report; report accepted verbatim (revert = whitelist complaint).
- *   M4  subject is stored only for report (revert = subject condition uses kind==='complaint').
- *   M5  admin list keeps anonymous rows (revert = INNER JOIN drops them).
- *   M6  report resolution uses FEEDBACK_COMPLAINT_RESOLVED receipt (revert = kind==='complaint').
- *   M7  anonymous my-feedbacks requires clientToken (revert = drop the requirement -> empty/200).
+ * anonymous rows store client_token with NULL user_id (revert = drop client_token from INSERT).
+ * anonymous submit without clientToken -> 400 (revert = drop the clientToken check).
+ * kind whitelist bug|suggestion|report; report accepted verbatim (revert = whitelist complaint).
+ * subject is stored only for report (revert = subject condition uses kind==='complaint').
+ * admin list keeps anonymous rows (revert = INNER JOIN drops them).
+ * report resolution uses FEEDBACK_COMPLAINT_RESOLVED receipt (revert = kind==='complaint').
+ * anonymous my-feedbacks requires clientToken (revert = drop the requirement -> empty/200).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

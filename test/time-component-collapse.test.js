@@ -1,5 +1,5 @@
 /**
- * 需求七·第143条 + 需求四十四 · 时间组件布局（B4：直接 import contract actions-draft）。
+ * 需求七·第143条 + 需求四十四 · 时间组件布局（直接 import contract actions-draft）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

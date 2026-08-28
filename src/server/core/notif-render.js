@@ -1,15 +1,14 @@
 /**
- * 通知渲染注册表（I-26 服务端渲染单源）
+ * 通知渲染注册表（服务端渲染单源）
  *
- * I-26（docs/interfaces.md §19）要求 GET /api/notifications 每行携带
- * title/content/avatar_src 渲染字段——新前端不再自行渲染，数据即文案
- * （NotificationCard/NotificationDetail 直接消费 title/content）。
+ * docs/interfaces.md 要求 GET /api/notifications 每行携带
+ * title/content/avatar_src 渲染字段——前端不再自行渲染，数据即文案。
  * 本模块是服务端渲染的唯一实现，中文文案单源于此：
- *   - NOTIF_RENDER: type -> { title, content }（value 为 {key} 模板串或函数）
- *   - AVATAR_SRC:   type -> 'user' | 'system'（avatar_src 分类，也是
- *     blockSystemNotifications 过滤判定的唯一来源）
- *   - renderNotification(type, params) -> { title, content, avatar_src }
- *   - renderCompletenessGap() -> 已注册 NOTIFY_TYPES 键中缺渲染条目/分类的清单
+ * - NOTIF_RENDER: type -> { title, content }（value 为 {key} 模板串或函数）
+ * - AVATAR_SRC: type -> 'user' | 'system'（avatar_src 分类，也是
+ * blockSystemNotifications 过滤判定的唯一来源）
+ * - renderNotification(type, params) -> { title, content, avatar_src }
+ * - renderCompletenessGap() -> 已注册 NOTIFY_TYPES 键中缺渲染条目/分类的清单
  *
  * 类型注册表校验（D4：type ∈ NOTIFY_TYPES + params 键 ⊆ shape）仍由
  * shared/codes.js NOTIFY_TYPES 承担（notifyUser 写入侧），本模块只负责读出渲染。

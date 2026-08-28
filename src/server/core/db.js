@@ -1,29 +1,29 @@
 /**
- * Database initialization and migration orchestration (architecture v2, orchestration-only since V-1-4b).
+ * Database initialization and migration orchestration (architecture v2, orchestration-only since ).
  *
  * This file carries no business DDL / ensureColumns / domain migration SQL — all of it lives in
  * src/server/domains/<domain>/schema.js and is invoked here in ordered stages.
  *
- * Assembly contract (F1 — a domain schema that is imported but never staged is a hidden breakage):
+ * Assembly contract (— a domain schema that is imported but never staged is a hidden breakage):
  * every domain under src/server/domains/ must be registered in SCHEMAS below AND appear in
  * CREATE_ORDER / ENSURE_ORDER / POST_ENSURE_ORDER. New-site S1-S6 domains map to:
- *   S1 auth      -> authSchema      (users / auth_sessions / rate_limits / invite_codes)
- *   S2 chat      -> chatSchema      (conversations / messages / uploads + temp conversation columns)
- *   S3 demand    -> demandSchema    (single-subject student_demands)
- *   S4 teacher   -> teacherSchema   (teacher_profiles / teacher_verifications + experience_years / teacher_name)
- *   S5 contract  -> contractSchema  (standalone contracts table, replaces signing_contracts)
- *   S6 support   -> reviews / posts / complaints / settings / admin schema modules (awards = offline stub,
- *                  kept registered so archtest "backend domain self-ownership" stays satisfied)
+ * S1 auth -> authSchema (users / auth_sessions / rate_limits / invite_codes)
+ * S2 chat -> chatSchema (conversations / messages / uploads + temp conversation columns)
+ * S3 demand -> demandSchema (single-subject student_demands)
+ * S4 teacher -> teacherSchema (teacher_profiles / teacher_verifications + experience_years / teacher_name)
+ * S5 contract -> contractSchema (standalone contracts table, replaces signing_contracts)
+ * S6 support -> reviews / posts / complaints / settings / admin schema modules (awards = offline stub,
+ * kept registered so archtest "backend domain self-ownership" stays satisfied)
  */
 import { ensureColumns } from './util.js';
 import { bindCryptoEnv } from './crypto.js';
-import { getSecret } from '../../../server/secrets.js';
-import { initMetrics } from '../../../server/telemetry.js';
+import { getSecret } from './secrets.js';
+import { initMetrics } from './telemetry.js';
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js';
 import { initDangerCaps } from './danger-ops.js';
 import { initOtpTable, bindOtpEnv } from './otp.js';
-import { bindChsiEnv } from '../../../server/chsi.js';
+import { bindChsiEnv } from './chsi.js';
 
 import * as authSchema from '../domains/auth/schema.js';
 import * as teacherSchema from '../domains/teacher/schema.js';
@@ -65,12 +65,12 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // initDb uses the schema version gate: a cold isolate's first hit sends one batch
 // (CREATE schema_meta idempotent + SELECT version); if already current it skips the
 // full migration (~13-20 D1 round-trips would blow the cold-start budget).
-// Discipline (B1): any schema change — create / add-column (incl. ensureColumns column additions) /
+// Discipline (): any schema change — create / add-column (incl. ensureColumns column additions) /
 // add-index-constraint / default change / migration — MUST bump SCHEMA_VERSION +1 in the same change;
 // otherwise the version gate skips the full migration (including ensureColumns) and the column is never
 // added on live DBs already at the current version (three production incidents).
 // ============================================================
-export const SCHEMA_VERSION = 20; // S5: contracts standalone table replaces signing_contracts (14 = S3-2 demand single-subject model; 15 = S5 standalone; 16 = S4-01 teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + S1-15..19 notification prefs blockSystemNotifications/notifyBroadcastMuted + intents/pushes backfill removal; 18 = PA-1d-F4 teacher_profiles philosophy column; 19 = PA-3-F2 reviews (teacher_user_id,status) index; 20 = PA-3-F3 posts idx_posts_created + notifications (user_id,id DESC) index reshape)
+export const SCHEMA_VERSION = 20; // S5: contracts standalone table replaces signing_contracts (14 = demand single-subject model; 15 = S5 standalone; 16 = teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + ..19 notification prefs blockSystemNotifications/notifyBroadcastMuted + intents/pushes backfill removal; 18 = teacher_profiles philosophy column; 19 = reviews (teacher_user_id,status) index; 20 = posts idx_posts_created + notifications (user_id,id DESC) index reshape)
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // field encryption keys (FIELD_ENC_KEY falls back to LOG_ENCRYPT_KEY); re-derived on env change
@@ -126,7 +126,7 @@ async function runFullMigration(db, env) {
 
   // Stage 5: non-domain tables (notifications / danger-caps / OTP) — must precede postEnsure,
   // the auth "old-admin purge" reads notifications etc. which need to exist by then.
-  // data_versions 表（客户端数据版本协议）随 PA-1i-F1 删除——新前端对该协议零消费。
+  // data_versions 表（客户端数据版本协议）已删除。
   await initNotifyTable(db);
   await initDangerCaps(db);
   await initOtpTable(db);

@@ -1,5 +1,5 @@
 /**
- * Z-13-F2：ui-bindings / seg-input 行为测试——guardSegmentKey 键守卫（非数字拦截 +
+ * ui-bindings / seg-input 行为测试——guardSegmentKey 键守卫（非数字拦截 +
  * 段间方向键迁移）、guardSegmentBeforeInput（粘贴/拖放/非数字 insertText 拦截）、
  * onSegmentInput（数字清洗 + maxlen 截断）、segmentSibling（相邻段定位）、
  * bindSegmentInputs（幂等绑定）、installFormBindings（一次性安装 + MutationObserver

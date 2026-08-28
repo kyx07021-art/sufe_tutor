@@ -1,5 +1,5 @@
 /**
- * 需求十二 · 聊天气泡外观优化（B4：直接 import theme/chat render ESM）。
+ * 需求十二 · 聊天气泡外观优化（直接 import theme/chat render ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

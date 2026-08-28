@@ -1,24 +1,24 @@
 /**
- * S2-T8: temp conversation state machine — full lifecycle + I-23 variants + I-17/I-18/I-15 exposure.
+ * S2-T8: temp conversation state machine — full lifecycle + variants + //exposure.
  *
- * Covers (interfaces.md §17/§19, authoritative shapes):
- *   I-23  POST /api/conversations/temp { targetUserId, firstMessage? } →
- *         { conversationId, status, tempStatus, tempInitiatorId, iAmInitiator, quota }
- *   I-24  state machine: init (initiator-only, quota 1) → first message atomically → sent
- *         (receiver sees + red dot + can reply, initiator over-quota) → receiver reply →
- *         formal (temp_status NULL, temp_initiator retained = wasTemp).
- *   I-17  list: init only initiator sees / sent both see; rows carry tempStatus/tempInitiatorId/quota/iAmInitiator.
- *   I-18  detail: init non-initiator → 404; conversation object carries tempStatus/tempInitiatorId.
- *   I-15  my-relations: relations carry tempStatus/tempInitiatorId.
+ * Covers (interfaces.md /, authoritative shapes):
+ * POST /api/conversations/temp { targetUserId, firstMessage? } →
+ * { conversationId, status, tempStatus, tempInitiatorId, iAmInitiator, quota }
+ * state machine: init (initiator-only, quota 1) → first message atomically → sent
+ * (receiver sees + red dot + can reply, initiator over-quota) → receiver reply →
+ * formal (temp_status NULL, temp_initiator retained = wasTemp).
+ * list: init only initiator sees / sent both see; rows carry tempStatus/tempInitiatorId/quota/iAmInitiator.
+ * detail: init non-initiator → 404; conversation object carries tempStatus/tempInitiatorId.
+ * my-relations: relations carry tempStatus/tempInitiatorId.
  *
- * The initiator-quota 409, I-23 target-validation 400/404/401 and firstMessage-length negatives live
- * in temp-conversation-quota.test.js; temp close (I-16) lives in temp-close.test.js.
+ * The initiator-quota 409, target-validation 400/404/401 and firstMessage-length negatives live
+ * in temp-conversation-quota.test.js; temp close () lives in temp-close.test.js.
  *
  * Notes:
- *   - initDb's seedAdmins occupies users id=1 — every seeded id is taken from the INSERT
- *     return value (G3: fixtures match production shape), never hardcoded.
- *   - The d1Shim / seed patterns are verbatim from test/conversation-close.test.js and
- *     test/chat-send-batch.test.js (shared infra).
+ * - initDb's seedAdmins occupies users id=1 — every seeded id is taken from the INSERT
+ * return value (fixtures match production shape), never hardcoded.
+ * - The d1Shim / seed patterns are verbatim from test/conversation-close.test.js and
+ * test/chat-send-batch.test.js (shared infra).
  */
 import { test, describe } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -96,10 +96,10 @@ describe('S2 temp conversation state machine', () => {
     assert.equal(c.quota, 1);
     assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.INIT);
 
-    // 2) I-18: non-initiator (teacher) reading an init temp → 404 (existence-leak prevention).
+    // 2) non-initiator (teacher) reading an init temp → 404 (existence-leak prevention).
     assert.equal((await handleGetMessages(db, convId, msgUrl(convId), reqOf(t1.token))).status, 404);
 
-    // 3) I-17: init visible to the initiator only, with temp fields + quota/quotaRemaining 1.
+    // 3) init visible to the initiator only, with temp fields + quota/quotaRemaining 1.
     const s1List = (await (await handleGetConversations(db, listUrl(), reqOf(s1.token))).json()).conversations;
     const initRow = s1List.find(x => x.conversationId === convId);
     assert.ok(initRow, 'initiator sees the init conversation (0 messages still shown)');
@@ -111,7 +111,7 @@ describe('S2 temp conversation state machine', () => {
     const t1ListInit = (await (await handleGetConversations(db, listUrl(), reqOf(t1.token))).json()).conversations;
     assert.equal(t1ListInit.find(x => x.conversationId === convId), undefined, 'non-initiator does NOT see the init conversation');
 
-    // 4) Initiator's first message advances init→sent atomically (I-24): tempQuota 0, convStatus temp.
+    // 4) Initiator's first message advances init→sent atomically (): tempQuota 0, convStatus temp.
     const first = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'hi, I need a tutor' }] }, reqOf(s1.token));
     assert.equal(first.status, 201);
     const f = await first.json();
@@ -121,7 +121,7 @@ describe('S2 temp conversation state machine', () => {
     assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.SENT);
     assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id=?').get(convId).c, 1, 'first message landed');
 
-    // 5) I-17: sent visible to both; initiator quotaRemaining 0, receiver quotaRemaining 1 + red dot (unread 1).
+    // 5) sent visible to both; initiator quotaRemaining 0, receiver quotaRemaining 1 + red dot (unread 1).
     const t1List = (await (await handleGetConversations(db, listUrl(), reqOf(t1.token))).json()).conversations;
     const sentRow = t1List.find(x => x.conversationId === convId);
     assert.ok(sentRow, 'receiver sees the sent conversation');
@@ -147,7 +147,7 @@ describe('S2 temp conversation state machine', () => {
     assert.equal((await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'second from initiator' }] }, reqOf(s1.token))).status, 201);
     assert.equal((await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'second from receiver' }] }, reqOf(t1.token))).status, 201);
 
-    // 8) I-18 detail exposes temp fields: formalized → tempStatus null, tempInitiatorId retained; 4 messages total.
+    // 8) detail exposes temp fields: formalized → tempStatus null, tempInitiatorId retained; 4 messages total.
     const detail = await (await handleGetMessages(db, convId, msgUrl(convId), reqOf(s1.token))).json();
     assert.equal(detail.conversation.tempStatus, null);
     assert.equal(detail.conversation.tempInitiatorId, s1.uid);

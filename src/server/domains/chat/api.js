@@ -7,7 +7,7 @@
  */
 import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
-import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
+import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 ）
 import { MSG } from '../../../shared/codes.js';
 import { STATUS, ROLES, TEMP_STATUS } from '../../../shared/enums.js';
 import { LIMITS } from '../../../shared/config.js';
@@ -17,23 +17,22 @@ import {
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
   dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys,
   dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation,
-  dbGetUserById, dbUpsertConversation,
-} from '../../../../server/db.js';
-// S2-T3/T6: temp conversation repo functions. Imported directly from the domain repo (not the shim)
-// because the shim has not re-exported them yet — same direct-repo pattern as contract/api.js.
-import { dbCreateTempConversation, dbPrepareTempAdvance, dbPrepareTempMessageInsert, dbPrepareTempUploadDelete } from './repo.js';
+  dbUpsertConversation,
+  dbCreateTempConversation, dbPrepareTempAdvance, dbPrepareTempMessageInsert, dbPrepareTempUploadDelete,
+} from './repo.js';
+import { dbGetUserById } from '../auth/repo.js';
 import { logEvent } from '../../core/log.js';
-import { notifyUser } from '../../core/notify.js'; // AI-1：结束关系通知（CONVERSATION_CLOSED 等）
-import { confirmDangerOtp } from '../../core/danger-ops.js'; // AI-1：危险操作二次认证（结束关系同撤销合同口径 F-05）
+import { notifyUser } from '../../core/notify.js'; // 结束关系通知（CONVERSATION_CLOSED 等）
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // 危险操作二次认证（结束关系同撤销合同口径 F-05）
 
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
 
-// AI-1：会话参与方 helper（通知对端判定 + 名字取用；conv 经 dbGetConversationWithNames 带双方名）
+// 会话参与方 helper（通知对端判定 + 名字取用；conv 经 dbGetConversationWithNames 带双方名）
 const otherSide = (conv, userId) => conv && (userId === conv.student_user_id ? conv.teacher_user_id : conv.student_user_id);
 const nameOf = (conv, userId) => conv && (userId === conv.student_user_id ? conv.student_name : conv.teacher_name);
 
-// S2-T3: temp conversation send quota (I-23/I-24). For a formal conversation (temp_status NULL) returns null.
+// S2-T3: temp conversation send quota (/). For a formal conversation (temp_status NULL) returns null.
 // For a temp conversation: the initiator may send 1 message while it is 'init'; the receiver may send 1 reply
 // while it is 'sent' (which formalizes it). Anyone who already used their side gets 0.
 const quotaOf = (conv, meId) => {
@@ -44,7 +43,7 @@ const quotaOf = (conv, meId) => {
 
 // 会话操作公共关口：取会话行 + 参与方校验（会话双方学生/教师）。
 // 不存在或非参与方统一 404（不向外透露会话存在性）；失败返 { err: Response }，成功返 { conv }
-// S2-T5 (I-18): temp 'init' conversation is hidden from the non-initiator — 404 with the same
+// S2-T5 (): temp 'init' conversation is hidden from the non-initiator — 404 with the same
 // CONVERSATION_NOT_FOUND so no existence is leaked. Also blocks non-initiator sends to an init temp.
 async function loadConversationFor(db, conversationId, userId) {
   const conv = await dbGetConversationById(db, conversationId);
@@ -55,7 +54,7 @@ async function loadConversationFor(db, conversationId, userId) {
   return { conv };
 }
 
-// POST /api/conversations/:id/close — end relationship (AI-1): conversation active→closed + cascading
+// POST /api/conversations/:id/close — end relationship (): conversation active→closed + cascading
 // contract revoke. S5 standalone contracts: the signing layer is gone; S3 single-subject: no demand
 // release (see chat/repo.js dbCloseConversationCascade). Signed contracts are retained as historical
 // evidence (A5 terminal-state gate). capToken second-factor auth required (dangerous operation).
@@ -67,7 +66,7 @@ export async function handleCloseConversation(db, conversationId, body, req) {
   const g = await loadConversationFor(db, conversationId, me.id); // 参与方校验 + 404 不泄露存在性
   if (g.err) return g.err;
   if (g.conv.status !== STATUS.ACTIVE) return json({ ok: true, alreadyClosed: true }); // 幂等短路，不消耗 capToken
-  // S2-T7 (I-16): temp close = delete the conversation row (FK cascade removes its messages) + ZERO
+  // S2-T7 (): temp close = delete the conversation row (FK cascade removes its messages) + ZERO
   // notification. capToken still required (same as formal). No cascade, no notifyUser.
   if (g.conv.temp_status) {
     if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
@@ -109,17 +108,17 @@ const fileDataBlocked = content => {
   const c = String(content).toLowerCase();
   return c.startsWith('data:text/html') || c.startsWith('data:image/svg')
       || c.startsWith('data:application/xhtml+xml') || c.startsWith('data:text/xml') || c.startsWith('data:application/xml')
-      // Q-2d-F4：active-content 类补全（javascript/ecmascript data URL 可直接执行，拒绝投递）
+      // active-content 类补全（javascript/ecmascript data URL 可直接执行，拒绝投递）
       || c.startsWith('data:application/javascript') || c.startsWith('data:application/x-javascript')
       || c.startsWith('data:text/javascript') || c.startsWith('data:application/ecmascript') || c.startsWith('data:text/ecmascript');
 };
 
-// Q-2d-F4：附件文件名净化——剥离路径分隔（/、\，防 ../ 穿越/路径伪装）与控制字符（\x00-\x1f）
+// 附件文件名净化——剥离路径分隔（/、\，防 ../ 穿越/路径伪装）与控制字符（\x00-\x1f）
 const sanitizeFileName = v => String(v || '')
   .replace(/[\\/\x00-\x1f]/g, '_')
   .slice(0, LIMITS.FILE_NAME_MAX);
 
-// S2-T3 (I-23): POST /api/conversations/temp — create or reuse a temp conversation.
+// S2-T3 (): POST /api/conversations/temp — create or reuse a temp conversation.
 //   Body { targetUserId, firstMessage? }. Response { conversationId, status, tempStatus, tempInitiatorId, iAmInitiator, quota }.
 //   - me.role student → tuple (me.id, target); teacher → tuple (target, me.id). Target must exist,
 //     be the opposite role, not self, not banned/deactivated → else 404 CONVERSATION_NOT_FOUND.
@@ -157,7 +156,7 @@ export async function handleCreateTempConversation(db, body, req) {
       return json({ conversationId: existing.id, status: STATUS.ACTIVE, tempStatus: null, tempInitiatorId: null, iAmInitiator: false, quota: null });
     }
     // Temp conversation already exists: reuse in its current state.
-    // I-24/I-18: init is visible only to its initiator — a non-initiator must not learn the
+    // / init is visible only to its initiator — a non-initiator must not learn the
     // session exists (same rule as the send path above). The tuple is UNIQUE, so a fresh create
     // would collide anyway; 404 surfaces "no usable conversation" without leaking the init row.
     if (existing.temp_status === TEMP_STATUS.INIT && existing.temp_initiator_user_id !== me.id) {
@@ -182,7 +181,7 @@ export async function handleCreateTempConversation(db, body, req) {
   const firstMessage = String(body && body.firstMessage != null ? body.firstMessage : '').trim();
   if (firstMessage) {
     if (firstMessage.length > LIMITS.TEMP_FIRST_MSG_MAX) return errorMsg('INVALID_PARAMS', 400);
-    // Atomic: first message + init→sent advance in the SAME db.batch (I-24 first-message path).
+    // Atomic: first message + init→sent advance in the SAME db.batch (first-message path).
     // The message insert is CAS-guarded (dbPrepareTempMessageInsert) so it only lands while the row is
     // still 'init'; a concurrent duplicate create that already moved it to 'sent' wins the advance and
     // this insert no-ops — idempotent reuse, not an error.
@@ -210,7 +209,7 @@ export async function handleGetConversations(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const conversations = await dbGetMyConversations(db, me.id);
-  // I-17 (interfaces.md §19): camelCase contract row. The peer is the opposite party of the
+  // (interfaces.md ): camelCase contract row. The peer is the opposite party of the
   // two-party tuple (one student + one teacher); otherName is the peer display name (teacher_name
   // preferred when the peer is a teacher, username fallback via the repo SQL) and avatar the peer
   // avatar. The raw snake_case columns are intentionally not spread — the API surface is the contract.
@@ -231,7 +230,7 @@ export async function handleGetConversations(db, url, req) {
       tempStatus: c.temp_status || null,
       tempInitiatorId: c.temp_initiator_user_id || null,
       iAmInitiator: !!c.temp_initiator_user_id && c.temp_initiator_user_id === me.id,
-      // I-17 quota semantics: quota = original temp allocation (TEMP_SEND_QUOTA), quotaRemaining =
+      // quota semantics: quota = original temp allocation (TEMP_SEND_QUOTA), quotaRemaining =
       // what the current user still has (quotaOf); both null for a formal conversation.
       quota: c.temp_status ? LIMITS.TEMP_SEND_QUOTA : null,
       quotaRemaining: quotaOf({ temp_status: c.temp_status, temp_initiator_user_id: c.temp_initiator_user_id }, me.id),
@@ -239,7 +238,7 @@ export async function handleGetConversations(db, url, req) {
   }) });
 }
 
-// AI-7: unified relationship list — aggregate by two-party tuple (conversation state / last message /
+// unified relationship list — aggregate by two-party tuple (conversation state / last message /
 // latest contracts status / peer info), for the relation graph / relationship management. Read-only.
 // Peer role is derived from me.role (a conversation's two parties are always one student + one teacher).
 export async function handleGetMyRelations(db, req) {
@@ -251,7 +250,7 @@ export async function handleGetMyRelations(db, req) {
     return {
       conversationId: r.id,
       status: r.status,
-      // S2-T4 (I-15): expose temp fields on the relation object.
+      // S2-T4 (): expose temp fields on the relation object.
       tempStatus: r.temp_status || null,
       tempInitiatorId: r.temp_initiator_user_id || null,
       other: {
@@ -261,7 +260,7 @@ export async function handleGetMyRelations(db, req) {
         avatar: isStudent ? r.teacher_avatar : r.student_avatar,
       },
       last: r.last_kind ? { kind: r.last_kind, body: r.last_body || '', at: r.last_at, senderId: r.last_sender } : null,
-      // I-15: signing is the latest contracts row (or null); consumed by M4 for contract gray-out.
+      // signing is the latest contracts row (or null); consumed by for contract gray-out.
       signing: r.sc_id ? {
         id: r.sc_id, contractStatus: r.sc_contract_status, revoked: Number(r.sc_revoked),
       } : null,
@@ -269,7 +268,7 @@ export async function handleGetMyRelations(db, req) {
   }) });
 }
 
-// DELETE /api/admin/relations — admin relation purge (AI-8): delete the conversation by tuple.
+// DELETE /api/admin/relations — admin relation purge (): delete the conversation by tuple.
 // messages cascade via FK ON DELETE CASCADE (chat/schema.js MESSAGES_DDL); standalone contracts have no
 // conversation FK (S5) so they survive. S3 single-subject: demands are not released with the delete.
 // Reviews survive too (reviews FK points at users, not conversations) — public reviewed content, deleting
@@ -282,7 +281,7 @@ export async function handleAdminDeleteRelation(db, body, req) {
   if (!Number.isInteger(s) || s <= 0 || !Number.isInteger(t) || t <= 0) return errorMsg('INVALID_PARAMS', 400);
   const conv = await dbGetConversationByTuple(db, s, t);
   if (!conv) return errorMsg('CONVERSATION_NOT_FOUND', 404);
-  // P12：admin 永删关系 = 危险操作（删会话 + 级联消息/合同），须 capToken 二次认证（同 handleAdminRemoveContract 口径）
+  // admin 永删关系 = 危险操作（删会话 + 级联消息/合同），须 capToken 二次认证（同 handleAdminRemoveContract 口径）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteConversation(db, conv.id);
   await logEvent(db, { action: 'admin.relation.remove', actorUserId: admin.id, actorUsername: admin.username,
@@ -315,7 +314,7 @@ export async function handleGetMessages(db, convId, url, req) {
   }
   // 已读游标不下发（db.js 自述契约）：双方 last_read_id 属隐私，剥除再回传
   const { student_last_read_id, teacher_last_read_id, temp_status, temp_initiator_user_id, ...convPub } = g.conv;
-  // S2-T5 (I-18): expose temp fields on the detail conversation object (camelCase, raw columns stripped).
+  // S2-T5 (): expose temp fields on the detail conversation object (camelCase, raw columns stripped).
   const convOut = {
     ...convPub,
     tempStatus: temp_status || null,
@@ -333,7 +332,7 @@ export async function handleGetAttachment(db, convId, messageId, url, req) {
   if (g.err) return g.err;
   const m = await dbGetMessageAttachment(db, messageId, convId);
   if (!m) return errorMsg('CONVERSATION_NOT_FOUND', 404);
-  return json({ body: await decryptField(m.body), name: m.name || '' }); // N-05：附件密文出门解密
+  return json({ body: await decryptField(m.body), name: m.name || '' }); // 附件密文出门解密
 }
 
 // POST /api/uploads —— 文件进入暂存区即真实上传（前端 XHR upload.onprogress = 本请求进度），
@@ -350,11 +349,11 @@ export async function handleCreateUpload(db, body, req) {
   const thumbRaw = kind === 'image' ? String(body.thumb ?? '') : '';
   if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return errorMsg('FILE_TOO_LARGE');
   if (thumbRaw && fileDataBlocked(thumbRaw)) return errorMsg('FILE_TYPE_BLOCKED');
-  const name = sanitizeFileName(body.fileName); // Q-2d-F4：净化路径分隔/控制字符后落库
+  const name = sanitizeFileName(body.fileName); // 净化路径分隔/控制字符后落库
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
   if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return errorMsg('UPLOAD_STAGING_LIMIT'); // 快路径
-  // 网安 N-05：附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）；缩略图同款加密
+  // 网安 附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）；缩略图同款加密
   const contentEnc = await encryptField(content);
   const thumbEnc = thumbRaw ? await encryptField(thumbRaw) : '';
   const id = await dbCreateUpload(db, me.id, kind, contentEnc, name, thumbEnc); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
@@ -390,10 +389,10 @@ export async function handleSendMessage(db, convId, body, req) {
 
 // 批量发送——附件确认 + 文字一次 db.batch 落库（单事务）。
 // 往返口径（审计修正）：写落库 1 次往返；附件归属读经 dbGetUploads WHERE IN 一次单查（N 读 → 1，
-// 同 B5 模式），总往返 = 1 读 + 1 写批（边界受 MSG_BATCH_MAX=13 封顶）。
+// 同 模式），总往返 = 1 读 + 1 写批（边界受 MSG_BATCH_MAX=13 封顶）。
 // 校验与单条路径同口径（归属/长度），任一校验失败整批 400/404（不落半批）；db.batch 失败整体回滚。
 // INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——自持一份会加列双处漂移。
-// S2-T6 (I-24): temp conversation send-path state machine — the temp transition statement is appended
+// S2-T6 (): temp conversation send-path state machine — the temp transition statement is appended
 // to the SAME db.batch as the message inserts so the state change is atomic with the message landing.
 //   - temp_status='init': only the initiator may send (non-initiator is already 404'd by the init gate
 //     in loadConversationFor). This is the first message → advance init→sent in the same batch.
@@ -406,11 +405,11 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）+ 逐项幂等键
   const uploadIds = [];
   const seenUploads = new Set(); // 审计 C-4：重复 uploadId 整批拒绝（防同附件双消息双删 + 乐观批序错位）
-  const seenClientKeys = new Set(); // PA-1c-F2 (C-4): duplicate clientKey in one batch → 400, not a 500 on idx_messages_client_key
-  const clientKeys = batch.map(it => (it && typeof it.clientKey === 'string' ? it.clientKey.slice(0, LIMITS.CLIENT_KEY_MAX) : '')); // Q-2d-F2：空/非串视为不带键
+  const seenClientKeys = new Set(); // (C-4): duplicate clientKey in one batch → 400, not a 500 on idx_messages_client_key
+  const clientKeys = batch.map(it => (it && typeof it.clientKey === 'string' ? it.clientKey.slice(0, LIMITS.CLIENT_KEY_MAX) : '')); // 空/非串视为不带键
   for (let i = 0; i < batch.length; i++) {
     const item = batch[i];
-    const ck = clientKeys[i]; // PA-1c-F2: normalized per-item key; '' = no key (not deduped)
+    const ck = clientKeys[i]; // normalized per-item key; '' = no key (not deduped)
     if (ck && seenClientKeys.has(ck)) return errorMsg('INVALID_PARAMS', 400);
     if (ck) seenClientKeys.add(ck);
     if (item && item.uploadId) {
@@ -420,13 +419,13 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
       uploadIds.push(upId);
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
-      if (!content) return errorMsg('INVALID_PARAMS', 400); // Q-2d-F3：空消息是参数错误，不是"太长"
+      if (!content) return errorMsg('INVALID_PARAMS', 400); // 空消息是参数错误，不是"太长"
       if (content.length > LIMITS.MESSAGE_MAX_LEN) return errorMsg('MESSAGE_TOO_LONG');
     } else {
       return errorMsg('INVALID_PARAMS', 400);
     }
   }
-  // Q-2d-F2 幂等去重：整批全部带非空键且全部已落库 → 视为超时重发，返回既有回执（不重复落库、
+  // 幂等去重：整批全部带非空键且全部已落库 → 视为超时重发，返回既有回执（不重复落库、
   // 不重复删暂存——首次成功已删 uploads，重发若再查附件归属必 404，早退是唯一正确路径）。
   // 部分命中 = 键被复用的异常形状（客户端内容指纹已防）→ 409 拒绝，防半新半旧混插。
   if (clientKeys.every(k => k)) {
@@ -441,7 +440,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
     if (existing.length) return errorMsg('INVALID_PARAMS', 409);
   }
 
-  // S2-T6 (I-24): temp conversation send-path state machine.
+  // S2-T6 (): temp conversation send-path state machine.
   //   - init: only the initiator can reach here (non-initiator is 404'd by the init gate in
   //     loadConversationFor). First message → advance init→sent in the same batch.
   //   - sent: initiator already used quota → 409; receiver reply formalizes → advance sent→NULL.
@@ -450,7 +449,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   let tempConvStatus = null; // 'temp' | 'active' | null (added to the response)
   if (tempStatus) {
     if (tempStatus === TEMP_STATUS.INIT) {
-      // I-24 (PA-1c-F1): the initiator's temp quota is exactly one message. The temp-advance CAS
+      // (): the initiator's temp quota is exactly one message. The temp-advance CAS
       // guard only validates temp_status, not how many messages ride the batch, so an unguarded
       // multi-item batch would blast up to MSG_BATCH_MAX messages at a stranger. Non-initiators
       // are 404'd in loadConversationFor, so reaching here with init implies the sender is the
@@ -465,7 +464,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
     }
   }
 
-  // Second pass: attachment ownership single query (B5: N serial dbGetUpload → one WHERE IN).
+  // Second pass: attachment ownership single query (N serial dbGetUpload → one WHERE IN).
   const uploadRows = uploadIds.length ? await dbGetUploads(db, uploadIds) : [];
   const uploadById = new Map(uploadRows.map(u => [u.id, u]));
   const stmts = [];
@@ -483,7 +482,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
         stmts.push(dbPrepareTempUploadDelete(db).bind(up.id, userId, convId, tempAdvance.current));
       } else {
         stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb, clientKeys[i] || null)); // ciphertext carried over from uploads
-        stmts.push(dbPrepareUploadDelete(db).bind(up.id, userId)); // Z-4-F2: ownership-scoped DELETE (id+user_id)
+        stmts.push(dbPrepareUploadDelete(db).bind(up.id, userId)); // ownership-scoped DELETE (id+user_id)
       }
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
@@ -514,7 +513,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   const created = items.map((it, i) => ({
     id: Number((results[it.resultIndex] && results[it.resultIndex].meta && results[it.resultIndex].meta.last_row_id) || 0),
     kind: it.kind, name: it.name,
-    // PA-2-F3: echo the idempotency key so the front-end can replace its optimistic
+    // echo the idempotency key so the front-end can replace its optimistic
     // pending row (realByKey in chat/logic/send.js) — without this the client shows
     // every own message twice (optimistic row + polled real row, ids never dedupe).
     clientKey: clientKeys[i] || '',
@@ -527,7 +526,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
 }
 
 // ============================================================
-// chat 域路由表（V-1-4c：会话 / 消息 / 附件）
+// chat 域路由表（会话 / 消息 / 附件）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

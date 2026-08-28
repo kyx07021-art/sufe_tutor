@@ -38,19 +38,19 @@ test('文案单源：FUNDS_NOTE（全文）/ FUNDS_NOTE_SHORT（短文）/ 关�
   assert.ok(aboutText.includes('请勿向平台支付任何费用'));
   const policy = TEXT.ONBOARD_POLICY;
   assert.ok(policy.length <= 4);
-  // V-4-1h：v1 app-onboard.js 已删；资金导引条在 v2 features/onboard/actions.js（TEXT 单源）
+  // v1 app-onboard.js 已删；资金导引条在 v2 features/onboard/actions.js（TEXT 单源）
   const onboard = readFileSync('./src/client/features/onboard/actions.js', 'utf8');
   assert.ok(onboard.includes('funds-note onboard-funds'));
   assert.ok(onboard.includes('TEXT.FUNDS_NOTE_SHORT'));
 });
 
 test('起草合同浮窗：资金触点明示（.funds-note），服务端合同条款撇清平台资金责任', () => {
-  // V-4-1h：v1 app-contracts.js 已删；资金触点渲染在 v2 features/contract/actions-draft.js（TEXT 单源）。
+  // v1 app-contracts.js 已删；资金触点渲染在 v2 features/contract/actions-draft.js（TEXT 单源）。
   // S5 签约弹窗已下线（OBS-1），起草合同浮窗仍保留资金声明。
   const contracts = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
   const n = (contracts.match(/<p class="funds-note">\$\{TEXT\.FUNDS_NOTE\}<\/p>/g) || []).length;
   assert.ok(n >= 1, `起草合同浮窗资金触点明示（实际 ${n}）`);
-  const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，contract 实体已迁 contract/api.js
+  const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // 合同实体已迁入 contract/api.js，contract 实体已迁 contract/api.js
   assert.ok(server.includes('不参与任何费用结算'), '合同条款声明不参与结算');
   assert.ok(server.includes('不代收、不代付'), '合同条款声明不代收代付');
   assert.ok(server.includes('站外自行协商并直接结算'), '合同条款要求站外直接结算');
@@ -58,7 +58,7 @@ test('起草合同浮窗：资金触点明示（.funds-note），服务端合同
 });
 
 test('签约请求气泡 + 关于页：短声明与小节就位', () => {
-  // V-4-1h：v1 app-chat.js/app-pages.js 已删；v2 = features/chat/render.js + core/about.js
+  // v1 app-chat.js/app-pages.js 已删；v2 = features/chat/render.js + core/about.js
   const chat = readFileSync('./src/client/features/chat/render.js', 'utf8');
   assert.ok(chat.includes('signing-bubble-funds'), '聊天签约气泡底部短声明');
   assert.ok(chat.includes('TEXT.FUNDS_NOTE_SHORT'), '气泡短声明引用单源文案');

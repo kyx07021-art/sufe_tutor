@@ -25,7 +25,7 @@ import { dbGet, dbRun, error, errorMsg, toDbTime, ensureColumns } from './util.j
 import { tokenDigest } from './crypto.js';
 import { MSG } from '../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../shared/config.js';
-import { getSecret } from '../../../server/secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（只读 env，fail-closed 零仓库明文）
+import { getSecret } from './secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（只读 env，fail-closed 零仓库明文）
 
 import { logEvent } from './log.js';
 
@@ -42,7 +42,7 @@ export async function initOtpTable(db) {
     used INTEGER NOT NULL DEFAULT 0,
     attempts INTEGER NOT NULL DEFAULT 0, -- 输错次数（满 3 次即作废，须重新发码）
     created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（与 expires_at 统一域）
-  // Q-2g-L1：存量表补列走共享 ensureColumns（规则 12/41 单源；原手工内联 PRAGMA 探测已收敛）
+  // 存量表补列走共享 ensureColumns（规则 12/41 单源；原手工内联 PRAGMA 探测已收敛）
   await ensureColumns(db, 'verification_codes', [['attempts', 'INTEGER NOT NULL DEFAULT 0']]);
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_otp_target ON verification_codes(channel, target_hash, created_at)');
 }
@@ -166,7 +166,7 @@ export async function requestOtp(db, { channel, target, scene }, req) {
   // 在中国时区恒判命中/过期——verifyOtp 早已 UTC 参数比较，此处一并对齐）。
   // 限频 INSERT 前必须先清该目标过期行（防 verification_codes 膨胀）。
   const nowUtc = toDbTime(new Date());
-  // Z-2-F1：单日上限独立计数走 rate_limits 桶——verification_codes 行仅 5 分钟 TTL，
+  // 单日上限独立计数走 rate_limits 桶——verification_codes 行仅 5 分钟 TTL，
   // DELETE 清过期行会抹掉历史，原 INSERT 内嵌的日计数子查询只看得到近 5 分钟行，
   // OTP_DAILY_MAX 恒不可达（短信轰炸第二道闸失效）。rate_limits reset_at 为 localtime 域，
   // upsert/比较统一 localtime（与 security.js RATE_UPSERT_SQL 同口径，过期行由限流兜底清理）。
@@ -229,8 +229,8 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     }
     return { ok: false, err: errorMsg('SERVER_ERROR', 500) };
   }
-  // Z-2-F1 复审修（缺陷 B）：单日计数 +1 在投递成功之后——投递失败删行返回 500 不烧日配额
-  // Q-2b-F2（回滚重做）：upsert/logEvent 包 try/catch——D1 瞬时故障若在此返 500，验证码行已有效
+  // 复审修（缺陷 B）：单日计数 +1 在投递成功之后——投递失败删行返回 500 不烧日配额
+  // （回滚重做）：upsert/logEvent 包 try/catch——D1 瞬时故障若在此返 500，验证码行已有效
   // + 60s 窗口占用 + 日配额已烧 = 假失败真送达（用户已收到码却被告知失败，重试烧配额）。已送达即成功。
   try {
     await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','+1 day'))
@@ -309,7 +309,7 @@ async function genOtpCode() {
 /** 目标脱敏（留档用：手机号留尾号、邮箱留域名前 3 字）——验证码绝不进留档 */
 export function targetMask(target) {
   const s = String(target || '');
-  if (!s) return ''; // 未绑定：空串 → 前端回落「未绑定」占位（B5 修复：原空串被 slice 成 '***'）
+  if (!s) return ''; // 未绑定：空串 → 前端回落「未绑定」占位（修复：原空串被 slice 成 '***'）
   if (s.startsWith('+')) return s.slice(0, 3) + '***' + s.slice(-4);
   const at = s.indexOf('@');
   if (at > 0) return s.slice(0, Math.min(3, at)) + '***' + s.slice(at);

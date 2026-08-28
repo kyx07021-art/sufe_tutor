@@ -1,5 +1,5 @@
 /**
- * 需求一 · 内生滚动条组件（B4：直接 import theme tokens）。
+ * 需求一 · 内生滚动条组件（直接 import theme tokens）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

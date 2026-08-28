@@ -1,5 +1,5 @@
 /**
- * PA-1d-F6 DoS guard: the public teacher plaza list (I-29 GET /api/teachers) must be
+ * DoS guard: the public teacher plaza list (GET /api/teachers) must be
  * capped at LIMITS.PUBLIC_LIST_MAX — the same shared cap the demand square applies
  * (demand/repo.js). Before this fix the public SELECT loaded the whole teacher_profiles
  * table and the handler ran per-row match-degree over all of it, so a growing table
@@ -58,8 +58,8 @@ async function seedTeachers(raw, n) {
   for (const r of rows) raw.prepare('INSERT INTO teacher_profiles (user_id) VALUES (?)').run(r.id);
 }
 
-// Seed one student + an auth session; returns the session token. I-29 is login-gated
-// (no guest browsing, S6 §17) so the endpoint test must authenticate.
+// Seed one student + an auth session; returns the session token. is login-gated
+// (no guest browsing, S6 ) so the endpoint test must authenticate.
 async function seedStudent(raw) {
   raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s1','h','s','student')").run();
   const stu = raw.prepare("SELECT id FROM users WHERE username='s1'").get().id;
@@ -89,7 +89,7 @@ test('GET /api/teachers (I-29) caps items/teachers/total at PUBLIC_LIST_MAX', as
   await seedTeachers(raw, LIMITS.PUBLIC_LIST_MAX + 5);
   const token = await seedStudent(raw);
 
-  // I-29 is login-gated (no guest browsing, S6 §17) — the endpoint test authenticates.
+  // is login-gated (no guest browsing, S6 ) — the endpoint test authenticates.
   const res = await handleGetTeachers(db, new Request('http://x/api/teachers', { method: 'GET', headers: { 'X-Auth-Token': token } }));
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -111,7 +111,7 @@ test('admin view stays uncapped (management list not limited by PUBLIC_LIST_MAX)
 });
 
 // ============================================================================
-// PA-1d-F6b fixture: 250 teachers — the 50 OLDEST carry price 50 / subjects
+// fixture: 250 teachers — the 50 OLDEST carry price 50 / subjects
 // ['english'] / rating 5 / experience 10 / gender 'female' / tags ['patience'];
 // the 200 NEWEST carry price 300 / subjects ['math'] / rating 1 / experience 1 /
 // gender 'male' / tags ['punctual']. The PUBLIC_LIST_MAX=200 cap truncates the
@@ -119,7 +119,7 @@ test('admin view stays uncapped (management list not limited by PUBLIC_LIST_MAX)
 // NEVER see an old row. The SQL pushdown (buildTeacherPublicQuery) applies
 // filters + ORDER BY BEFORE the LIMIT, so every assertion below targets a row that
 // lives ONLY in the older-50 block — any revert to the JS-on-truncated-set
-// behavior makes them red (G2 mutation guard).
+// behavior makes them red (mutation guard).
 // ============================================================================
 async function seedTeacher250(raw) {
   const n = LIMITS.PUBLIC_LIST_MAX + 50; // 250

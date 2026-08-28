@@ -1,5 +1,5 @@
 /**
- * PA-2f LOW-1 守护：health/keepalive 探活端点豁免 rateGate。
+ * LOW-1 守护：health/keepalive 探活端点豁免 rateGate。
  * 审计：_worker.js 对全部 /api/ 路径过 rateGate（global 300/min/IP 共享桶）——独立保活
  * Worker 的 /api/keepalive 与发版脚本的 /api/health 探活与该 IP 的用户流量共用一个桶：
  * ① 探活可能被 429（部署/保活假失败）；② 高频探活挤占桶预算会确定性误伤同 IP 真实用户。

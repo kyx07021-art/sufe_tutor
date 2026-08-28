@@ -1,10 +1,10 @@
 /**
- * S4-19 preference dimension (pure). Weight 10 split as personality 5 + gender 5.
+ * preference dimension (pure). Weight 10 split as personality 5 + gender 5.
  * - personality: demand preferred-tag list empty -> NOT applicable (null); else hit-ratio
- *   (hits / preferred-count; teacher without matching tags scores 0).
+ * (hits / preferred-count; teacher without matching tags scores 0).
  * - gender: demand preferred-gender empty -> NOT applicable (null); teacher undisclosed
- *   ('' / 'undeclared' / legacy 'nonbinary') -> GENDER_UNDISCLOSED_SCORE (0.5); else
- *   exact match 1 / mismatch 0.
+ * ('' / 'undeclared' / legacy 'nonbinary') -> GENDER_UNDISCLOSED_SCORE (0.5); else
+ * exact match 1 / mismatch 0.
  */
 import { WEIGHTS, GENDER_UNDISCLOSED_SCORE } from './weights.js';
 

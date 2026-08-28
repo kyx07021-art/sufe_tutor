@@ -8,7 +8,7 @@
 import { dbGet, dbRun, ensureColumns as addColumns } from '../../core/util.js';
 
 
-// S5-01: standalone contracts table (replaces signing_contracts merged table).
+// standalone contracts table (replaces signing_contracts merged table).
 // No FK on conversation_id: contract records are self-contained evidence, surviving conversation deletion.
 export const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,17 +39,17 @@ export const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   created_at DATETIME DEFAULT (datetime('now')),
   updated_at DATETIME DEFAULT (datetime('now')))`;
 
-export const createStatements = [CONTRACTS_DDL]; // S5-01: contracts is the only entity table; table is self-sufficient
+export const createStatements = [CONTRACTS_DDL]; // contracts is the only entity table; table is self-sufficient
 
-// S5-01: no column additions needed (contracts DDL is complete)
+// no column additions needed (contracts DDL is complete)
 export const ensureColumns = [];
 
 export async function migrate(db, ctx) {
   if (ctx.phase !== 'postEnsure') return;
-  // S5-01: hot-query indexes (tuple lookup / historical conversation association; idempotent)
+  // hot-query indexes (tuple lookup / historical conversation association; idempotent)
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_tuple ON contracts(student_user_id, teacher_user_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_conv ON contracts(conversation_id)');
-  // S5-02: legacy migration from the AI-4a merged signing_contracts table (idempotent).
+  // legacy migration from the a merged signing_contracts table (idempotent).
   // Fresh DB: createStatements already built contracts and no signing_contracts exists -> skip copy.
   const hasSc = await dbGet(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='signing_contracts'");
   if (hasSc) {
@@ -58,13 +58,13 @@ export async function migrate(db, ctx) {
     await dbRun(db, `INSERT OR IGNORE INTO contracts (id, student_user_id, teacher_user_id, conversation_id, contract_status, drafter_user_id, plan, rate, pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, method, schedule, location, contract_md, prev_business, version, drafter_confirmed, other_confirmed, drafter_signed_at, other_signed_at, revoked, revoked_by, created_at, updated_at)
       SELECT id, student_user_id, teacher_user_id, conversation_id, CASE WHEN contract_status IN ('','pending') THEN 'signing' ELSE contract_status END, drafter_user_id, plan, hourly_rate, pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, method, schedule, location, contract_md, prev_business, version, drafter_confirmed, other_confirmed, drafter_signed_at, other_signed_at, revoked, revoked_by, created_at, updated_at
       FROM signing_contracts WHERE stage='contract'`);
-    // signing layer dropped (S5-19); DROP also removes its idx_sc_* indexes with the table.
+    // signing layer dropped (); DROP also removes its idx_sc_* indexes with the table.
     await dbRun(db, 'DROP TABLE IF EXISTS signing_contracts');
   }
 }
 
 // ============================================================
-// Evidence ledger (optional standalone LEDGER_DB): migrated from contract/api.js (V-1-4b)
+// Evidence ledger (optional standalone LEDGER_DB): migrated from contract/api.js ()
 // ============================================================
 let LEDGER_OVERRIDE = null;
 export function bindLedgerDb(env) { LEDGER_OVERRIDE = (env && env.LEDGER_DB) || null; }
@@ -82,6 +82,6 @@ export async function initLedgerTable(db) {
     ['body_hash', "TEXT NOT NULL DEFAULT ''"],
   ]);
   await dbRun(db, `UPDATE contract_ledger SET seq=(SELECT COUNT(*) FROM contract_ledger c2 WHERE c2.contract_id=contract_ledger.contract_id AND c2.id<=contract_ledger.id) WHERE seq IS NULL`);
-  // S5-15: contracts.id is preserved 1:1 from signing_contracts.id for migrated rows -> ledger contract_id
+  // contracts.id is preserved 1:1 from signing_contracts.id for migrated rows -> ledger contract_id
   // is unchanged and content_hash stays valid -> zero remap / zero rehash. migrateLedgerContractId removed.
 }

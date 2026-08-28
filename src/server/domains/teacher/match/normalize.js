@@ -1,5 +1,5 @@
 /**
- * S4-14 match-degree input normalization (C3: undefined/null/missing all collapse to
+ * match-degree input normalization (C3: undefined/null/missing all collapse to
  * typed defaults). Both the teacher and the demand arrive from many shapes
  * (legacy v2 snake_case, new-model camelCase, single-subject demand, legacy array
  * target_subjects). Every dimension consumes ONLY the normalized shape below, so a

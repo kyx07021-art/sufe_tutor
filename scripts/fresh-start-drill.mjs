@@ -5,33 +5,33 @@
  * 账户相关操作的留档记录，以及个人资料里的可迁移字段。新站点新开始」
  *
  * 保留集（KEEP，原位保留零搬运）：
- *   users                 -- 账户数据（44 行，含密码哈希/联系方式/角色）
- *   activity_log          -- 账户相关操作留档（3403 行）
- *   teacher_profiles      -- 教师个人资料可迁移字段（11 行）
- *   teacher_verifications -- 教师核验状态（5 行：2 approved/2 pending/1 rejected）
- *   schema_meta           -- 版本元数据（保留以走 v13->v18 迁移链）
+ * users -- 账户数据（44 行，含密码哈希/联系方式/角色）
+ * activity_log -- 账户相关操作留档（3403 行）
+ * teacher_profiles -- 教师个人资料可迁移字段（11 行）
+ * teacher_verifications -- 教师核验状态（5 行：2 approved/2 pending/1 rejected）
+ * schema_meta -- 版本元数据（保留以走 v13->v18 迁移链）
  * 丢弃集（DROP，业务历史数据全删）：
- *   conversations/messages/uploads（聊天）· student_demands（需求）·
- *   signing_contracts/contract_ledger（签约/合同/台账）· posts/post_likes/post_favorites（帖子）·
- *   reviews（评价）· complaints/feedbacks（投诉/反馈）· notifications（通知）·
- *   auth_sessions/rate_limits/verification_codes/danger_caps（会话/限流/验证码/capToken 运行时）·
- *   invite_codes（邀请码）· demand_intents/demand_pushes/teacher_awards/user_settings/
- *   request_metrics/data_versions（S 域已删旧表）
+ * conversations/messages/uploads（聊天）· student_demands（需求）·
+ * signing_contracts/contract_ledger（签约/合同/台账）· posts/post_likes/post_favorites（帖子）·
+ * reviews（评价）· complaints/feedbacks（投诉/反馈）· notifications（通知）·
+ * auth_sessions/rate_limits/verification_codes/danger_caps（会话/限流/验证码/capToken 运行时）·
+ * invite_codes（邀请码）· demand_intents/demand_pushes/teacher_awards/user_settings/
+ * request_metrics/data_versions（S 域已删旧表）
  *
  * 方案：保留集表原位保留（一个字节不动），只 DROP 业务表 -> initDb v13->v18 迁移
  * （保留集表 ensureColumns 补列 + 业务表重建为空；全部结构变更走已验证迁移链）。
  * 不搬 activity_log 3403 行 -> 零数据丢失风险；生产写操作最小化（一个 DROP SQL）。
  *
  * 用法：node scripts/fresh-start-drill.mjs [--export <sql路径>] [--emit-drop <out.sql>]
- *   --export    复用已有导出（跳过远程导出）；缺省自动导出生产（私有 0o600）
- *   --emit-drop 输出生产可执行 DROP 业务表 SQL 到文件（供 deploy checklist 使用）
+ * --export 复用已有导出（跳过远程导出）；缺省自动导出生产（私有 0o600）
+ * --emit-drop 输出生产可执行 DROP 业务表 SQL 到文件（供 deploy checklist 使用）
  *
  * 断言：保留集 4 数据表稳定列迁移前后一致（迁移回填/遗留清空列除外，见 3a 详注）；业务表全部重建
- *       且 count=0；schema v18；FK 零违规；幂等复跑零变更。
+ * 且 count=0；schema v18；FK 零违规；幂等复跑零变更。
  *
- * 模拟终点说明（审计 F3）：本演练模拟终点 = initDb 结束。生产 worker boot（_worker.js:239）还会
- *   initLedgerTable(env.LEDGER_DB || env.DB) 重建空 contract_ledger —— 演练终态 contract_ledger
- *   不存在（initDb 不建它），生产终态 = 存在且空；差异在 checklist §5b 补充验证闭合。
+ * 模拟终点说明（审计 ）：本演练模拟终点 = initDb 结束。生产 worker boot（_worker.js:239）还会
+ * initLedgerTable(env.LEDGER_DB || env.DB) 重建空 contract_ledger —— 演练终态 contract_ledger
+ * 不存在（initDb 不建它），生产终态 = 存在且空；差异在 checklist b 补充验证闭合。
  */
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -97,7 +97,7 @@ const rowDigest = (rows, cols) => {
   return h.digest('hex');
 };
 
-// 迁移前列集（从导出副本回放读，真实「迁移前」列——审计 F1：不可用迁移后 raw 读）
+// 迁移前列集（从导出副本回放读，真实「迁移前」列——审计 不可用迁移后 raw 读）
 function exportColsOf(sql, name) {
   const raw0 = new DatabaseSync(':memory:');
   raw0.exec('PRAGMA foreign_keys = ON');
@@ -196,7 +196,7 @@ const smV = raw.prepare(`SELECT v FROM schema_meta WHERE k='schema'`).get();
 check('schema_meta v=18', smV && smV.v === 18, String(smV?.v));
 
 // 3a. 保留集内容逐字节一致（users 口令列单独核算；teacher_profiles 允许迁移回填列）
-// 稳定列 = 迁移前列 ∩ 迁移后列（审计 F1 修复：真交集），排除迁移新增/回填列
+// 稳定列 = 迁移前列 ∩ 迁移后列（审计 修复：真交集），排除迁移新增/回填列
 const TP_MIG_COLS = ['price_min', 'price_max', 'rating', 'rating_count', 'rating_sum', 'teacher_name', 'experience_years', 'philosophy', 'updated_at'];
 const USERS_COUNT = before.users.count;
 const LOG_COUNT = before.activity_log.count;
@@ -233,7 +233,7 @@ const TP_COUNT = before.teacher_profiles.count;
 // 3b. 业务表重建且 count=0（新站 schema 重建的空表）。
 // contract_ledger 由 initLedgerTable 独立创建（_worker.js:239 boot 调用，不在 initDb 编排内）——
 // 本演练模拟终点 = initDb 结束（不含 worker boot 的 initLedgerTable），故演练终态 contract_ledger 不存在
-// （生产终态 = 部署后 initLedgerTable 重建空表，见 checklist §5b 补充验证）。
+// （生产终态 = 部署后 initLedgerTable 重建空表，见 checklist b 补充验证）。
 const rebuilt = ['conversations', 'messages', 'uploads', 'student_demands', 'contracts', 'posts', 'post_likes', 'post_favorites', 'reviews', 'feedbacks', 'complaints', 'notifications', 'auth_sessions', 'rate_limits', 'invite_codes', 'verification_codes', 'danger_caps'];
 const emptyBad = rebuilt.filter(t => !tableExists(raw, t) || Number(raw.prepare(`SELECT COUNT(*) AS n FROM "${t}"`).get().n) !== 0);
 check(`业务表重建为空（${rebuilt.length - emptyBad.length}/${rebuilt.length}）`, emptyBad.length === 0, emptyBad.join(',') || '全空');
@@ -270,7 +270,7 @@ const countDiff = Object.keys(after2).filter(t => (after1[t]?.count ?? 0) !== af
 check('第二次运行结构/行数零变更', countDiff.length === 0, countDiff.join('；') || '零增量');
 const smV2 = raw.prepare(`SELECT v FROM schema_meta WHERE k='schema'`).get();
 check('复跑后仍 v=18', smV2 && smV2.v === 18, String(smV2?.v));
-// 幂等内容断言：保留集数据表内容复跑后与首次迁移后逐字节一致（G2 锁真实行为）
+// 幂等内容断言：保留集数据表内容复跑后与首次迁移后逐字节一致（锁真实行为）
 const idemDiffs = [];
 for (const t of KEEP_TABLES) {
   if (t === 'schema_meta') continue;

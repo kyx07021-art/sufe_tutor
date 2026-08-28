@@ -1,5 +1,5 @@
 /**
- * #162（v0.25.70）：markdown 解析器优化。B4：直接 import core/dom.mdRender。
+ * #162（v0.25.70）：markdown 解析器优化。直接 import core/dom.mdRender。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

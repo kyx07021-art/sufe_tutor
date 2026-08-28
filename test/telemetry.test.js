@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { bucketOf, metricPathGroup, recordRequestMetric, flushMetrics, getDashboardMetrics, initMetrics } from '../server/telemetry.js';
+import { bucketOf, metricPathGroup, recordRequestMetric, flushMetrics, getDashboardMetrics, initMetrics } from '../src/server/core/telemetry.js';
 
 function d1Shim(raw) {
   return {

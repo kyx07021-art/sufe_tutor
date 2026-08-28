@@ -1,10 +1,10 @@
 /**
- * AI-6：会话重启 reopen——dbUpsertConversation 命中 closed 行 → 重启原会话
+ * 会话重启 reopen——dbUpsertConversation 命中 closed 行 → 重启原会话
  * （status→active + demand 回填，历史保留）；用户模型「一对师生终身一个会话对象，
  * closed 后再次合作 = 重启原会话，非新建」；双调用点（意向/推送接受——intents/pushes 归 S2 删）
  * 经同一元组命中。
  *
- * 本测试数据层直测 dbUpsertConversation（AI-6 为数据层基元；原 handleResolveIntent/
+ * 本测试数据层直测 dbUpsertConversation（为数据层基元；原 handleResolveIntent/
  * handleResolvePush 调用点随 S2 intents/pushes 删除）。变异守护：删重启 UPDATE →
  * closed 会话再配对不重启（红）。
  */
@@ -102,7 +102,7 @@ test('全新元组 → 新建会话（INSERT OR IGNORE 路径不变）', async (
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM conversations').get().c, 2, '新元组新建会话（原有会话保留）');
 });
 
-// AI-6 O-1（审计观察项补测）：并发双配对——两个请求可能都读到 closed 快照并进入 closed 分支，
+// O-1（审计观察项补测）：并发双配对——两个请求可能都读到 closed 快照并进入 closed 分支，
 // 但条件 UPDATE WHERE status='closed' 保证第二个请求 changes=0（no-op）——单次重启语义由
 // SQL 守卫承重（非理想化「第二个不命中分支」），恒一会话行 + 重启 active 四断言恒成立
 test('并发双配对：closed 会话两个 dbUpsertConversation 并行 → 恒一会话行 + 重启 active', async () => {

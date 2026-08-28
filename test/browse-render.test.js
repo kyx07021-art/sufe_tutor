@@ -1,5 +1,5 @@
 /**
- * 需求大厅/教师浏览渲染回归（B4：直接 import student feature ESM）
+ * 需求大厅/教师浏览渲染回归（直接 import student feature ESM）
  * 教训来源（v0.22.4）：loadBrowseDemands 乱序守卫首用 ++loadSeqs[...] = NaN，
  * NaN !== NaN 恒真 → 首次渲染必被误判过期丢弃 → 需求大厅恒停在加载占位。
  * v2 用 dhGet（datahub 单飞 + 缓存）承接取数，首用渲染回归由本测试兜底。

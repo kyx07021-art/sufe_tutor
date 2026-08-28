@@ -6,25 +6,25 @@
  * 最近交互拉取）→ 预设理由 → 补充描述 → 确认提交；服务端快照被投诉对象防删后失标、
  * 自投诉拦截、每日限额防滥用；管理员可查看/标记处理并通知投诉人；用户可跟踪「我的投诉」。
  *
- * S6-C4（2026-08-22，new-site）feedback 匿名身份模型（interfaces §15）：
- *   POST /api/feedbacks  匿名提交：kind bug|suggestion|report + title/content/contact?/attrs{}；
- *                         登录则 user id 优先（X-Auth-Token 解析），未登录须带 clientToken
- *                         （X-Client-Token 头或 body.clientToken，客户端本地生成 UUID 存 sessionStorage）。
- *   GET  /api/feedbacks/mine  匿名工单：登录按 user id，未登录按 clientToken（头或 query）。
- *   回执区分保留：kind='report'（举报内容）走 FEEDBACK_COMPLAINT_RESOLVED 专属回执，
- *   bug/suggestion 走 FEEDBACK_RESOLVED 通用回执（NOTIFY_TYPES 重登记归 S6-N2，本域只保证调用正确）。
+ * S6-C4（2026-08-22，new-site）feedback 匿名身份模型（interfaces ）：
+ * POST /api/feedbacks 匿名提交：kind bug|suggestion|report + title/content/contact?/attrs{}；
+ * 登录则 user id 优先（X-Auth-Token 解析），未登录须带 clientToken
+ * （X-Client-Token 头或 body.clientToken，客户端本地生成 UUID 存 sessionStorage）。
+ * GET /api/feedbacks/mine 匿名工单：登录按 user id，未登录按 clientToken（头或 query）。
+ * 回执区分保留：kind='report'（举报内容）走 FEEDBACK_COMPLAINT_RESOLVED 专属回执，
+ * bug/suggestion 走 FEEDBACK_RESOLVED 通用回执（NOTIFY_TYPES 重登记归 S6-N2，本域只保证调用正确）。
  *
  * 端点：
- *   POST /api/complaints { targetType, targetId, reason, detail } —— 提交投诉（requireUser）
- *   GET  /api/complaints/mine —— 我的投诉（状态跟踪）
- *   GET  /api/complaints/candidates?target=teacher|student|post&q= —— 对象候选搜索
- *   GET  /api/complaints/recent?target=teacher|student —— 最近交互用户
- *   GET  /api/complaints —— 管理员查看（status 可选过滤）
- *   POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
- *   POST /api/feedbacks —— 提交反馈（登录 / 匿名 clientToken）
- *   GET  /api/feedbacks/mine —— 我的反馈（登录 user id / 匿名 clientToken）
- *   GET  /api/feedbacks —— 管理员查看
- *   POST /api/feedbacks/:id/resolve —— 管理员标记已处理并通知提出者
+ * POST /api/complaints { targetType, targetId, reason, detail } —— 提交投诉（requireUser）
+ * GET /api/complaints/mine —— 我的投诉（状态跟踪）
+ * GET /api/complaints/candidates?target=teacher|student|post&q= —— 对象候选搜索
+ * GET /api/complaints/recent?target=teacher|student —— 最近交互用户
+ * GET /api/complaints —— 管理员查看（status 可选过滤）
+ * POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
+ * POST /api/feedbacks —— 提交反馈（登录 / 匿名 clientToken）
+ * GET /api/feedbacks/mine —— 我的反馈（登录 user id / 匿名 clientToken）
+ * GET /api/feedbacks —— 管理员查看
+ * POST /api/feedbacks/:id/resolve —— 管理员标记已处理并通知提出者
  */
 import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin, authUser } from '../../core/security.js';
@@ -34,10 +34,12 @@ import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin,
   dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts,
-  dbGetUserById, dbGetPostById, dbGetUpload, dbGetUploads, dbDeleteUpload,
   dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
-} from '../../../../server/db.js';
-import { decryptField } from '../../core/crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
+} from './repo.js';
+import { dbGetUserById } from '../auth/repo.js';
+import { dbGetPostById } from '../posts/repo.js';
+import { dbGetUpload, dbGetUploads, dbDeleteUpload } from '../chat/repo.js';
+import { decryptField } from '../../core/crypto.js'; // 投诉附件密文出门解密（与聊天附件同口径）
 import { logEvent } from '../../core/log.js';
 import { notifyUser } from '../../core/notify.js';
 
@@ -57,7 +59,7 @@ async function resolveTarget(db, type, id) {
 }
 
 // POST /api/complaints —— 提交投诉（对象必选、理由白名单、自投诉拦截、每日限额）
-// U11：body.uploadIds 可选——附件已在 /api/uploads 暂存（前端复用聊天暂存区上传），
+// body.uploadIds 可选——附件已在 /api/uploads 暂存（前端复用聊天暂存区上传），
 // 提交时从暂存复制密文入投诉（与聊天发送同口径），复制成功后删暂存（残留由 STALE_UPLOAD_WINDOW 兜底）。
 export async function handleCreateComplaint(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
@@ -104,7 +106,7 @@ export async function handleCreateComplaint(db, body, req) {
   return json({ ok: true }, 201);
 }
 
-// U11：投诉附件缩略图出门解密（小字段随列表；body 本体大字段懒加载走 /attachment 接口，与聊天列表同口径）
+// 投诉附件缩略图出门解密（小字段随列表；body 本体大字段懒加载走 /attachment 接口，与聊天列表同口径）
 async function decryptComplaintAttachments(list) {
   for (const c of list) {
     for (const a of (c.attachments || [])) {
@@ -165,7 +167,7 @@ export async function handleComplaintAttachment(db, complaintId, url, req) {
   const idx = parseInt(url.searchParams.get('idx')) || 0;
   const a = (c.attachments || [])[idx];
   if (!a) return errorMsg('COMPLAINT_ATTACH_NOT_FOUND', 404);
-  return json({ kind: a.kind, name: a.name, body: await decryptField(a.body) }); // N-05：附件密文出门解密
+  return json({ kind: a.kind, name: a.name, body: await decryptField(a.body) }); // 附件密文出门解密
 }
 
 // POST /api/complaints/:id/resolve —— 管理员标记已处理，通知投诉人
@@ -188,7 +190,7 @@ export async function handleResolveComplaint(db, complaintId, req) {
 // ============================================================
 // 用户反馈 / 投诉工单（S6-C4：匿名身份模型；反馈与投诉共用 status 语义）
 // ============================================================
-// kind 白名单（interfaces §15）：bug|suggestion|report；白名单外回落 suggestion。
+// kind 白名单（interfaces ）：bug|suggestion|report；白名单外回落 suggestion。
 // report（举报内容）的 subject 白名单 = 举报对象类型（沿用 v2 complaint 白名单）。
 const REPORT_SUBJECTS = ['teacher', 'student', 'platform'];
 
@@ -239,7 +241,7 @@ export async function handleMyFeedbacks(db, url, req) {
   if (me) {
     return json({ feedbacks: await dbGetFeedbacksByUser(db, { userId: me.id }) });
   }
-  // 匿名工单：header 优先，query 兜底（interfaces §15「header/query 传 clientToken」）
+  // 匿名工单：header 优先，query 兜底（interfaces 「header/query 传 clientToken」）
   const clientToken = clientTokenOf(req, {}) || String((url && url.searchParams && url.searchParams.get('clientToken')) || '').trim().slice(0, LIMITS.CLIENT_KEY_MAX);
   if (!clientToken) return errorMsg('LOGIN_REQUIRED', 401);
   return json({ feedbacks: await dbGetFeedbacksByUser(db, { clientToken }) });
@@ -275,7 +277,7 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
 }
 
 // ============================================================
-// complaints 域路由表（V-1-4c：投诉 + 反馈工单）
+// complaints 域路由表（投诉 + 反馈工单）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

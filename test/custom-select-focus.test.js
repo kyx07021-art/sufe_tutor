@@ -38,7 +38,7 @@ test('R12 消除全局直角 outline：触发器与选项 focus-visible 均 outl
 test('v0.25.94 下拉聚焦中性化：触发器聚焦环走 --g-option-ring（弃 --g-focus-soft 品牌紫）', () => {
   assert.ok(/\.custom-select-trigger:focus, \.custom-select-trigger:focus-visible \{\s*box-shadow:[\s\S]*?0 0 0 3px var\(--g-option-ring/.test(glass),
     '触发器聚焦环用中性墨色 token --g-option-ring（非紫 --g-focus-soft）');
-  // V-4-1h：token 单源迁至 src/client/constants/theme.js（THEME，V-2-5 自根 constants.js 迁出）
+  // token 单源迁至 src/client/constants/theme.js（THEME，自根 constants.js 迁出）
   assert.equal(THEME.light['--g-option-ring'], 'rgba(17,17,20,.16)', '浅色主题中性聚焦环 token');
   assert.equal(THEME.dark['--g-option-ring'], 'rgba(255,255,255,.30)', '深色主题中性聚焦环 token');
   assert.ok(THEME.light['--g-option-hover'] !== 'rgba(122,104,224,.07)', '浅色下拉 hover 不再品牌紫');

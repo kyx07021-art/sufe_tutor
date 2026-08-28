@@ -1,6 +1,6 @@
 /**
  * v2 client entry. This batch wires core modules and exposes boot;
- * feature registry starts empty (registerPage) and is filled in B2.
+ * feature registry starts empty (registerPage) and is filled in .
  */
 import { state, loadSession, bindUiScaleWheel } from './core/state.js';
 import { initAppearance } from './core/appearance.js'; // root-cause fix (2026-08-19): boot must assemble appearance (applyTheme injects --g-grid & all theme vars; applyOrbs renders orbs)
@@ -31,7 +31,7 @@ import settingsFeature from './features/settings/index.js';
 import adminFeature from './features/admin/index.js';
 import notifFeature from './features/notif/index.js';
 import onboardFeature from './features/onboard/index.js';
-import { showOnboardingIfNeeded } from './features/onboard/actions.js'; // B1: first-visit modal wired into boot (v1 app-shell DOMContentLoaded parity)
+import { showOnboardingIfNeeded } from './features/onboard/actions.js'; // first-visit modal wired into boot (v1 app-shell DOMContentLoaded parity)
 
 let booted = false;
 export function boot() {
@@ -49,7 +49,7 @@ export function boot() {
     [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, notifFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
     const saved = loadSession();
     if (saved) { state.user = saved.user; state.authToken = saved.authToken; enterClient(); } // v1 parity: restored session enters the client, not the landing
-    // B1: first-visit modal. Runs AFTER the restore block so enterClient's
+    // first-visit modal. Runs AFTER the restore block so enterClient's
     // selectPage -> closeAllModals cannot clear it (v1 app-shell called it via
     // the post-restore `after` hook). isReturning()-guarded + sets the marker.
     showOnboardingIfNeeded();

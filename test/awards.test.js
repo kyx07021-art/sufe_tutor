@@ -1,5 +1,5 @@
 /**
- * awards 域下线态回归（S6-A5）：awards 在新站不上线（W1 不保留向后兼容）——
+ * awards 域下线态回归（S6-A5）：awards 在新站不上线（不保留向后兼容）——
  * teacher_awards 表不创建、无路由注册、无迁移动作。
  *
  * 锁下线态（变异实证：把 routes 改回非空 / createStatements 加建表 / migrate 恢复建表 → 断言红）。

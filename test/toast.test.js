@@ -75,7 +75,7 @@ test('连根删红例：alert 组件全站零残留（CSS 规则 / JS 函数 / �
   assert.ok(!/\.alert\s*\{/.test(css), '无 .alert 基础规则');
   assert.ok(!/\.alert-(error|success|warn)\s*\{/.test(css), '无三色 alert 规则');
   assert.ok(!/\.gaokao-mismatch-warn[^}]*--g-surface/.test(css), '独立提示无 --g-surface 竖条');
-  // V-4-1h：v1 app-*.js 已删；alert 零残留扫描改为 v2 全域源码（core + features）
+  // v1 app-*.js 已删；alert 零残留扫描改为 v2 全域源码（core + features）
   const core = readdirSync('./src/client/core').filter(f => f.endsWith('.js')).map(f => readFileSync('./src/client/core/' + f, 'utf8')).join('\n');
   const features = readdirSync('./src/client/features', { recursive: true }).filter(f => String(f).endsWith('.js')).map(f => readFileSync('./src/client/features/' + f, 'utf8')).join('\n');
   const app = core + '\n' + features;

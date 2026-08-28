@@ -1,5 +1,5 @@
 /**
- * v0.25.98 弹窗栈回归（B4：直接 import core/ui-modal）。
+ * v0.25.98 弹窗栈回归（直接 import core/ui-modal）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

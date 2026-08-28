@@ -1,5 +1,5 @@
 /**
- * B3 主科分数上限按年级适配（S3 单科目新模型：current_score 单值文本钳制）。
+ * 主科分数上限按年级适配（S3 单科目新模型：current_score 单值文本钳制）。
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';

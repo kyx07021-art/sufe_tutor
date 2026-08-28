@@ -1,15 +1,15 @@
 /**
- * New-site backend S1: consolidated /api/settings surface (I-08..I-14).
+ * New-site backend S1: consolidated /api/settings surface (..).
  *
  * Covers:
- *   - handleGetSettings: requires a valid token; returns user + usernameStatus +
- *     blockSystemNotifications + notifyBroadcastMuted + devices (current session flagged,
- *     zero token/token_hash leak).
- *   - handleUpdateSettings: partial update by field — username (capToken-gated, admin
- *     forbidden, occupied -> 409), avatar (svg rejected / bitmap ok), bind phone (verify-code
- *     FIRST then occupied -> 409), notification prefs (strict 0/1), unknown field -> 400.
- *   - handleDeactivateSettings: capToken-gated; admin forbidden; on success clears the
- *     contact columns (AE-1) so dbPhoneTaken returns false and the username is tombstoned.
+ * - handleGetSettings: requires a valid token; returns user + usernameStatus +
+ * blockSystemNotifications + notifyBroadcastMuted + devices (current session flagged,
+ * zero token/token_hash leak).
+ * - handleUpdateSettings: partial update by field — username (capToken-gated, admin
+ * forbidden, occupied -> 409), avatar (svg rejected / bitmap ok), bind phone (verify-code
+ * FIRST then occupied -> 409), notification prefs (strict 0/1), unknown field -> 400.
+ * - handleDeactivateSettings: capToken-gated; admin forbidden; on success clears the
+ * contact columns (AE-1) so dbPhoneTaken returns false and the username is tombstoned.
  *
  * Direct handler invocation with node:sqlite DatabaseSync + d1Shim (v2 test convention).
  */
@@ -74,7 +74,7 @@ async function registerUser(db, raw, username) {
   return { id, token: data.authToken, phone: target };
 }
 
-// ---------------- GET /api/settings (I-08) ----------------
+// ---------------- GET /api/settings () ----------------
 test('GET /api/settings: no token -> 401 LOGIN_REQUIRED', async () => {
   const { db } = await setup();
   const r = await handleGetSettings(db, authedReq(''));
@@ -104,7 +104,7 @@ test('GET /api/settings: full shape; devices carries the current session; zero t
   assert.ok(!('token_hash' in data.devices[0]), 'no token_hash leaks in device rows');
 });
 
-// ---------------- PUT /api/settings (I-09) ----------------
+// ---------------- PUT /api/settings () ----------------
 test('PUT /api/settings: username without capToken -> 403 REAUTH_FAILED', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'set_ucap');
@@ -172,7 +172,7 @@ test('PUT /api/settings: bind phone already occupied -> 409 PHONE_ALREADY_BOUND 
   const a = await registerUser(db, raw, 'bind_a'); // a.phone is bound to A
   const b = await registerUser(db, raw, 'bind_b');
   // A fresh code for A's phone: verify-code passes, THEN the occupied check fires -> 409.
-  // This locks the I-12 验码先行 ordering (verify BEFORE the occupied probe).
+  // This locks the 验码先行 ordering (verify BEFORE the occupied probe).
   const otp = await requestOtp(db, { channel: 'sms', target: a.phone }, authedReq(''));
   assert.ok(otp.ok, 'code send ok');
   const r = await handleUpdateSettings(db, { channel: 'phone', target: a.phone, code: lastOtpCode(a.phone) }, authedReq(b.token));
@@ -191,7 +191,7 @@ test('PUT /api/settings: blockSystemNotifications true -> 200; GET reflects it',
   assert.equal(data.notifyBroadcastMuted, false, 'untouched pref stays false');
 });
 
-// ---------------- POST /api/settings/deactivate (I-14) ----------------
+// ---------------- POST /api/settings/deactivate () ----------------
 test('POST /api/settings/deactivate: no capToken -> 403; with capToken -> 200; releases phone + tombstone', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'deact');

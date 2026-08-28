@@ -1,14 +1,14 @@
 /**
  * D-1 notif feature + v2 shell 回归（原 vm 沙箱测试转直接 import ESM）：
- *   - 屏蔽系统通知按钮：默认全显 / 点按隐藏广播并持久化 / 再点恢复 / 全广播空态 / 进页按偏好过滤
- *   - 模块 i 信息按钮：selectPage 注入、幂等、点击开 md 浮窗、所有注册模块都有介绍文案
- *   - 会话列表「会话」title 专属类在位（shell 静态提供）
- *   - 意向行结构（学生自己需求卡走 loadMyDemands，editable 契约）
- *   - 设置页两区颠倒（账户/外观/隐私顺序）
- *   - #151 未读项呼吸遮罩 + 点击/键盘单条已读 + 失败回滚 + 离开通知页批量已读
- *   - 屏蔽系统通知：广播未读不计入侧边栏红点（refreshBadges 同过滤口径）
- *   - shell 完整性（审计 F1/F2/F3 回归）：注册页容器全覆盖 + 落地页入口 + 筛选折叠默认态
- *   - CSS 断言（style.css：呼吸动画 0.9s + 中间关键帧 + 竖线连根删）保持文件直读
+ * - 屏蔽系统通知按钮：默认全显 / 点按隐藏广播并持久化 / 再点恢复 / 全广播空态 / 进页按偏好过滤
+ * - 模块 i 信息按钮：selectPage 注入、幂等、点击开 md 浮窗、所有注册模块都有介绍文案
+ * - 会话列表「会话」title 专属类在位（shell 静态提供）
+ * - 意向行结构（学生自己需求卡走 loadMyDemands，editable 契约）
+ * - 设置页两区颠倒（账户/外观/隐私顺序）
+ * - #151 未读项呼吸遮罩 + 点击/键盘单条已读 + 失败回滚 + 离开通知页批量已读
+ * - 屏蔽系统通知：广播未读不计入侧边栏红点（refreshBadges 同过滤口径）
+ * - shell 完整性（审计 //回归）：注册页容器全覆盖 + 落地页入口 + 筛选折叠默认态
+ * - CSS 断言（style.css：呼吸动画 0.9s + 中间关键帧 + 竖线连根删）保持文件直读
  *
  * 清理纪律：feature onLoad 的 installed 标志是模块级单例——测试中途断言失败会跳过 uninstall，
  * 后续测试的 onLoad 变 no-op（委托静默失效）。因此每个用 enterNotifPage 的测试都必须挂
@@ -195,7 +195,7 @@ test('页面顶部 title 旁「i」信息按钮：selectPage 注入、幂等、�
 test('shell 完整性（审计 F1/F2/F3 回归）：注册页容器全覆盖 + 落地页入口 + 筛选折叠默认态', async (t) => {
   const { dom } = await enterNotifPage(t);
   const doc = dom.window.document;
-  // F1：每个已注册页在 shell 都有对应 client-page 区（防 admin-complaint 类断线再发）
+  // 每个已注册页在 shell 都有对应 client-page 区（防 admin-complaint 类断线再发）
   state.user = { role: 'admin', id: 1, username: 's', avatar: '' };
   renderSidebar();
   for (const p of pagesForRole()) {
@@ -206,11 +206,11 @@ test('shell 完整性（审计 F1/F2/F3 回归）：注册页容器全覆盖 + �
   await selectPage('admin-complaint');
   await tick(80); // 等 complaints 页 async enter（loadAdminComplaints→loadInto）在测试内落定，防测试结束后 unhandledRejection
   assert.ok(!doc.querySelector('.client-page[data-page="admin-complaint"]').classList.contains('hidden'), 'admin-complaint 可进入（非空白页）');
-  // F2：筛选面板默认折叠 + 折叠开关按钮在位（v1 parity）
+  // 筛选面板默认折叠 + 折叠开关按钮在位（v1 parity）
   assert.ok(doc.getElementById('demand-filter-panel').classList.contains('hidden'), '需求筛选面板默认收起');
   assert.ok(doc.getElementById('demand-filter-toggle-btn'), '需求筛选折叠按钮在位');
   assert.ok(doc.getElementById('filter-toggle-btn'), '教师筛选折叠按钮在位');
-  // F3：落地页有登录/注册/访客入口（v1 landing parity，data-action 委托无内联）
+  // 落地页有登录/注册/访客入口（v1 landing parity，data-action 委托无内联）
   const landing = doc.querySelector('#view-landing');
   assert.ok(landing.querySelector('[data-action="auth.viewLogin"]'), '落地页登录按钮');
   assert.ok(landing.querySelector('[data-action="auth.viewRegister"]'), '落地页注册按钮');
@@ -219,7 +219,7 @@ test('shell 完整性（审计 F1/F2/F3 回归）：注册页容器全覆盖 + �
   assert.equal(landing.querySelector('[onclick]'), null, '落地页零内联 onclick');
 });
 
-// Z-3-F1 F1b：教师档案页注册 + sidebar 渲染（teacher 角色可见 teacher-profile 项 + 容器在位）
+// b：教师档案页注册 + sidebar 渲染（teacher 角色可见 teacher-profile 项 + 容器在位）
 test('Z-3-F1 F1b：teacher-profile 页注册、教师 sidebar 出现新页项、容器在位', async (t) => {
   const { dom } = await enterNotifPage(t);
   const doc = dom.window.document;
@@ -244,7 +244,7 @@ test('item9 会话列表「会话」title 专属类在位（shell 静态提供�
   const title = doc.querySelector('.chats-list-title');
   assert.ok(title, '会话 title 元素在位');
   assert.equal(title.textContent, TEXT.CHAT_TITLE, '文案 = CHAT_TITLE');
-  // G5 回归：my-chats 必须为 .chats-shell 双栏结构（v1 结构在 V-4-1h 丢失 → client-page--flush
+  // 回归：my-chats 必须为 .chats-shell 双栏结构（v1 结构在 丢失 → client-page--flush
   // height:100% 落在扁平子 div 上把列表/聊天窗推出视口外被 overflow:hidden 裁剪，页面只剩满高空块）
   const shell = doc.querySelector('.chats-shell');
   assert.ok(shell, 'chats-shell 双栏网格在位');

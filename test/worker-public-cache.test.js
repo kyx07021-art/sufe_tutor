@@ -1,13 +1,13 @@
 /**
- * B6 公开列表边缘缓存（v0.26.6）：冷启动 D1 慢往返治本——公开列表命中 Cache API 零碰 D1。
+ * 公开列表边缘缓存（v0.26.6）：冷启动 D1 慢往返治本——公开列表命中 Cache API 零碰 D1。
  *
  * 覆盖：
- *   - isPublicListCacheable 纯逻辑：帖子（公开，authUser optional）可缓存；
- *     教师列表（I-29 登录门禁）/需求广场（I-34 登录门禁）/scope=mine 等私有变体不缓存；
- *   - 整 worker.fetch 集成：首次请求 miss → D1 → 响应写边缘缓存（Cache-Control s-maxage=30）；
- *     二次请求命中缓存 → DB 零查询（冷启动治本实证）；
- *   - 私有端点不缓存（cacheStore 无对应键）；
- *   - 无 caches 环境回落直取（fail-open，本地 dev / 旧测试环境兼容）。
+ * - isPublicListCacheable 纯逻辑：帖子（公开，authUser optional）可缓存；
+ * 教师列表（登录门禁）/需求广场（登录门禁）/scope=mine 等私有变体不缓存；
+ * - 整 worker.fetch 集成：首次请求 miss → D1 → 响应写边缘缓存（Cache-Control s-maxage=30）；
+ * 二次请求命中缓存 → DB 零查询（冷启动治本实证）；
+ * - 私有端点不缓存（cacheStore 无对应键）；
+ * - 无 caches 环境回落直取（fail-open，本地 dev / 旧测试环境兼容）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,7 +80,7 @@ async function setup(t) {
   await env.DB.prepare(`INSERT INTO users (username, password_hash, salt, role) VALUES ('qa_t1', 'x', 'salt', 'teacher')`).run();
   const uid = raw.prepare('SELECT id FROM users WHERE username=?').get('qa_t1').id;
   await env.DB.prepare(`INSERT INTO teacher_profiles (user_id, subjects, price) VALUES (?, '数学', 150)`).run(uid);
-  // 预置一条帖子（/api/posts 匿名公开可读，PA-1d-F7 后教师列表已登录门禁，缓存管道用例走帖子）
+  // 预置一条帖子（/api/posts 匿名公开可读，后教师列表已登录门禁，缓存管道用例走帖子）
   await env.DB.prepare(`INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', '测试帖', '正文')`).run(uid);
   return { raw, env, calls };
 }
@@ -89,10 +89,10 @@ async function setup(t) {
 test('isPublicListCacheable：帖子公开可缓存；教师列表/需求广场登录门禁与私有变体不缓存', () => {
   const url = p => new URL('https://test.local' + p);
   assert.equal(isPublicListCacheable('/api/posts', url('/api/posts?sort=new')), true);
-  // PA-1d-F7：/api/teachers 为登录门禁（I-29 requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
+  // /api/teachers 为登录门禁（requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
   assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), false, '教师列表登录门禁，不缓存');
   assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers?subject=数学')), false, '筛选 query 变体同样登录门禁');
-  // S0-22：/api/demands 为登录门禁（requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
+  // /api/demands 为登录门禁（requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
   assert.equal(isPublicListCacheable('/api/demands', url('/api/demands')), false, '需求广场登录门禁，不缓存');
   assert.equal(isPublicListCacheable('/api/demands/mine', url('/api/demands/mine')), false, '我的需求私有不缓存');
   assert.equal(isPublicListCacheable('/api/contracts/my', url('/api/contracts/my')), false, '私有端点不缓存');
@@ -131,7 +131,7 @@ test('整 worker：需求广场（登录可见 I-34）匿名访问不写缓存',
   installCache();
   const { env } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
-  // GET /api/demands is login-required (I-34): anonymous -> 401, cache pipeline needs anonymous + 200, so no cache write.
+  // GET /api/demands is login-required (): anonymous -> 401, cache pipeline needs anonymous + 200, so no cache write.
   await get('/api/demands');
   assert.equal(cacheStore.has('https://test.local/api/demands'), false, '登录可见需求广场匿名访问不缓存');
 });
@@ -140,7 +140,7 @@ test('整 worker：教师列表（I-29 登录门禁）匿名访问 401 且不写
   installCache();
   const { env } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
-  // PA-1d-F7: GET /api/teachers is login-required (I-29) — anonymous -> 401, and since the
+  // GET /api/teachers is login-required () — anonymous -> 401, and since the
   // cache pipeline requires anonymous + 200, no cache write ever happens.
   const res = await get('/api/teachers');
   assert.equal(res.status, 401, '匿名教师列表被登录门禁拒绝');
@@ -185,7 +185,7 @@ test('匿名门：登录请求不写缓存，也不命中匿名缓存（防 per-
   const anon = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
   const authed = (p) => worker.fetch(new Request('https://test.local' + p, { headers: { 'X-Auth-Token': 'some-token' } }), env, ctx);
 
-  // ① 匿名首请求写缓存（帖子公开；教师列表已登录门禁 PA-1d-F7，非缓存目标）
+  // ① 匿名首请求写缓存（帖子公开；教师列表已登录门禁 ，非缓存目标）
   await anon('/api/posts');
   assert.equal(cacheStore.has('https://test.local/api/posts'), true, '匿名请求写缓存');
   // ② 登录请求（同 URL）不命中缓存——走 routeApi 实时（响应可能含 liked/favorited 等 per-user 字段）

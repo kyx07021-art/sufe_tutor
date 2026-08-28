@@ -1,5 +1,5 @@
 /**
- * awards 域数据层（S6-A5 下线态）：teacher_awards 表已下线（W1 不保留向后兼容），
+ * awards 域数据层（S6-A5 下线态）：teacher_awards 表已下线（不保留向后兼容），
  * 全部数据函数（initAwardsTable/dbCreateAward/dbCountAwardsByTeacher/dbGetAwardById/
  * dbGetAwardsByTeacher/dbGetAwardsAdmin/dbDeleteAward/dbSetAwardStatus 等）随之下线删除。
  *

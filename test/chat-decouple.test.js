@@ -1,5 +1,5 @@
 /**
- * 会话与需求/签约解耦 + 绑定需求下拉（B4：直接 import chat/contract ESM）。
+ * 会话与需求/签约解耦 + 绑定需求下拉（直接 import chat/contract ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

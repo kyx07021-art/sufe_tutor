@@ -1,13 +1,13 @@
 /**
- * complaints 域 schema（V-1-4b；S6-C4 匿名反馈模型改造）：投诉 / 反馈 DDL、列迁移与
+ * complaints 域 schema（；S6-C4 匿名反馈模型改造）：投诉 / 反馈 DDL、列迁移与
  * feedbacks.kind CHECK 保数据换表。
  *
  * S6-C4 变更（2026-08-22，new-site）：
- *   - feedbacks.kind 白名单 bug|suggestion|complaint → bug|suggestion|report（interfaces §15）；
- *     存量 complaint 行迁移映射为 report（语义 = 举报内容，subject 保留举报对象类型）。
- *   - 匿名提交模型：user_id 改为可空（匿名行 NULL），新增 client_token 列存匿名身份标识，
- *     新增 contact（匿名联系字段）与 attrs（结构化举报元数据 JSON）列。
- *   - 换表迁移检测条件由「缺 complaint」升级为「缺 report」，保数据重建含全部新列。
+ * - feedbacks.kind 白名单 bug|suggestion|complaint → bug|suggestion|report（interfaces ）；
+ * 存量 complaint 行迁移映射为 report（语义 = 举报内容，subject 保留举报对象类型）。
+ * - 匿名提交模型：user_id 改为可空（匿名行 NULL），新增 client_token 列存匿名身份标识，
+ * 新增 contact（匿名联系字段）与 attrs（结构化举报元数据 JSON）列。
+ * - 换表迁移检测条件由「缺 complaint」升级为「缺 report」，保数据重建含全部新列。
  */
 import { dbGet } from '../../core/util.js';
 

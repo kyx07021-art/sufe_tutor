@@ -1,12 +1,12 @@
 /**
- * Z-4-F1 回归：messages.kind CHECK 保数据换表迁移（signing_request/signing_response 生产插入
+ * 回归：messages.kind CHECK 保数据换表迁移（signing_request/signing_response 生产插入
  * 曾被 CHECK 拒绝致 1101 断线）+ 终态补 name/thumb 列。
  *
  * 初审 FAIL 修正（规则 28 回滚重做）：
- *   - 索引回归：idx_messages_conv 曾放换表条件分支内，新库 MESSAGES_DDL 已是终态 CHECK → 短路
- *     跳过 → 索引永不创建。现移 migrate postEnsure 无条件路径（本测试「新库必建索引」断言锁死）。
- *   - 条件对齐：显式检查全部 6 个 kind 缺任一即换表（原只查 contract+signing_request，中间态漏迁）。
- *   - 动态 carry：PRAGMA 探测旧表列，name/thumb 有则随迁（旧库保真），终态库无谓换表消除。
+ * - 索引回归：idx_messages_conv 曾放换表条件分支内，新库 MESSAGES_DDL 已是终态 CHECK → 短路
+ * 跳过 → 索引永不创建。现移 migrate postEnsure 无条件路径（本测试「新库必建索引」断言锁死）。
+ * - 条件对齐：显式检查全部 6 个 kind 缺任一即换表（原只查 contract+signing_request，中间态漏迁）。
+ * - 动态 carry：PRAGMA 探测旧表列，name/thumb 有则随迁（旧库保真），终态库无谓换表消除。
  *
  * 场景：noCols（旧表无 name/thumb）/ noThumb（有 name 无 thumb）/ full（终态跳过）/ 回滚（预置
  * messages_old 使 RENAME 失败整批回滚）/ 新库索引。
@@ -118,7 +118,7 @@ test('Z-4-F1: 回滚安全——预置 messages_old 使 RENAME 失败，整批 R
   assert.equal(raw.prepare("SELECT note FROM messages_old WHERE id=999").get().note, 'pre-existing', '冲突表未被破坏');
 });
 
-// Z-4-F1 复审 FAIL 修正：SCHEMA_VERSION 漏 bump（8→9）致生产版本门控短路迁移永不执行（V-4-1c 同型）。
+// 复审 FAIL 修正：SCHEMA_VERSION 漏 bump（8→9）致生产版本门控短路迁移永不执行（同型）。
 // 回归钉死：存量 v8 库（生产 v2.0.1 形状：5-kind CHECK + name/thumb 带数据）initDb 必须跑迁移。
 test('Z-4-F1: v8 存量库（5-kind + name/thumb 带数据）initDb 重跑迁移补 signing_response + 版本更新', async () => {
   const { raw, db } = await setup();
@@ -146,7 +146,7 @@ test('Z-4-F1: v8 存量库（5-kind + name/thumb 带数据）initDb 重跑迁移
 });
 
 // ==================== S2-T1: temp conversation columns ====================
-// temp_status / temp_initiator_user_id on conversations (interfaces.md §17/§19 I-23/I-24):
+// temp_status / temp_initiator_user_id on conversations (interfaces.md //):
 // NULL = formal conversation; 'init' = only initiator sees, quota 1; 'sent' = receiver sees + can reply.
 // temp_initiator_user_id is retained as wasTemp once a temp conversation is formalized.
 

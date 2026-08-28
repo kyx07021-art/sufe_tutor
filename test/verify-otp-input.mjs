@@ -1,5 +1,5 @@
 /**
- * Mobile login/register/bind OTP input-row layout geometry regression (G5 / rule 45 +
+ * Mobile login/register/bind OTP input-row layout geometry regression (/ rule 45 +
  * requirement AC + AF-13). Playwright real-browser assertions: on a 375px screen the OTP
  * input visible area must fit 6 digits and the input must top up against the label; the
  * desktop layout must not regress. The three forms (login / register / phone-email bind
@@ -84,7 +84,7 @@ const cases = [
   {
     name: 'desktop-1440', width: 1440, height: 900,
     // minGap:20 locks the desktop column gap at 22px — if an AC-1 rule leaks out of the
-    // media block the gap shrinks to 8px and every desktop row turns red (G2 teeth).
+    // media block the gap shrinks to 8px and every desktop row turns red (teeth).
     login: { minVisible: 80, minWrap: 180, maxGap: 30, minGap: 20 },
     register: { minVisible: 80, minWrap: 180, maxGap: 30, minGap: 20 },
     bind: { minVisible: 80, minWrap: 180, maxGap: 30, minGap: 20 },
@@ -98,7 +98,7 @@ for (const vp of cases) {
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle' });
   // First-visit onboarding modal intercepts clicks: dismiss it by clicking the overlay
-  // (closable path, Z-14-F1 lesson).
+  // (closable path, lesson).
   await page.evaluate(() => { const ov = document.querySelector('#modal-container .modal-overlay'); if (ov) ov.click(); }).catch(() => {});
   await page.waitForTimeout(300);
 

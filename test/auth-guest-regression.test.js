@@ -7,15 +7,15 @@
  * 「返回」authGoBack 又恢复同一页 → 死循环，返回无效。
  * 修：访客恢复停留页须过 auth 门（只恢复 auth:false 的公开页）。
  *
- * B4：直接 import auth flow ESM。v2 无 v1 的 DOMContentLoaded 自动编排，测试用
+ * 直接 import auth flow ESM。v2 无 v1 的 DOMContentLoaded 自动编排，测试用
  * handleFeatureClick 作为「刷新恢复」等价入口（同 refresh-restore.test.js）。
  *
  * 覆盖：
- *   1. 无学生会话点学生入口 → 学生访客客户端（browse-teachers），不弹登录；
- *   2. 有效学生会话点学生入口 → 自动登录学生客户端（switchToRole）；
- *   3. B1：/me 拒绝不覆盖登出（/me 在途时身份已被替换 → 拒绝回调不回落访客预览）；
- *   4. sufe_last_page 残留需登录页 → 访客不恢复，回落公开页（回归根因）；
- *   5. 登录页「返回」→ 离开登录页进客户端（不死循环）。
+ * 1. 无学生会话点学生入口 → 学生访客客户端（browse-teachers），不弹登录；
+ * 2. 有效学生会话点学生入口 → 自动登录学生客户端（switchToRole）；
+ * 3. /me 拒绝不覆盖登出（/me 在途时身份已被替换 → 拒绝回调不回落访客预览）；
+ * 4. sufe_last_page 残留需登录页 → 访客不恢复，回落公开页（回归根因）；
+ * 5. 登录页「返回」→ 离开登录页进客户端（不死循环）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

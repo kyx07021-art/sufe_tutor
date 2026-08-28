@@ -1,5 +1,5 @@
 /**
- * 需求十五 合同签署合规 UI（B4：直接 import contract render/actions）。
+ * 需求十五 合同签署合规 UI（直接 import contract render/actions）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ test('签署弹窗：底部前置告知', async () => {
   delete globalThis.document;
 });
 
-// Z-10-F4 回归：signing countdown timer 生命周期——clearSigningTimer 单点释放，
+// 回归：signing countdown timer 生命周期——clearSigningTimer 单点释放，
 // closeModalAction（contract.closeModal 取消按钮）清 timer，登出 reset 也清
 test('Z-10-F4: clearSigningTimer releases the interval and closeModalAction calls it', () => {
   const dom = setup();

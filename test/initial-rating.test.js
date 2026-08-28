@@ -2,11 +2,11 @@
  * 需求十六（R16）·教师默认评分 4.5、默认权重 10、对所有用户应用
  *
  * 改动：
- *   - src/shared/config.js：INITIAL_RATING 4.0 → 4.5（INITIAL_WEIGHT 保持 10）；
- *   - server/db.js initDb 幂等回填：存量从未被评价的教师（rating_count=0，rating=旧默认）
- *     回填 4.5——「对所有用户应用」。
- *   - v0.25.103 B3：存量「有评论」教师同样按新默认 4.5 加权重算（此前只回填无评论教师，
- *     有评论的仍是旧默认 4.0 加权结果——用户反馈）。与 dbRecomputeTeacherRating 同口径。
+ * - src/shared/config.js：INITIAL_RATING 4.0 → 4.5（INITIAL_WEIGHT 保持 10）；
+ * - server/db.js initDb 幂等回填：存量从未被评价的教师（rating_count=0，rating=旧默认）
+ * 回填 4.5——「对所有用户应用」。
+ * - v0.25.103 存量「有评论」教师同样按新默认 4.5 加权重算（此前只回填无评论教师，
+ * 有评论的仍是旧默认 4.0 加权结果——用户反馈）。与 dbRecomputeTeacherRating 同口径。
  *
  * 本测试覆盖：新档案默认 4.5；存量未评价 4.0 → initDb 幂等回填 4.5；被评价教师按新公式重算
  * 且幂等；权重常数保持 10。

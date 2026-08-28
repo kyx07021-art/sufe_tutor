@@ -1,5 +1,5 @@
 /**
- * 帖子域数据层（V-1-4 从 server/db.js 提取）：posts / likes / favorites。
+ * 帖子域数据层（从 server/db.js 提取）：posts / likes / favorites。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { LIMITS } from '../../../shared/config.js';
@@ -79,10 +79,10 @@ export async function dbCreatePost(db, userId, title, bodyMd) {
 }
 
 export async function dbGetPostById(db, postId) {
-  return await dbGet(db, 'SELECT id, user_id, title, body_md FROM posts WHERE id=?', [postId]); // Z-6-F6：补 body_md（调用方读正文，原缺失返 undefined）
+  return await dbGet(db, 'SELECT id, user_id, title, body_md FROM posts WHERE id=?', [postId]); // 补 body_md（调用方读正文，原缺失返 undefined）
 }
 
-// U10（网络层架构债）：点赞/收藏切换把「读帖 + 读本人记录」合成一步 batch（串行 2 次往返 → 1 次）。
+// （网络层架构债）：点赞/收藏切换把「读帖 + 读本人记录」合成一步 batch（串行 2 次往返 → 1 次）。
 // D1 batch 结果元素对 SELECT 含 .results 数组（与 login authRateBatch 同解析口径）。
 export async function dbGetPostLikeToggleRead(db, postId, userId) {
   const out = await db.batch([
@@ -100,7 +100,7 @@ export async function dbGetPostFavoriteToggleRead(db, postId, userId) {
   return { post: out[0]?.results?.[0] ?? null, fav: out[1]?.results?.[0] ?? null };
 }
 
-// U10：点赞写入 + 计数同步 + 计数回读 同一 batch（事务内顺序执行；串行 3 次往返 → 1 次）。
+// 点赞写入 + 计数同步 + 计数回读 同一 batch（事务内顺序执行；串行 3 次往返 → 1 次）。
 // likeId 有 → 删（取消赞），无 → 插（点赞）；计数以子查询 COUNT 为唯一事实源，杜绝漂移。
 export async function dbTogglePostLike(db, postId, userId, likeId) {
   const stmts = likeId

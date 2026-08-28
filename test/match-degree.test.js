@@ -1,5 +1,5 @@
 /**
- * 需求五·匹配度优化单测（B4：直接 import core/teacher ESM）。
+ * 需求五·匹配度优化单测（直接 import core/teacher ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -31,7 +31,7 @@ export function signContract(contractId) {
       <span class="text-sm text-muted contract-sign-hint" id="contract-sign-hint">${signReadHint()}</span>
       <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled data-action="contract.confirmSign">${TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS))}</button>`,
   });
-  clearSigningTimer(); // Z-10-F4: idempotent — reopening must not stack intervals
+  clearSigningTimer(); // idempotent — reopening must not stack intervals
   window._signingOpenedAt = Date.now();
   window._signingTimer = setInterval(() => {
     const remain = Math.max(0, CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000 - (Date.now() - window._signingOpenedAt));
@@ -62,7 +62,7 @@ export function updateSignBtnState(remainSec, preserveText = false) {
   btn.disabled = !ready;
   if (ready) btn.textContent = TEXT.SIGN_READ_DONE_BTN;
   else if (remainSec != null) btn.textContent = TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec));
-  else if (!preserveText) btn.textContent = TEXT.SIGN_READ_HINT; // Q-4a-L1: elapsed-but-not-scrolled shows the scroll hint, not the misleading ready label (was 'I have read and confirm' while disabled)
+  else if (!preserveText) btn.textContent = TEXT.SIGN_READ_HINT; // elapsed-but-not-scrolled shows the scroll hint, not the misleading ready label (was 'I have read and confirm' while disabled)
   const hint = document.getElementById('contract-sign-hint');
   if (!hint) return;
   hint.textContent = ready ? TEXT.SIGN_READY_HINT : TEXT.SIGN_READ_HINT;
@@ -250,7 +250,7 @@ export function preview() {
   });
 }
 
-// Z-10-F4: clearSigningTimer single point — modal close (contract.closeModal), sign-confirm,
+// clearSigningTimer single point — modal close (contract.closeModal), sign-confirm,
 // and logout (registerLogoutReset) all release the interval so it never keeps ticking detached
 export function clearSigningTimer() {
   if (window._signingTimer) { clearInterval(window._signingTimer); window._signingTimer = null; }

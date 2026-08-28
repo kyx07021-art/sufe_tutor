@@ -1,5 +1,5 @@
 /**
- * posts 域 schema（V-1-4b）：帖子 / 点赞 / 收藏 DDL。
+ * posts 域 schema（）：帖子 / 点赞 / 收藏 DDL。
  */
 import { dbRun } from '../../core/util.js';
 
@@ -30,7 +30,7 @@ export const createStatements = [POSTS_DDL, POST_LIKES_DDL, POST_FAVORITES_DDL];
 export const ensureColumns = [];
 export async function migrate(db, ctx) {
   if (ctx.phase !== 'postCreate') return;
-  // PA-3-F3（PA-3d L1）：dbListPosts 按 created_at DESC, id DESC 排序取前 200（/api/posts 唯一公开列表，
+  // （）：dbListPosts 按 created_at DESC, id DESC 排序取前 200（/api/posts 唯一公开列表，
   // 30s 边缘缓存兜底）——补 (created_at, id) 索引消除全表扫+排序（对齐 demand 域 idx_demands_created 同型）。
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at, id)');
 }

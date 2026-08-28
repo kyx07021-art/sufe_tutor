@@ -1,14 +1,14 @@
 /**
  * 学生需求侧扩充前端回归（R2-b：需求类型分段切换 / 偏好性格 / 偏好性别 / 学生性别改造 / 非学科卡渲染）
- * B4：vm 沙箱 → 直接 import student/region feature ESM（真实 index.html 壳替换为最小 jsdom 壳）。
+ * vm 沙箱 → 直接 import student/region feature ESM（真实 index.html 壳替换为最小 jsdom 壳）。
  *
  * 覆盖：
- *   - 需求表单顶部类型分段切换：学科/非学科 区块显隐（JS 只切 .active/.hidden 类）；
- *   - 偏好性格 tag-pick：上限 PERSONALITY_TAGS_MAX、超限 toast（复用 toggleTagPick）；
- *   - 学生性别 select：''=不愿透露（默认）/男/女，无 nonbinary，非必填；偏好老师性别：不限/男/女；
- *   - renderDemandCard：非学科卡渲染（类型徽章 + 项目名 + 无成绩行）、学科卡徽章；
- *   - prefillDemandForm：非学科需求回填非学科勾选 / 偏好性格 / 偏好性别 / 空学生性别；
- *   - 上海精细地址选择（区→镇/街道二级联动，组合值写 #d-address）、非上海锁线上、编辑回填、旧文本清空。
+ * - 需求表单顶部类型分段切换：学科/非学科 区块显隐（JS 只切 .active/.hidden 类）；
+ * - 偏好性格 tag-pick：上限 PERSONALITY_TAGS_MAX、超限 toast（复用 toggleTagPick）；
+ * - 学生性别 select：''=不愿透露（默认）/男/女，无 nonbinary，非必填；偏好老师性别：不限/男/女；
+ * - renderDemandCard：非学科卡渲染（类型徽章 + 项目名 + 无成绩行）、学科卡徽章；
+ * - prefillDemandForm：非学科需求回填非学科勾选 / 偏好性格 / 偏好性别 / 空学生性别；
+ * - 上海精细地址选择（区→镇/街道二级联动，组合值写 #d-address）、非上海锁线上、编辑回填、旧文本清空。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -182,7 +182,7 @@ test('需求五 地址区：仅「上海+线下」显示精细选择并组装值
   const prov = doc.getElementById('d-province');
   assert.ok(section.classList.contains('hidden'), '无省份 → 地址区隐藏');
   assert.equal(addr.value, '', '隐藏时地址值清空');
-  // v0.31.5（P3 用户返工）：授课区域移入 P2 期望教学方式，仅「上海+线下」显示——线上不强行报地址。
+  // v0.31.5（用户返工）：授课区域移入 期望教学方式，仅「上海+线下」显示——线上不强行报地址。
   prov.value = 'shanghai';
   onDemandProvinceChange();
   assert.ok(section.classList.contains('hidden'), '上海+默认线上 → 地址区隐藏（线上不要求地址）');

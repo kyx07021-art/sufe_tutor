@@ -1,5 +1,5 @@
 /**
- * 需求十 签约加固（B4：直接 import contract actions-sign）。
+ * 需求十 签约加固（直接 import contract actions-sign）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

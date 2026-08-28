@@ -8,7 +8,7 @@
  * 与改用户名过程（auth 域的弹窗/确认/冷却判定）解耦——过程只调本模块接口。
  *
  * 凭证域自持 users 表凭证列 SQL（phone/email/phone_hash/email_hash/username_changed_at），
- * 类 notify/contract/log 自持其表域的有意决定（CLAUDE.md）；users 主列（username/password_hash/
+ * 类 notify/contract/log 自持其表域的有意决定；users 主列（username/password_hash/
  * role 等）SQL 仍归 db.js 数据层。未来切手机号核心：在此新增 setPhoneAsPrimary，凭证读取点
  * （登录识别/展示）只改本模块，过程层不动。
  */

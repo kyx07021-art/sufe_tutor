@@ -1,12 +1,12 @@
 /**
- * V-2-4 structured notifications regression:
- *  - server: notifyUser stores type + JSON params (text column empty for new rows),
- *    broadcast stores type='BROADCAST' + {title,text}; GET /api/notifications maps
- *    params back to an object.
- *  - client: notifBodyText / notifTypeText / notifSubjectsText render each type to
- *    the exact v1-parity text from constants/text.js single source; legacy rows
- *    (type NULL) fall back to the stored text; isBroadcastNotif accepts both the
- *    structured type and the legacy prefix.
+ * structured notifications regression:
+ * - server: notifyUser stores type + JSON params (text column empty for new rows),
+ * broadcast stores type='BROADCAST' + {title,text}; GET /api/notifications maps
+ * params back to an object.
+ * - client: notifBodyText / notifTypeText / notifSubjectsText render each type to
+ * the exact v1-parity text from constants/text.js single source; legacy rows
+ * (type NULL) fall back to the stored text; isBroadcastNotif accepts both the
+ * structured type and the legacy prefix.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { notifyUser, dbBroadcastNotification, initNotifyTable, handleGetNotifications } from '../src/server/core/notify.js';
-import { logEvent, logDropStats } from '../src/server/core/log.js'; // Q-2b-F3/F4/F6 守护测试
+import { logEvent, logDropStats } from '../src/server/core/log.js'; // //守护测试
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { TEXT } from '../src/client/constants/text.js';
 import { notifBodyText, notifTypeText, notifSubjectsText } from '../src/client/features/notif/render.js';
@@ -167,8 +167,8 @@ test('NOTIFY_TYPES registry completeness: every type has a client template', asy
   assert.equal(notifTypeText('SIGNING_CONFIRMED', {}), TEXT.NOTIF_SIGNING_CONFIRMED);
 });
 
-// ========== Q-2b-F6/F4/F3 守护测试（Q-2a~Q-2e 审计 FAIL 点补齐，2026-08-20）==========
-// F6: notifyUser 错 type/多余 params 键拒绝写入 + 留档（变异删校验块 → 红）
+// ========== //守护测试（~审计 FAIL 点补齐，2026-08-20）==========
+// notifyUser 错 type/多余 params 键拒绝写入 + 留档（变异删校验块 → 红）
 test('Q-2b-F6：notifyUser 错 type/多余键拒绝写入 + 留档 notify.invalid_*', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu } = await seed(db, raw);
@@ -182,7 +182,7 @@ test('Q-2b-F6：notifyUser 错 type/多余键拒绝写入 + 留档 notify.invali
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 1, '合法调用仍落库');
 });
 
-// F4: 通知插入失败留档 notify.fail（变异删 catch 留档 → 红）
+// 通知插入失败留档 notify.fail（变异删 catch 留档 → 红）
 test('Q-2b-F4：通知插入失败留档 notify.fail（不再静默吞）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu } = await seed(db, raw);
@@ -196,7 +196,7 @@ test('Q-2b-F4：通知插入失败留档 notify.fail（不再静默吞）', asyn
   assert.equal(raw.prepare("SELECT COUNT(*) c FROM activity_log WHERE action='notify.fail'").get().c, 1, '失败留档 notify.fail');
 });
 
-// F3: logEvent 写库失败 dropped 计数递增（变异删 droppedLogs++ → 红）
+// logEvent 写库失败 dropped 计数递增（变异删 droppedLogs++ → 红）
 test('Q-2b-F3：logEvent 写库失败 dropped 计数递增（零可观测性修复）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await seed(db, raw);

@@ -1,5 +1,5 @@
 /**
- * F10 聊天乐观发送回归（B4：直接 import chat actions-send）。
+ * 聊天乐观发送回归（直接 import chat actions-send）。
  * 覆盖审计要求：临时气泡内外 data-mid 同步替换、轮询关窗、去重、空响应回滚、
  * 空会话占位清除、部分失败恢复、loading。
  */
@@ -147,7 +147,7 @@ test('图片/文件乐观气泡成功后内外 data-mid 都替换为真实 id；
   const inner = [...dom.window.document.querySelectorAll('#chat-messages img[data-action="chat.openImage"], #chat-messages a.chat-file-dl')];
   assert.deepEqual(inner.map(b => b.dataset.mid || ''), ['6', ''], '图片按钮 data-mid 同步为真实 id');
   assert.equal(inner[1].getAttribute('download'), 'b.pdf', '文件下载锚点带文件名');
-  // F7 调用点契约：媒体消息 bump 传 body:''（绝不把数百 KB dataUrl 写进会话列表缓存）
+  // 调用点契约：媒体消息 bump 传 body:''（绝不把数百 KB dataUrl 写进会话列表缓存）
   assert.equal(chat.list[0].last_kind, 'file', '预览 kind 为最后一条媒体');
   assert.equal(chat.list[0].last_body, '', '媒体消息列表缓存 body 为空串');
   teardown();

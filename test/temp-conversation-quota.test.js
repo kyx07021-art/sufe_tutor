@@ -1,16 +1,16 @@
 /**
  * S2-T8: temp conversation quota & input-validation negatives.
  *
- * Covers (interfaces.md §17/§19):
- *   I-19/20/21 send-path: initiator's 2nd message on a sent temp → 409 TEMP_QUOTA_EXCEEDED
- *     (service-side hard gate; the frontend hides the input as the primary defense).
- *   I-18 init gate: non-initiator GET / send on an init temp → 404 (existence-leak prevention).
- *   I-23 target validation: missing target → 400; self / wrong-role / nonexistent target → 404;
- *     unauthenticated → 401.
- *   I-23 firstMessage cap: firstMessage > LIMITS.TEMP_FIRST_MSG_MAX → 400.
+ * Covers (interfaces.md /):
+ * /20/21 send-path: initiator's 2nd message on a sent temp → 409 TEMP_QUOTA_EXCEEDED
+ * (service-side hard gate; the frontend hides the input as the primary defense).
+ * init gate: non-initiator GET / send on an init temp → 404 (existence-leak prevention).
+ * target validation: missing target → 400; self / wrong-role / nonexistent target → 404;
+ * unauthenticated → 401.
+ * firstMessage cap: firstMessage > LIMITS.TEMP_FIRST_MSG_MAX → 400.
  *
  * The positive lifecycle (init → sent → formal) lives in temp-conversation-state-machine.test.js;
- * temp close (I-16) lives in temp-close.test.js.
+ * temp close () lives in temp-close.test.js.
  */
 import { test, describe } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -82,7 +82,7 @@ describe('S2 temp conversation quota & validation', () => {
     assert.equal(body.code, CODES.TEMP_QUOTA_EXCEEDED, 'stable error code for the frontend branch');
     assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id=?').get(convId).c, 1, 'no second message landed');
     assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.SENT, 'state not advanced by the rejected send');
-    // Mutation intent (G2): removing the initiator-quota guard in handleSendBatch turns the
+    // Mutation intent (): removing the initiator-quota guard in handleSendBatch turns the
     // 409 assertion red. Not runnable here without editing src — verified manually at audit time.
   });
 
@@ -102,7 +102,7 @@ describe('S2 temp conversation quota & validation', () => {
     const single = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'ok' }] }, reqOf(s1.token));
     assert.equal(single.status, 201, 'a single message on an init temp still lands');
     assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.SENT, 'first message formalizes');
-    // Mutation intent (G2): removing the batch.length === 1 guard in handleSendBatch turns the
+    // Mutation intent (): removing the batch.length === 1 guard in handleSendBatch turns the
     // multi-item 400 assertion red (it would return 201 and land 2 messages). Verified at audit time.
   });
 

@@ -1,8 +1,8 @@
 /**
- * B4 redo：student 域动作全接线回归（独立审计断线点修复验证）——
- *   toggleDemandIntents 懒加载 + 红点消除、showMatchDetail 悬浮明细卡、
- *   编辑需求拉最新预填 + PUT merge-preserve（上海线下/非学科破坏性用例）、
- *   doSubmitIntent 乐观按钮翻转、toggleDemandFilters 面板 id 契约。
+ * redo：student 域动作全接线回归（独立审计断线点修复验证）——
+ * toggleDemandIntents 懒加载 + 红点消除、showMatchDetail 悬浮明细卡、
+ * 编辑需求拉最新预填 + PUT merge-preserve（上海线下/非学科破坏性用例）、
+ * doSubmitIntent 乐观按钮翻转、toggleDemandFilters 面板 id 契约。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -160,7 +160,7 @@ test('编辑全字段表单：上海线下需求地址/提交者/标签/目标�
 });
 
 // 非学科需求编辑保存：8 步向导的非学科区块回填项目勾选 + 技能现状，保存随表单提交
-// （target_type 来自 P4 类型分段，skill_notes 来自 P5 技能文本框，不走合并回填）。
+// （target_type 来自 类型分段，skill_notes 来自 技能文本框，不走合并回填）。
 test('编辑非学科需求：target_type/skill_notes 随非学科表单回填提交', async () => {
   setup();
   state.user = { id: 40, username: '学生A', role: 'student' };

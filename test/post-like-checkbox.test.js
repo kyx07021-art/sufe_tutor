@@ -1,5 +1,5 @@
 /**
- * #160 点赞按钮接复选框逻辑（B4：直接 import posts render/actions）。
+ * #160 点赞按钮接复选框逻辑（直接 import posts render/actions）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

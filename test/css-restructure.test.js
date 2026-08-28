@@ -1,5 +1,5 @@
 /**
- * V-2-5b CSS 重组结构契约：tokens/base/features/responsive 落位、旧文件删除、
+ * CSS 重组结构契约：tokens/base/features/responsive 落位、旧文件删除、
  * 域规则归位对应文件。字节无损由 test/_css.js 的 STYLE_CSS 拼接保障
  * （index.html 加载序 = 原 style.css 全段 + 域文件 + glass）。
  */

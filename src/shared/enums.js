@@ -1,4 +1,4 @@
-/** 业务枚举唯一源（V-1-1）。零依赖，纯数据。 */
+/** 业务枚举唯一源（）。零依赖，纯数据。 */
 export const STATUS = {
   "OPEN": "open",
   "CONTRACTED": "contracted",
@@ -329,16 +329,16 @@ export const DEMAND_TYPES = {
 };
 export const ROLES = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' };
 export const VERIFY_TYPES = { CHSI: 'chsi', ADMISSION: 'admission' };
-// S0-03: new-site model enums (single-source; values derived from STATUS where they already exist).
+// new-site model enums (single-source; values derived from STATUS where they already exist).
 // v2 legacy keys (STATUS.CONTRACTED/REVOKED etc.) retained until S3/S6 converge — S0 定案: only move mechanism, don't delete.
-export const DEMAND_STATUS = { OPEN: STATUS.OPEN, CLOSED: STATUS.CLOSED }; // S3 §15: demand status converges to open/closed
-export const TEACHING_METHOD = { ONLINE: 'online', OFFLINE: 'offline', BOTH: 'both' }; // S3 §15: three states; ids mirror TEACHING_METHODS array entries
-export const CONTRACT_STATUS = { SIGNING: STATUS.SIGNING, SIGNED: STATUS.SIGNED, REVOKED: STATUS.REVOKED }; // S5 §16: contract_status + revoked marker
-// S2-T2: temp conversation state machine (NULL = formal, see S2 §17)
+export const DEMAND_STATUS = { OPEN: STATUS.OPEN, CLOSED: STATUS.CLOSED }; // S3 demand status converges to open/closed
+export const TEACHING_METHOD = { ONLINE: 'online', OFFLINE: 'offline', BOTH: 'both' }; // S3 three states; ids mirror TEACHING_METHODS array entries
+export const CONTRACT_STATUS = { SIGNING: STATUS.SIGNING, SIGNED: STATUS.SIGNED, REVOKED: STATUS.REVOKED }; // S5 contract_status + revoked marker
+// S2-T2: temp conversation state machine (NULL = formal, see S2 )
 export const TEMP_STATUS = { INIT: 'init', SENT: 'sent' };
-// Z-15-F2：CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
+// CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
 // 此处原为双源之一且全仓零消费（server/constants.js re-export 亦无人引 CONTENT_TYPES）
-// T-6-F1：OTP 请求 scene 业务枚举唯一源（值 = 现中文文案，零迁移；服务端 SCENE_WHITELIST 与前端 actions-otp 双端同源，
+// OTP 请求 scene 业务枚举唯一源（值 = 现中文文案，零迁移；服务端 SCENE_WHITELIST 与前端 actions-otp 双端同源，
 // 消除「文案键当枚举」的 D4 注册表脆耦合——text.js 改文案不再导致 scene 落空回退默认模板）
 export const OTP_SCENES = { LOGIN: '登录验证', REGISTER: '注册验证', BIND: '绑定验证' };
 export const DEACTIVATED_USER_PREFIX = '已注销用户';

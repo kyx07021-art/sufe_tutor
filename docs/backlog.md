@@ -1,240 +1,45 @@
-# 结构 / 视觉 待办队列（worklist，非 changelog）
+# 待办队列（worklist，非 changelog）
 
-> 这是可执行的工作清单，带精确行号，供会话接力用。规则在 `../CLAUDE.md`，进度看 git。
-> 每项注明状态：✅ 已上线 / 🟡 醒着核对后做（跨文件/改契约/视觉，盲改易回归）/ 已判定不改。
+> 可执行的工作清单。已完成/弃置的历史审计登记已清理；只保留 v2 之后的待办与关键决策。
 
-## 已完成（本轮 2026-07-31，v0.18.4–0.18.13 + 玻璃 v0.19.6/7）
-- ✅ **v0.19.6/7 玻璃根因修复全量落地并推送（a32642a）**：S1 根因——液态弯月/ hover 白洗/ 语义色条全被 `::before` 盖住（元素 inset 阴影错层），已把表面阴影迁入 `::before`（元素层只留外浮影 + 焦点环），新增 `--g-surface` 语义色条变量、下缘暗弧加强（浅底可见，实测 -32）；连带清 S2（score-mode-tabs 双底双影删 :38 直写）、S3（role-tab 文字色去重）、S6（tag 语义色走 `--g-fill`）、S7（entry 死 `--g-fg` 删除）、S8（avatar 边框单源）。按钮族白化（`--g-fill: transparent` 标准玻璃）。**复核遗留**：S4（gk-pill 手卷）/ S5（navbar 多源）未处理；S11-S13 用户新增待办（见下方 G6-G8）。
-- ✅ **v0.18.13 修复 0.18.12 线上事故（两个根因）**：① master `::before` 改回 `z-index:-1`（0.18.12 误设 z-index:1 → 磨砂糊到卡片**自己**内容=整卡发虚、填充盖住按钮文字=文字消失）；填充留元素自身 background，z-1 层只画斜边+磨砂+浮影。② **style.css 残留旧 `::before { background: var(--g-fill) }`**（基类 `--g-fill: var(--paper-2)` 奶油色）= 两文件不同步：z-1 伪元素奶油填充盖住 glass 新元素紫填充 → 按钮泛白、白字不可见；删 3 处残留 + 3 处死 `--g-fill` 定义。另：实心按钮/选中块移出 REFRACT（opaque 填充被 `feDisplacementMap` 吞 → 泛白）；清死 `--g-mask`/`--edge-fade-mask`/`--g-rim`；订正 CLAUDE.md 过期规则。**g21 harness 先以修复前 CSS 复现线上事故（卡内文字糊+按钮文字没）证明 harness 可信，再验证修复后白/彩双栈全锐利、按钮紫底白字+玻璃斜边。** 净 glass.css −2.5KB、style.css 删死填充。
-- ⚠️ **0.18.12 线上事故复盘（教训，勿照做 z-index:1）**：z-index:1 的 `::before` 在内容之上 → frosted 卡的 `--g-frost` 糊到卡自己内容、`background:var(--g-body)`（变量不存在→透明）让填充缺位；叠加 style.css 旧 `::before` 奶油填充 → 用户看到"整卡发虚+按钮文字消失+按钮/侧栏像没接入"。**g20 误报通过的原因**：harness 没有"卡片内按钮/卡片正文"组合场景，且没肉眼逐块看卡内文字锐利度。**教训**：①玻璃层叠改动 harness 必含 frosted 卡+卡内正文+卡内按钮+弹窗头栏+气泡+选中块，截图逐块看文字；②填充层在 `::before`↔元素间搬迁时，grep 清全部 css 的旧 `--g-fill` 读+写，杜绝两文件不同步；③harness 必注入线上 `#lg-refract` SVG，否则 `backdrop-filter:url()` 在 headless 行为异常、填充判断失真。
-- ✅ **v0.18.12 玻璃组件真正统一（最终定稿，推翻 0.18.11 的"标准曲面遮罩"思路）**：统一渲染模型 = **body 填充 + 同色内斜边（inset box-shadow）画在 `::before`**（z1，在元素 background 之上、文字之下）；元素只设 `background`/`border-radius`/`color`/`--g-fg`。**玻璃边=内斜边**（顶 inset 白高光 + 底 inset 同色深阴影=朝内同色渐变边），外缘=元素自身 border-radius 裁剪（锋利圆角、与轮廓半径严格一致、不可能泛白）。删光特例：元素自绘宝石体+外发光、`--g-mask:none`、透明渐隐曲面遮罩全删；frosted 面 `--g-frost` 也在 `::before`。本地 g20 四栈（白/彩/侧栏/弹窗磨砂+2.2x 圆角放大）截图验：白底无白晕、圆角对齐、磨砂在、文字可读。净 +58/−65。
-- ⚠️ 已被 0.18.12 推翻（教训）：0.18.11 想用"标准曲面遮罩 `--edge-fade-mask`+REFRACT"统一——但正交渐隐遮罩**圆角 mismatch**（褪隐按方框边算、对不齐圆角弧）且**白卡上褪向白=白边**，sidebar-pill/chat-send/entry 仍看着没渐变边。也试过 `mask-composite` 轮廓环+逐选择器 `round` 半径，太脆、浏览器支持差。**正解=inset 阴影**（天然沿 border-radius、无遮罩几何）。
-- ⚠️ 已被 0.18.11/12 推翻（教训，勿照做）：v0.18.5 曾用"元素自绘宝石体+外同色光晕 box-shadow+`--g-mask:none`"治白边——给按钮单开渲染路径的特例，用户连续打回（"渐变边没了/做成外发光了/圆角没了/没统一"）。"文字可读性所以要实色不能渐隐"是伪命题（文字在 padding 中心，边缘只动空 rim）。
-- ⚠️ 已被 0.18.11 推翻（留作教训，勿照做）：v0.18.5 曾用"元素自绘宝石体+外同色光晕 box-shadow+`--g-mask:none`"治白边——那是给按钮单开渲染路径的特例，用户连续打回（"渐变边没了/做成外发光了/圆角没了/没统一"）。白边真因=**填充太浅**，非遮罩本身；深填充+标准遮罩=同色肩，不是白边。"文字可读性所以要实色不能渐隐"是伪命题（文字在 padding 中心，边缘渐隐只动空 rim）。
-- ✅ 光球：更小(约一半)+更多(9)+方向各异(4 keyframe)，底板磨砂 16→6 让球现形为柔形；卡片补 `--g-frost:blur(7px)` 保可读（glass.css + index.html 注入器 DOM + constants bg.blur）。
-- ✅ base style.css 清理：删按钮变体死 `--g-fill`、`.tc-push-btn:hover{background:ink}` 黑悬停；`.stat-card` 左竖条 `::before`→`::after`（修被 glass 填充盖没）。
-- ✅ server 反馈列表 `status` 过滤下推 `dbGetFeedbacksAdmin(db,status)`（白名单，向后兼容）+ 路由接线。
-- ✅ a11y：全局 keydown 激活 `[role=button]` 非 button 元素；可点 span（tc-username / grade-option pickGrade|pickGkPill）补 `role=button tabindex=0`；弹窗 ✕ 补 `aria-label=BTN_CLOSE`；新增常量 `BTN_CLOSE`/`A11Y_VIEW_PROFILE`。
+## 保留专项（攒批，勿混入小修）
+- **z-index / 860 断点 token 化**：base.css :root 定义 `--z-*` / `--bp-*`，各文件统一引用（当前数值一致仅散落）。全站 CSS 重构面，视觉回归风险，攒批。
+- **管理员列表分页**：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例）。功能改进，生产数据量小非紧急。
+- **Q-2i-M4 服务端 ROLES/STATUS 未收敛共享 enums**：domains 各 api/repo 大量裸 `'student'/'teacher'/'open'/'pending'` 字面量未引 `src/shared/enums.js`。收敛 = 几百处等价替换（零行为变化）+ SQL 字面量本就不可用 JS enums。改动面巨大、收益为架构一致性。
+- **Q-2i M6/M7 + L1-L9 描述丢失**：Q-2i/Q-2f 审计细节丢失，需重跑对应审计面复核后执行。
 
-## 🟡 玻璃收口：回归「组件=参数」硬规则（S1/S2/S3/S6/S7/S8 已修 v0.19.7）
-> 原则（用户拍板）：**玻璃件外观只准写 `--g-*` 参数，元素 `background`/`box-shadow` 直写即违规=屎**；逐条迁回参数、删直写，引擎自动接管。依据/状态：根目录《玻璃系统竞态分析.md》（S1 根因+S2/S3/S6/S7/S8 已修复推送，a32642a）。
-- ✅ **G1 `.score-mode-tabs` 双底双影**（style-region.css:38 直写 background/border-radius/box-shadow 顶掉引擎）→ 已删 :38 直写，交还引擎（a32642a）。
-- ✅ **G2 gk-pill 手卷第二套玻璃**（style-region.css:72-105 直写背景/hover/selected + `::before` 竖条；style.css:511 `grade-option.selected` 另有「选中」语义）→ 挂 `.glass glass--solid` 走引擎（竖条迁 ::after），或与 grade-option.selected 合并单点。
-- ✅ **G3 navbar 背景 2 文件 5 处**（style.css:101/106/981 + glass.css:286/287）→ 收口 glass.css 单点（landing 渐变走 :has），删 style.css 竞争方。
-- **G4 `.glass--solid` 命名与行为不符**（glass.css:229 只关磨砂，不关 sheen/填充）→ 已判定：低危，补注释或改名可排队，不盲改。
-- **G5 sidebar-item/conv-item 手卷 hover**（glass.css:275/281 inset 直写；非 glass 件、元素 inset 可见=合理例外）→ 已判定：保留+注释，不并入引擎。
-- ✅ **G6 tc-push-btn 紫色浮光残留**（glass.css:210 `--g-lift: 0 9px 22px -9px rgba(74,58,178,.45)` 下偏紫投影；v0.19.7 白化按钮时漏改 lift）→ 删紫色 lift，交还中性 `--glass-lift-sm`。用户发现，全文件唯一常驻紫投影（已扫确认）。
-- ✅ **G7 侧栏 active 白字变色残留**（style.css:587 `.sidebar-item.active .sidebar-item-index { color:#fff }` + 607 `desc { color: var(--paper-ghost) }`——为适配旧紫卡的白字，卡白化后白字不可见）→ 删白字，交还深色（base `--ink` 系）。用户发现。
-- ✅ **G8 首页上边栏删除**（landing 时 navbar 左右分色 `paper|lilac`）→ 已删：landing 时 navbar `display:none`，logo+登录/注册由 .stage-nav 浮在舞台顶；glass.css:290 landing 渐变、style.css:107/111/981 死规则整条删。
+## 性能优化备忘（按优先级）
+- **日志保留期定期清理**：留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。需用户定保留期。
+- ~~构建哈希 + 内容哈希文件名 + 长 immutable Cache-Control~~ → **已落地**（scripts/build.mjs 经 esbuild code splitting 产出内容哈希资产，`/assets/*` immutable）。
+- ~~JS 合并/内联关键资产~~ → **已落地**（esbuild code splitting + 共享 chunk）。
+- ~~Early Hints preload~~ → pages.dev 自动开启。
+- ~~Cloudflare China Network~~ → 需 ICP 备案 + 企业版，不可行，弃置。
 
-> ——— 第二轮全站审查（2026-08-01，三只读代理并行扫 style.css / style-chat+posts / glass.css，结论主会话已核）———
+## 产品改进
+- **onboarding 引导精简**：用户反馈教程太繁琐，精简到 5~6 步核心功能（当前 onboarding-tour 步数多）。攒批专项。
 
-### 🔴 实变旁路 → 合并成参数（--g-*）
-- ✅ **G9 conv-pill 直写 background 被 ::before 盖死**（glass.css:279 `background:rgba(255,255,255,.22)` + `box-shadow`；挂 `glass--solid`，app-chat.js:85）→ 改 `--g-fill:rgba(255,255,255,.22)` 删直写；引擎默认填充(.14)+sheen 实际在渲染，"米色大色块"注释已失真。
-- ✅ **G10 score-mode-tab.active 白字白底跨文件打架**（glass.css:239 `--g-fill:.22白`+`--g-fg:var(--ink)` 被 style-region.css:54 `color:#fff` 压死 → 实为白字坐白填充低对比）→ 定单源：style-region 删 color 改走 `--g-fg`，或 glass 删 `--g-fg` 交还 style-region；style-region.css:53 hover 直写一并迁 `--g-hover`。
-- ✅ **G11 device-current 药丸变 2px 方角**（style.css:755-756 直写 `border:1px solid currentColor`+`border-radius:2px`，盖过 glass.css:232 `--g-r:999px`）→ 删直写，交还 `--g-r`/`--g-surface`。
-- ✅ **G12 profile-panel 外浮影硬编码**（style.css:1122 `box-shadow:-14px 0 44px rgba(17,17,20,.13)` + media 1179 `.22`）→ 改 `--g-lift`。
-- ✅ **G13 avatar--link 悬停焦点环直写**（style.css:1095 `box-shadow:0 0 0 3px rgba(17,17,20,.16)` 盖过引擎 `--g-lift`+`--g-ring`）→ 走 `--g-ring`。
-- ✅ **G14 notif-item.unread 语义条直写**（style.css:1275 `border-left:3px solid var(--danger)` 盖掉引擎 border:none）→ 仿 glass.css:335 feedback-card--bug 改 `--g-surface:inset 3px 0 0 var(--danger)`。
-- ✅ **G15 about-sec-mark 实变圆**（style.css:694 `border-radius:50%` 直写；glass 件 glass.css:353 未设 --g-r）→ 改 `--g-r:50%`。
-- ✅ **G16 chat 三处圆角旁路**（style-chat.css:176 `.chat-bubble{12px}` / 214 `.chat-stage-thumb{8px}` / 227 `.chat-stage-del{50%}`）→ 改 `--g-r`。
-- ✅ **G17 custom-option 圆角旁路**（glass.css:243 `border-radius:8px`）→ `--g-r:8px`。
+## 轻量审计观察项（攒批）
+- **T-6-F1-OBS1 otp.js fallback 硬编码中文场景**（src/server/core/otp.js `scene || (ch==='email' ? '登录验证' : '身份验证')`）：`'身份验证'` 不在 OTP_SCENES 内，属防御性兜底；若改 OTP_SCENES.LOGIN 会陈旧。
+- **T-6-F1-OBS2 otp-delivery.test.js 场景字面量**：用 `'登录验证'` 字面量而非 OTP_SCENES.LOGIN。
+- **T-6-F2-OBS dbGetStudentUsersAdmin 列表出口无 DB 直测**：仅学生搜索出口被直测，列表出口可补一条。
+- **T-6-F7-OBS getVersions 默认 0 键与 DOMAINS 一致性无锁**：若 DOMAINS 加域漏补默认键，首次 bump 前响应无该域基线。
+- **AI-7 ×2**（GET /api/my-relations 聚合）：排序平局 rowid 理论注记；signing 聚合子查询性能可优化非必需。
+- **AI-8 L1/L2/L3**（DELETE /api/admin/relations）：404 不消费 capToken 无测试兜底；「评价保留」未直接测试；`if (conv.demand_id)` 外层 guard 冗余。
+- **AI-9 O-2 chatPollTick 轮询不处理快照状态翻转**：对端 close 后本端 frame 保持 active 可写，直到重开才显示 closed（服务端 403 兜底，非断线）。
+- **AI-9 O-3 verify-chat-layout.mjs 未覆盖 .chat-head-actions 几何断言**。
+- **AI-9 O-4 doCloseRelation 403 失败路径无直接测试**。
+- **AI-9 · settings/actions.js .btn-danger 死类**：全仓无 CSS 规则，吃引擎默认白按钮。删类名或补规则。
+- **AI-9 · CHAT_CONVERSATION_CLOSED 前端无消费点**：前端统一展示 MSG 中文，code 仅测试断言用；可后续补前端 code 消费统一层。
+- **NO_PERMISSION 跨面注记**（chat/api.js 发送 + contract/api.js 创建）：closed 会话入口返回 NO_PERMISSION 而非 CONVERSATION_CLOSED——有意设计（closed frame 不渲染入口），勿误当 bug。
+- **CONTRACT_REVOKED 文案语义待核**：text.js「{name}」已撤销双方签署的合同」文案 vs 系统级联撤销（revoked_by=0）场景语义是否失准。
 
-### 🟡 竞态死代码 → 删 style.css 一方（glass 后加载必胜，style 侧已是死代码）
-- ✅ **G18 实 bug·登记簿聚焦下划线失效**（glass.css:252 `background:` shorthand 重置 background-image → style.css:403-407 下划线 linear-gradient 被吃）→ glass.css 252 拆 longhand `background-color`，或下划线迁 `::after`。
-- ✅ **G19 实 bug·筛选下拉 v 箭头消失**（style.css:844-850 `background-image:url(svg)` 被 glass.css:252 shorthand 重置；对照 backlog B2 已判 form-select 箭头为"无 JS 兜底"保留——filter-select 需核对同类处理）→ 同上拆 longhand 或迁 ::after。
-- ✅ **G20 landing-stage 二分底色死**（style.css:170/980 渐变被 glass.css `background:transparent` 胜）→ 已删：设计意图=光球舞台透出，舞台改 min-height:100dvh（G8 顺带）。
-- ✅ **G21 navbar 三处死代码**（style.css:101-102 平底 / 107 landing 渐变 / 981 media，全被 glass.css:286/287 胜）→ 已删（G3 收口 6ad7935 顺带完成，本项修正翻 ✅）。
-- ✅ **G22 pane 族死代码**（style.css:550 `.client-sidebar{background:lilac}` / 931 modal-overlay / 657 sidebar-backdrop / 375 form-group border-top / 1162 profile-row / 1137 profile-panel-head，被 glass.css 268/297/314/298/262/261 胜）→ 删。
-- ✅ **G23 entry 悬停位移死**（style.css:281/284 `transform:translateX(3px)` 被引擎 (0,2,0) 后加载恒等变换盖掉；glass.css:134 注释"组件自有 transform 天然胜出"对 (0,2,0) 级选择器不成立）→ 删直写或引擎让位。
-- ✅ **G24 form 透明声明死**（style.css:397 form-input/form-select `background-color:transparent` + 438 custom-select-trigger）→ 删。
-
-### 🔴 孤儿残留 → 旧染色按钮连根删时漏删的类名（删，不补）
-- ✅ **G25 btn-primary/danger/accent 模板类名残留**（v0.19.6 c7c00c8 已删染色按钮预设 `.btn-primary{--g-fill:ink;--g-fg:paper}` 等，但模板/JS 仍引用 40+ 处：app.js、app-admin.js、app-contracts.js、app-chat.js、app-posts.js、index.html，现成死类名吃引擎默认白填充）→ 从模板/JS 连根删类名。用户定性：删染色没删干净，**不补预设**。
-- ✅ **G26 badge-verified 类名残留**（app.js:1012 挂 `glass glass--solid`，CSS 无任何定义——旧染色徽标残留，现吃引擎默认填充+sheen）→ 删类名，外观交还 `glass--solid`。若"已验证"徽标样式仍要保留，另走 `--g-*` 参数，不补染色。
-
-### 🟢 清理 / 文档（低危）
-- ✅ **G27 glass--solid 漏关 sheen**（glass.css:229 只关磨砂不关 sheen，实心小件被顶部白高光提亮，违引擎 124-125 自述"小控件关 sheen"）→ 补 `--g-sheen:none`。
-- ✅ **G28 死 background-color transition ×6**（style-chat.css:55/229/140-142/281 + style-posts.css:69-72/95-97）→ 删。
-- ✅ **G29 引擎覆盖缺口 ×3**（textarea.chat-textarea:284 / input.posts-search:14 / textarea.post-body-input:106 非 glass 直写）→ 挂 glass 走引擎 or 注释豁免。
-- ✅ **G30 冗余 background:transparent ×5**（style.css:471 checkbox-item / 705 feedback-kind-btn / 784 drop-toggle / 1098 image-viewer-modal / 620 avatar--guest）→ 删。
-- ✅ **G31 glass 件 border-color 无效直写**（style.css:708-709 feedback-kind-btn:hover/.active——引擎 border:none 无宽不显形）→ 删。
-- ✅ **G32 引擎契约注释缺参数**（glass.css:20-31 头注释参数清单缺已实现且在用的 `--g-sheen`/`--g-blend`）→ 补注释。
-- ✅ **G33 score-mode-tab 分隔线双源**（glass.css:240 border-left-color vs style-region.css:52 全量 border-left）→ 收口单源。
-
-✅ **已核实无需动作**：style.css 无 ::before 内容伪元素（竖条全在 ::after，与引擎玻璃体零冲突）；头像 border 直写（glass.css:216/218）为无参数通道的合理例外（S8 已判保留）；sidebar-item/conv-item 手卷 hover（G5）保留。
-
-> ——— 第三轮复核（2026-08-01，主会话验收 v0.19.8 收口提交 a8a20d5+6ad7935）———
-
-- ✅ **G34 conv-pill 圆角回归**（glass.css:281：G9 删 `border-radius:var(--lg-r)` 直写时没补参数 → 吃引擎默认 9px，原 12px，会话 pill 变方）→ 已补 `--g-r: var(--lg-r)`。
-- ✅ **G35 avatar/about-flow-dot 潜伏圆角直写**（style.css:1078 `.avatar{border-radius:50%}` + 1312 `.about-flow-dot{border-radius:50%}`——值与引擎 `--g-r:50%` 一致无视觉差，但直写占位，将来改 --g-r 不生效）→ 已删直写交还参数。
-- ✅ **G36 G10 空块残留**（style-region.css:55 `.score-mode-tab.active { }` 删白字后留空壳）→ 已删。
-- ✅ **G21 状态修正**：6ad7935 已删 navbar 三处背景直写（style.css:101-102/107/981），实际已完成 → 翻 ✅。
-- 🟡 **验收备注·G29 外观新增**：chat-textarea/posts-search/post-body-input 由 glass.css:253 输入组接管（背景/圆角/内高光），从透明变玻璃输入框——计划内但属外观新增；已核原文件仅布局属性（padding/min-height/font），无属性冲突。
-- 🟡 **验收备注·弯月可见化混入收口**：v0.19.8 收口提交内夹带视觉改动（卡 fill .35/暗弧 .40/新月带），后续 v0.19.9/10 独立迭代到「填充弧单机制+卡族 --g-sheen:none」。不破坏收口规则，但收口提交不纯粹。
-- ✅ **弯月浅底隐形实证诊断（2026-08-01，v0.19.12 已按主方向修）**：卡族弯月在浅底不可见。根因：①白弧配浅底零对比；②渐变峰值 `at 50% -5%` 被裁在上缘外，可见区只剩 ~.45 窄条；③下缘暗弧太淡。**已修**：峰值移入卡内（`at 50% 4%`，.90 全幅可见）+ 下缘暗弧加深加锐（.55 + 16px）。弯月单一机制（填充弧），sheen/blend 整条已删（v0.19.10）。
-
-## ✅ #54 网安复审（security 插件技能 + 三并行只读审计 agent；v0.19.41 清毕，34/34 测试通过，公告已发）
-- ✅ **合同取消竞态（A 级）**：handleCancelContract 原先无条件 DELETE，与「对方刚翻 signed」竞态 → dbDeleteContract 加可选 statuses 守卫（仅删 pending/signing），changes=0 时判别：行仍在 = 状态已翻 → 409 CONTRACT_CANCEL_SIGNED_BLOCKED（须走撤销合同）；行不在 = 并发已删 → 幂等 200。管理员路径保持无条件删。
-- ✅ **签约后联系方式丢失（前端真 bug）**：后端 /api/teacher/profile 签约时返回 wechat/email，前端 app.js 只 Object.assign 了 real_name/credential_image，联系方式被丢 → 补并 wechat/email，签约学生可见实际值。
-- ✅ **log.js 脱敏补键**：SENSITIVE_KEYS += real_name/credential_image/phone/mobile/tel；sanitize 循环跳过 __proto__ 键（JSON.parse 自有键可走原型污染路径）；test/log-sanitize.test.js +2 用例（含 JSON.parse 构造的 __proto__ 真实路径）。
-- ✅ **svg 上传一律拒收**：routes-auth.js 头像 / routes-teacher.js 学信网截图补 `startsWith('data:image/svg')` 拒绝（矢量可内嵌脚本）；app-posts.js mdRender IMG_OK 改 `/^(https?:\/\/|data:image\/(?!svg))/i`。全站图像路径口径统一：只放行位图。
-- ✅ **门牌号服务端守卫（审计中）**：ADDRESS_GUARD 单源常量进 core.js，拦「两位以上数字+号(非号线)/号楼/室/栋/单元/门牌」；sanitizeDemand（需求创建/更新）+ handleSaveProfile（教师档案）双写入点校验，违者回 ADDRESS_TOO_DETAILED（前端 alert 正常展示）。需求 address 顺带限长 100。
-- ✅ **删 .liquidglass_backup/**：68K 未 git 跟踪的可部署遗留备份（constants/glass 双文件），连根删除。
-- 🟡 **已判定不改（记录）**：secrets.js 明文密钥 = 本地开发位（部署 secrets 已配置，公测前轮换）；gh keyring token 失效 → PAT 保留在 .git/config（给用户建议：gh auth login 重配 credential helper 或续 PAT）；token localStorage + unsafe-inline CSP = 架构选择；404/403 枚举差异低价值；capToken 每隔离区缓存 = 可用性取舍。
-
-## ✅ v0.19.38 三审计推迟项（2026-08-01 主会话整合；v0.19.40 清毕——用户授权"自己全修"，已全部落地并 32/32 测试通过）
-- ✅ **B1 log.js ↔ fieldcrypto.js 加密逻辑 ~90% 重复**：AES 原语（b64ToBytes/bytesToB64/aesKeyFromB64/encryptAes/decryptAes）收敛进 fieldcrypto.js 导出，log.js 只留 LOG_ENCRYPT_KEY 派生与 encrypted 语义；补 test/log-crypto.test.js（log 层薄壳：encrypted 标记/无密钥回落/密钥轮换，5 用例）。
-- ✅ **B3 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎** → 合并 dbGetTeachers(db, {adminView, viewerId})，两调用点（routes-teacher/routes-admin）已切。
-- ✅ **B4 dbGetAllDemands / dbGetAllDemandsAdmin** → 合并 dbGetDemands(db, {admin, cursor, teacherUserId})，调用点含测试（admin-demands-pagination 6 用例）全切。
-- 🟡 **B5 db 统计函数群同构 → 已判定不改**：三个统计函数是各自独立的 3~5 行查询（表/条件/输出键全不同），参数化=造泛型 SQL 构建器（加新物非删旧物）；dbGetRecentUsers/Demands 同构度更低（JOIN+JSON 映射差异）。按 C8/C12/B2 先例保留。
-- ✅ **C4 意向教师联系方式剥除点** → 内收进 dbGetIntentTeachers 出口（mapper 出口剥私密字段契约），routes-demands.js handleGetIntents 不再二次剥。
-- ✅ **C3b 合同创建端需求存在校验**：`!dm → 404 DEMAND_NOT_FOUND`（此前并入 403 NO_PERMISSION）；INSERT 守卫加 `(? IS NULL OR EXISTS(SELECT 1 FROM student_demands WHERE id=?))` 原子堵 SELECT→INSERT 竞态窗口，changes=0 时判别报 404/409 不误报。
-
-## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
-- ✅ **C1 弹窗壳跨文件重复**：modal-header 模板 ×17 + 可点遮罩 ×11 → 已抽 `openModal({title,titleId,body,footer,closable,cls,style,bodyCls})` 单源（v0.19.15-16），20/20 弹窗迁移完毕，手写模板清零，渲染结构与原模板逐字节一致。**mdToolbarHtml 未抽**（发帖/广播/合同编辑三处 md-toolbar 留 body 内，低危可后续）。
-- ✅ **C2 前后端错误码体系（定向版 v0.19.8）**：`error()` 加可选 `code` 参数（向后兼容），档案不完整 → `PROFILE_INCOMPLETE`、帖子删除不存在 → `POST_NOT_FOUND`；前端 api 封装把 `code` 挂到抛出的 Error，两处脆分支改按 code 判定（保留 MSG 兜底）。其余 error 路径暂未全覆盖，可续。
+## 视觉（用户再要求才做）
+- **vivid「clear-over-vivid」宝石按钮**：可选增强，用户要求才出原型，不做全站；不要为它给按钮开特例渲染路径。
 
 ## 已判定不改（保留，附理由）
-- **C8 `role-tabs::after`**：非孤儿，是 base 滑动下划线指示器；glass `.role-tab.active` 胶囊是叠加态，不替代下划线。删了会丢激活下划线。
-- **C12 constants 同文案多键**：`STATUS_APPROVED/REJECTED`（状态 tag 文案）与 `SUCCESS_APPROVED/REJECTED`（操作 toast 文案）语义不同、仅当前同字；`BTN_SEND`/`CHAT_BTN_SEND` 不同上下文。合并会降低清晰度，保留。
-- **C4 台账内联 SQL**（contract.js:121,123,130-131）：LEDGER_DB 覆写域，挪 db.js 会循环依赖，有意保留+注释。
-- **B2 `.form-select` v 箭头 background-image**（style.css:437-441）：非死代码，是无 JS 兜底（select 被 initCustomSelects 隐藏仅 JS 跑时；JS 挂时原生 select 仍需箭头），保留。
-
-## 视觉实验（用户同意概念，需截图调参到美丽再上线）
-- **vivid「clear-over-vivid」宝石按钮** **AF-16 判定：可选增强**（用户再要求才出原型，不做全站）：✅ 彩色玻璃观感已由 0.18.11 的统一达成（按钮=填色卡 + 标准遮罩 + 折射），**无需**元素自绘或 backdrop 垫层。若用户进一步要"折射去弯折一块自有 vivid 渐变"的宝石感，才需正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）——此为可选增强，只出截图原型，给用户看再定推不推全站；**不要**为它再给按钮开特例渲染路径（违 best-part-is-no-part）。
-
-## v0.21.0 全局重构后待办（2026-08-07 审计遗留，低危）
-- 前端 z-index 阶梯 / 860 断点 token 化（style.css :root 定义 --z-* / --bp-*，各文件统一引用；当前数值一致仅散落） **→ 保留专项**（全站 CSS 重构面，视觉回归风险，AF-16 判定攒批后续专项）
-- 管理员列表分页：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例） **→ 保留专项**（功能改进，生产数据量小非紧急，AF-16 判定）
-- admin 统计页 loadAdminStats 对响应字段做可选链兜底（s.users?.total） **→ ✅ 已由 R-5b 结构化改造覆盖**（u/r/inv/t/dt/mt 全 `|| {}` + `v ?? 0` 兜底，AF-16 复核）
-- dbGetDemandById 单条/列表出口形状已对齐 mapper，跨出口契约注释待补 **→ ✅ AF-15**（跨出口契约注释补齐，含 mapDemandRowFull 联系方式差异说明）
-
-## 🟡 性能优化备忘（2026-08-07，v0.22.5 SW+读缓存已落地后的其余杠杆）
-> **AF-16 判定**：构建哈希 → 已落地 hash-assets（P17）；JS 合并/内联 → 已落地 esbuild splitting；Early Hints → pages.dev 自动；China Network → 需 ICP 备案+企业版不可行（弃置）；日志保留期定期清理 → 归保留专项（需用户定保留期）。
-> 用户方向：服务器 ~190ms 但网页数秒，小站应压进百毫秒级甚至近零加载。已落地：v0.22.3 留档去读流量、v0.22.4 两个渲染 bug、v0.22.5 Service Worker（静态+公开读缓存）+ server/cache.js 公开读短 TTL。以下为暂缓的其余想法（未做，按优先级）：
-
-- **构建步骤 + 内容哈希文件名 + 长 immutable Cache-Control**（根治首访与 SW 部署陈旧）：当前资产无哈希、`must-revalidate` 每次全量重验（慢路径 23 资产 × ~300ms）。哈希化后浏览器/CDN 长缓存、部署即换 URL 无陈旧。**代价：引入构建步骤，动"零构建"哲学——需用户拍板。**
-- **JS 合并/内联关键资产**：18 个 JS 文件在 ~300ms RTT 路径上是 6 并发的往返乘数；共享层合并或内联首屏关键件可砍半请求数。
-- **Early Hints preload / HTTP/3**：pages.dev 已自动开启 Early Hints；可补 `Link: </app-shell.js>; rel=preload` 等头加速首屏关键资源。
-- **Cloudflare China Network（Cosmic）**：根治"客户端→边缘"跨洋延迟（上海用户当前 ~300ms+ 路径），需 ICP 备案 + 企业版，暂不可行，备忘。
-- **日志保留期定期清理**：v0.22.3 后留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。
-
-## keepalive 与冷启动评估（2026-08-10，v0.26.12/0.26.13 网络层复盘，D2 结论文档）
-> **AF-16 判定：结论=保留**（keepalive 降级为保底保险，无待办）。
-- **结论：keepalive 已降级为保底保险，不再承担「首击唤醒」职责。**
-  - 根因链回顾：Pages 多 isolate 各自冷启动 → 原 initDb 每次全量跑 19 表 CREATE + ~15 组 ensureColumns（≈13-20 次 D1 往返）× D1 冷连接 → 首击 6-25s 超时（v0.25.112 用户掐秒表：游客 7s / 教师列表 20s）。
-  - v0.26.12 治本：initDb schema 版本判断（冷 isolate 首击 1 次 batch 命中已最新即跳过全量迁移）。生产验证（C4）：data-version 20 次 0 次 >5s、teachers 全 <1.7s。
-  - keepalive 原职责（v0.22.8/v0.25.16「避免空闲冷启动首击 4-6s」）已不再必要——首击已轻。
-- **保留理由（防极端空闲）**：全部 isolate 回收 + D1 连接冷时首次查询仍多几百 ms；keepalive 热着一个实例的 D1 连接是低成本保险。保留 /api/keepalive 路由 + keepD1Warm（保活失败静默，零风险）。
-- **keepalive-worker 停用需用户外部操作**：`keepalive-worker/` 在仓库外（尼采家教v2/keepalive-worker/），由用户 `cd keepalive-worker && npx wrangler deploy` 部署，cron 在外部 Worker 上运行。停用 = 用户删除该 cron/Worker，代码仓库内无法操作。评估：5 分钟一次 SELECT 1 开销可忽略，**当前保留不动**；若日后追求极简可自行停用。
-
-## 2026-08-09 收尾全量审计遗留（代码/网安/架构三审计；关键+高危已随 v0.25.74 修掉，以下为系统性重构项）
-
-### A1 前端状态字面量绕过 STATUS 常量（架构#2）
-> **AF-16 判定：过时弃置**——A1-A8 全部指向 v0.21 前 v1 文件（app-*.js 等），已随 V-4-1h 删 v1 壳连根消失（glob 实证）；A4 已收口（Z-16-F1）、A5 signing.js 已删（Z-15-F8）。
-app-chat.js:248,325-326,340 / app-contracts.js:62-99 / app-demands.js:613-662,969-970 / app-teachers.js:308,540,548 散落 `'active'/'contracted'/'pending'/'signed'/'rejected'` 裸字面量；后端全走 STATUS.*。改引 STATUS.*（app-state.js:20 已解构为全局词法绑定）。
-
-### A2 显示映射重复，应收口 app-display.js（架构#4 / 代码#5）
-- 学生年级 id→名：app-admin.js:272（无 `|| id` 兜底，口径不一）/ app-demands.js:605,819 → 增 `DISP.studentGradeName(id)`
-- 需求编号 padStart(4,'0')：app-contracts.js:94 / app-demands.js:594（裸 # 无 UI.DEMAND_PREFIX）/ :892（带前缀，口径不一）→ 增 `DISP.demandIdText(d)`
-- 需求卡预算行：app-demands.js:626-627 自造第三套口径 → `DISP.demandBudgetText(d)`
-- 反馈 kind→CSS 类三元：app-admin.js:150 / app-posts.js:566 → 增 `DISP.feedbackKindCls(kind)`
-- 合同 status→文案+类：app-admin.js:93-94 / app-contracts.js:62-63 → 增 `DISP.contractStatusMeta(status)`
-
-### A3 routes-posts.js 本地 PMSG 文案单源违规（架构#3）
-PMSG 的 TITLE_REQUIRED/POST_PUBLISHED/POST_DELETED 与 constants UI 逐字重复 → 删 PMSG，改读 globalThis.APP_CONSTANTS.UI。
-
-### A4 CONFIG 孤儿常量（代码#3 / 架构#5）——已收口（Z-16-F1 2026-08-19）
-原 7 常量（CHAT_POLL_MS/CHAT_BUBBLE_DELAY_MS/POSTS_SEARCH_DEBOUNCE_MS/PUSH_COOLDOWN_SEC/REVIEW_COMMENT_MIN/PANEL_CLOSE_TIMEOUT_MS/DISPLAY_ID_PAD）在 v1→v2 迁移后：CHAT_BUBBLE_DELAY_MS/PANEL_CLOSE_TIMEOUT_MS 等 13 键被 Z-16-F1 实证全仓零消费删除（v0.25 时代机制），CHAT_POLL_MS/PUSH_COOLDOWN_SEC 等随 v2 迁移保留并继续单源使用。条目历史使命完成，保留备查。
-
-### A5 signing.js 手写 SQL 绕过 db.js mapper（代码#6）
-signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原生 UPDATE/DELETE messages；:143-148 batch 手写 UPDATE student_demands → 收进 db.js mapper（自持表域：contract.js/signing.js 直连共享业务表需 db.js 头部注释补记）。
-
-### A6 跨文件重复工具收口（代码#7）
-- `new Date().toISOString().slice(0,19).replace('T',' ')` 4 份（contract.js:214/danger-ops.js:61/routes-admin.js:69/session.js:42）→ server/util.js toDbTime()
-- rate_limits upsert SQL 3 遍 + `'+N seconds'` 换算（security.js rlDual/rlStrikeD1/rateUpsert）→ 复用 rateUpsert
-- UNIQUE 冲突判定 `String(err?.message).includes('UNIQUE')` 3 遍（routes-demands.js:222/296、routes-reviews.js:32）→ server/util.js isUniqueConflict(err)
-- app-posts 发帖/广播/反馈三弹窗 md 编辑器模板重复 → app-ui 抽 mdEditorHtml() 壳（同 alertHtml/segTabsHtml 收编模式）
-
-### A7 硬编码文案 / 内联样式 / 魔法数字（代码#8-10 / 架构#6,10-13）
-- 图表缺省 `暂无数据/折线图/数据明细/时间`（app-chart.js）、存证 `链头/连续性/序号/#CD/条`（app-contracts.js）、流量 `合计 X 次/样本 N 桶/ms`（app-admin.js）、`（平面简约下强制隐藏）`（app-pages.js:95）、发帖 maxlength=60 三处（app-posts.js，updateTitleCount 用 CONFIG 而模板裸数字）→ 收 constants UI/CONFIG
-- 内联样式：app-demands.js:510 width%、:922 color、app-teachers.js:61/270 style.display、index.html 多处、app-ui.js:516 visibility → 改类
-- 服务端裸数字：contract.js:299-309/462 长度上限、signing.js:75 slice(0,200)、routes-teacher.js:144 GAOKAO_SCORE_MAX=300、db.js 723/746/753 切片未引 LIMITS、security.js 60000/'-1 day'/base=5、session.js/danger-ops.js 令牌字节数 → 收 LIMITS/SECURITY
-
-### A8 杂项
-- app-pages.js:624/app-region.js:161 GAOKAO_POLICY_MISMATCH_WARN 只有 {n} 占位符，`.replace('{year}',…)` 空操作、`（未填）` 兜底死 + 硬编码中文 → 修占位符语义或删兜底
-- 主题偏好键 'sufe_theme' 裸字面量（app-pages.js:167/app-state.js:166）+ 写路径绕过 app-state → CONFIG.THEME_KEY + app-state 写访问器
-- app-contracts.js:201,333 与 server/contract.js:36 业务条款结束标记跨层双写 → 前端基于本地常量拼接正则
-- app-posts.js:392 `err.code==='POST_NOT_FOUND' || /不存在/.test(err.message)` 依赖人类文案 → 只认 err.code
-- db.js 头部注释补 signing.js 自持表域约定
-- app-ui.js:588 `(UI.TAG_PICK_LIMIT || '最多选 {max} 个')` 兜底与 constants 重复 → 删兜底
-
-### U10 会话鉴权缓存（2026-08-16 已判定放弃，理由记录）
-原设想：每请求 requireUser → authUser 1 次 D1 往返（SELECT auth_sessions JOIN users），用内存 Map<token_hash, {user, exp}> TTL 30-60s 命中免 D1。
-**作用**：省每请求 1 次 D1 往返的鉴权延迟/D1 压力。
-**放弃理由（用户决策：无更安全替代则去掉缓存）**：缓存核心风险是登出/封禁/停用须即时失效，而 Pages 多实例无法全局失效（实例 A 删会话行、实例 B 缓存仍放行 ≤TTL）——任何 TTL 窗口都引入「已封禁用户仍可操作」的安全窗口；D1 鉴权经 keepalive 保热后 ~ms 级，缓存收益与即时性风险不成比例。**保持每请求实时 D1 鉴权**（封禁/登出即时生效 = 最安全），不做会话缓存。若未来 D1 鉴权成为瓶颈，优先评估只读路径降频而非令牌缓存。
-
-### 拼图验证码服务端化 + 真人判定（v1.4.13 清理特例后列为新功能待办；v1.4.15 用户拍板做后端人机判定）
-> **AF-16 判定：已落地**——human-check.js + POST /api/captcha/verify + 后端人机判定已实现；剩余「服务端生成图片」为远期可选。
-- 现状：答案前端自算、本地比对（app-captcha.js），服务端防刷由 rate_limits 限流咽喉承担；"生产接入点"死代码已删。
-- ⚠️ **v1.4.13 已删除前端轨迹收集（_captchaTrack 时序点数组）与 captchaId（_captchaIdStr/_captchaId）——当时判为"无消费方上抛死数据"，未备注人机判定需恢复。实施本待办时必须按人机判定特征需求重新设计并恢复**（勿从 git 历史原样捞回旧格式，按判定算法需要的特征设计：时序 {t,x,y} + 总时长/速度/停顿/抖动/修正次数）。
-- 未来演进（业务逻辑内人机判定，无需服务端图片）：前端恢复轨迹收集并在验证通过时随 offset 一并提交 → 后端新增 POST /api/captcha/verify 或并入既有门禁请求：对轨迹做高置信度人机特征判定（成熟方案：速度曲线慢-快-慢、非匀速、停顿微调、自然抖动、总时长区间、轨迹点密度 30-120）→ 判定通过才放行；captchaId 恢复作一次性挑战标识防重放。服务端生成图片的完整版（后端 cutX）仍为远期可选。
-
-### V-4-1h h5a CSP 收紧系列观察项（2026-08-19，各基元独立审计遗留）
-- 🟡 **h5a-g6 姿态锁正则脆弱性 **→ ✅ AF-1**（extractHeadersCsp 锚定非注释行 + 变异守护）**（csp-strict.test.js「两处策略姿态锁」）：_headers 用首匹配正则 `/Content-Security-Policy: ([^\n]+)/`，若未来 _headers 注释块加入含 `Content-Security-Policy: ` 字面量的示例行会被先行匹配（当前无此行，无实际误报；改法：锚定非注释行或按行号提取）。
-- 🟡 **h5a-g2 MODAL_W_ONBOARD 跨层镜像奇偶 **→ ✅ AF-2**（base.css 联动注释 + test/modal-width-parity.test.js 奇偶锁 + manifest 重生成）**：CONFIG `'580px'`（config.js:70）与 base.css:1225 `.modal` 默认 `max-width: 580px` 构成 CSS/JS 跨层双源镜像，无自动奇偶守卫；若 base.css 默认日后改宽（如 600px），onboarding 弹窗会与其他默认 modal 静默分叉（内联 max-width 自限宽不溢出，功能无害但视觉不一致）。改法：base.css 注释联动标注 + 奇偶校验测试，或改用 CSS 变量单源。
-- 🟡 **h5a-g3 staging 冒烟清洁性 **→ ✅ AF-3**（writableEnded 注释改述 + res.destroyed + 日志/措辞对齐）**（verify-staging-smoke.mjs，审计 PASS 后观察）：①handler `res.writableEnded` 注释"客户端已断开（page.close）"与 Node 实际语义出入——destroyed socket 下 writableEnded 仍 false，守卫是防御性保险（建议注释改述或补 `res.destroyed` 判断）；②完成日志仍打"V-4-1e staging 冒烟完成"，头部已标注 h5a 扩展（后缀未对齐）；③头部第 5 项"全链路零 console/PAGEERROR/CSP"措辞略宽于实际覆盖（实际断言只过滤 CSP 相关文本 + PAGEERROR 前缀，非 CSP 的 console error 由 section 4 覆盖）。
-- 🟡 **需求 X 清理审计观察项 **→ ✅ AF-4a/4b**（workspace.json 删除 + keepalive-worker/.wrangler 清理）**（2026-08-19）：①`docs/.obsidian/workspace.json` 残留已删文档编辑器打开态（Obsidian 自愈元数据，打开即丢弃，可顺手清）；②`keepalive-worker/.wrangler/` 缓存仍在（wrangler 可再生，位于保留的生产目录内，非漏删，可顺手清）。
-
-### 需求 Z 审计遗留（2026-08-19）
-- 🟡 **Z-16-F11/F14 无法定义 **→ 弃置**（审计报告无描述条目，空条目弃置，AF-16）**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
-- 🟡 **Z-10-F1 写评门禁数据源（已确认实现） **→ ✅ 弃置**（已确认实现，无遗留，AF-16）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
-
-### 需求 Q 剩余审计项（2026-08-20，细节丢失/攒批登记）
-- 🟡 **Q-2i-M4 服务端 ROLES/STATUS 未收敛共享 enums **→ 保留专项**（几百处替换 + SQL 字面量不可用 JS enums，AF-16 判定攒批专项，勿混 2.0.x 小修）**：服务端 domains 各 api/repo 大量裸 'student'/'teacher'/'open'/'pending' 等字面量，未引 src/shared/enums.js ROLES/STATUS。收敛 = 几百处等价替换（零行为变化）+ SQL 字面量（WHERE status='open'）本就不可用 JS enums（SQL 字符串）。改动面巨大、收益为架构一致性，攒批后续专项（勿混入 2.0.x 小修）。
-- 🟡 **Q-2i M6/M7 + L1-L9 / Q-2f L1-L7 描述丢失 **→ 保留专项**（需重跑对应审计面复核，AF-16）**：Q-2i/Q-2f 审计 agent transcript 未在主会话保留（压缩覆盖），摘要仅列 M1-M5 名（已修）+ L 项无细节。需重跑对应审计面复核或从 agent transcript 恢复后执行。
-
-### 需求 Q-2a-L2 审计观察项（2026-08-20，独立审计 PASS 后观察）
-- 🟡 **handleCreateSigning 的 null→NaN 路径硬化 **→ ✅ AF-5**（Number.isInteger + >0 守卫早退 404；AF-16 观察：body 字段 400 语义更精确 + 无专用守卫测试记 backlog）**（contract/api.js:645 `parseInt(body.conversationId)`）：非法 id → parseIdParam null → `parseInt(null)`=NaN → `dbGetConversationWithNames(db, NaN)`。NaN 进 D1 绑定是 NULL 还是抛错未经测试锁定（改前即存在，L2b 严格改善无新 500 引入）。建议 handler 加 Number.isNaN 检查硬化（Q-2e 范围）。
-- 🟡 **路由级脏参数→404 集成测试缺失 **→ ✅ AF-6**（/api/users/1abc 等 5 种脏段 + no-match 404 集成测试，变异牙齿实证）**（如 `GET /api/users/1abc` → 404）：单元测试锁 parseIdParam helper，handler null 安全依赖既有 dbGet→404 模式。可选加固：路由级集成测试锁脏参数 404。
-
-### 需求 Q-3b 审计遗留（2026-08-20，独立审计 agent 抓出，休眠/self-heal 记 backlog 攒批）
-- 🟡 **Q-3b-L1 doSubmitContentPenalty 内容处罚删除不失效任何域 **→ ✅ AF-7 + AF-7b**（CONTENT_DOMAIN_BY_TYPE 按 type invalidate + teacher→teachers 补漏；AF-16 观察：AF-7/8/9 的 invalidate 无变异测试（G2 空洞）记 backlog 攒批补测）**（admin/actions.js:107 POST /api/admin/content/:type/:id/action action='delete'；服务端 admin/api.js:288-355 按 type 硬删 post/demand/review/message/contract/complaint/upload/signing）：无任何 invalidate，且 versionDomainOf 对该路径只落 [ADMIN] 兜底（不 bump posts/contracts/chat/demands）→ 跨端永久陈旧（dhTouchAll 掩盖 TTL）。当前 loadAdminContent 无调用点（内容处罚 UI 死路径），一旦接线即复现 F1/F3 同型永久陈旧。修法：按 type 分支 invalidate 对应域（post→posts、contract→contracts、message→chat、demand→demands、review→admin）。
-- 🟡 **Q-3b-L2 submitFeedback 未补 invalidate('admin') **→ ✅ AF-8**（POST /api/feedbacks 成功补 invalidate('admin')，对齐 submitComplaint 先例）**（posts/actions-feedback.js:52 POST /api/feedbacks）：同型 submitComplaint 已补（Q-3b-F5），/api/feedbacks POST 服务端已 bump [ADMIN]（version.js:124）探针 8s self-heal，非永久陈旧，但同会话 admin 反馈列表不即时刷新，一致性缺口。
-- 🟡 **Q-3b-L3 toggleTeacherVerify 未补 invalidate **→ ✅ 已由 U-3a 落地 admin + AF-9 补 teachers**（invalidate('admin') 已存在；AF-9 补 invalidate('teachers') 刷学生侧公开徽章）**（admin/actions.js:227 POST /api/admin/teachers/:id/verify 仅 toast）：服务端 bump [TEACHERS, ADMIN] 探针 self-heal，无即时 reload。verifApprove/Revoke 已补 invalidate（Q-3b-F3）而此路径未补，风格不一致。
-
-### 需求 Z-3-F1 审计观察项（2026-08-20，F1d1 独立审计 PASS 后非阻塞遗留）
-- 🟡 **Z-3-F1-O1 nonacademic 标签无上限哨兵 99 **→ ✅ AF-10**（99 → 0，带 0=no cap 注释）**（src/client/features/teacher/render.js:156 `tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, ...)`）：`99` 是裸数字"无上限"哨兵。服务端对 nonacademic_projects 无数量上限（server/domains/teacher/api.js:180-185 仅白名单去重），10 个项目下 99 永不触顶，功能无碍；但 core/ui.js:194 `toggleTagPick` 语义支持 `max=0`（`max > 0` 即不钳制）。改法：`99` → `0`（带"0=无上限"注释）或具名常量。攒批清理。
-- 🟡 **Z-3-F1-O2 old 文理 track 分支无专用测试 **→ ✅ AF-11**（xinjiang science/arts 双向切换用例，G2 牙齿实证）**（src/client/features/teacher/render.js:375-397）：F1d2 审计 PASS 后观察——5 个 F1d2 测试锁 hebei 3+1+2 / zhejiang 3+3 / 无省份 / 警告 / 重渲染，老文理 track 分支（science/arts pill 切换 + 分数行显隐）逻辑经人工核查正确但零测试覆盖。攒批补一条 xinjiang 双向 track 切换用例。
-
-### 需求 AB captcha MIME 错修复审计遗留（2026-08-20，独立审计 PASS 后非阻断，守卫已消除 MIME 症状）
-- 🟡 **AB-O1 三处懒加载 import 无 catch **→ ✅ AF-12**（chat/actions-misc.js 两处 + posts/actions-feedback.js 一处，try/catch 静默降级对齐 browseAsGuest）**（chat/actions-misc.js:65,73 `import('../contract/index.js')` + posts/actions-feedback.js:109 `openComplaintAction`）：部署竞态窗口内旧 tab 持旧 bundle 引用已删 chunk → 守卫已把 MIME 错转干净 404（该动作失败、刷新自愈，非持续断线）。修法 = 包 try/catch 静默降级（对齐 onboard/actions.js:76 先例）或改静态 import。攒批（勿混入 2.0.x 小修，捕获事件即整批发版）。
-- 🟡 **AB-O2 守卫扩展名正则 {1,6} 不覆盖超长扩展名 **→ 弃置**（本应用无超长扩展名资产，AF-16）**（_worker.js:307）：如 `.webmanifest` 理论边角，本应用无此类资产，无需处理。
-
-### 需求 AC 移动端验证码框审计遗留（2026-08-20，独立审计 PASS 后轻级）
-- 🟡 **AC-OBS1 verify-otp-input.mjs 遮罩关闭用合成点击 **→ 弃置**（记录语义边界，真实点击负路径已由 verify-csp-strict.mjs:164 覆盖，AF-16）**（test/verify-otp-input.mjs `ov.click()` DOM 合成点击，e.target 强制=overlay 根节点恒真关闭）：真用户命中式点击在 375×667 视口中心落在弹窗卡片内（卡片占 x=20-355,y=58-609）→ e.target 为卡片子节点不会关闭。本测试仅作解锁页面 setup（几何断言是真正被测对象），真实点击负路径已由 verify-csp-strict.mjs:164 `page.mouse.click(20,300)` 覆盖。无需改，记录语义边界。
-- 🟡 **AC-OBS3 注册/绑定验证码行无直接几何断言 **→ ✅ AF-13**（三类表单逐表单几何断言：登录/注册/绑定 × 移动/桌面，变异牙齿实证）**：AC-2 只锁登录验证码行；注册（render.js:82/157 codeFieldHtml）与绑定（actions-otp.js:108/117）为同构标记（form-group > form-label + code-input-wrap），CSS 结构性命中三类、几何一致，但无逐类断言。攒批可加多表单用例。
-
-## 2026-08-20 反馈单巡检（P20，admin 巡检，AE/AF 上线后）
-- 🟡 **教程繁琐**（反馈 id=4/5/6，user_id=90，suggestion，已 resolved）：第一次进入平台的教程太过繁琐，建议精简到 5~6 步核心功能。→ 产品改进项：onboarding 引导精简（当前 onboarding-tour 步数多），攒批后续专项（非紧急，不混入 2.0.x 小修）。
-
-### 需求 T-6 修复批观察项（2026-08-21，独立审计 PASS 后非阻断遗留，攒批）
-- 🟡 **T-6-F1-OBS1 otp.js fallback 硬编码中文场景**（src/server/core/otp.js:214 `scene || (ch==='email' ? '登录验证' : '身份验证')`）：`'身份验证'` 不在 OTP_SCENES 内，属服务端防御性兜底（scene 白名单拒后置空时启用）。若未来改 OTP_SCENES.LOGIN，email 兜底陈旧——可拆独立基元纳入单源。
-- 🟡 **T-6-F1-OBS2 otp-delivery.test.js:80/85 场景字面量**：用 `'登录验证'` 字面量而非 OTP_SCENES.LOGIN（值未变仍绿；测试侧单源可后续对齐）。
-- 🟡 **T-6-F2-OBS dbGetStudentUsersAdmin 列表出口无 DB 直测**：仅学生搜索出口（dbAdminSearchUsers）被 admin-search-contract.test.js 真 sqlite 直测；两出口 SQL 逐字一致风险低，G1 完备可补一条列表出口直测。
-- 🟡 **T-6-F7-OBS getVersions 默认 0 键与 DOMAINS 一致性无锁**（server/version.js:50）：getVersions 硬编码 7 域默认 0 键，若 DOMAINS 加域漏补默认键，首次 bump 前响应无该域基线。协议锁测试（data-version-protocol.test.js）未覆盖此面，可后续补一致性断言。
-
-### 需求 AI 批观察项（2026-08-21，AI-10b 收口登记；AI-6/AI-7/AI-8/AI-9 独立审计 PASS 后非阻断遗留，攒批）
-- ✅ **AI-6-O1 并发双配对无显式测试** → 已在 AI-10a 补齐（conversation-reopen.test.js 并发双配对用例，条件 UPDATE 守卫承重面变异实证）。**AI-6 已收口。**
-- 🟡 **AI-7 低观察项 ×2**（GET /api/my-relations 聚合）：①排序平局 rowid 理论注记（last_at 相同时排序不稳定，理论边缘低影响）；②signing 聚合子查询走 idx_sc_tuple 可用不必须（当前 LEFT JOIN MAX(id) 聚合正确，性能可优化非必需）。
-- 🟡 **AI-8 L1/L2/L3**（DELETE /api/admin/relations）：L1 404 不消费 capToken 无测试兜底（chat/api.js:154-157 先 404 后 confirmDangerOtp 结构性保证，未来重排代码无测试兜底）；L2「评价保留」未直接测试（未种子 reviews 行断言存活；结构性保证充分——handler 零触及 reviews、删会话不删 users、reviews FK→users）；L3 `if (conv.demand_id)` 外层 guard 冗余（dbReleaseDemandAfterRevoke 内部已兜底 null）。
-- 🟡 **AI-9 O-2 中-轻 chatPollTick 轮询不处理快照状态翻转**（actions-list.js:210-241）：对端 close 后当前打开该会话的本端 frame 保持 active 可写（轮询无新消息时不感知），直到下次 openConversation（重开）或列表刷新才显示 closed；发送被服务端 403 兜底 + toast（actions-send.js:161）。最终一致 + 服务端兜底，非断线。修法 = chatPollTick 快照状态翻转检测（对齐 openConversation 的 wasClosed 翻转重渲染）。
-- 🟡 **AI-9 O-3 轻 verify-chat-layout.mjs 未覆盖 .chat-head-actions 几何断言**：结束关系按钮/动作组无渲染几何断言（S-5 verify 脚本同型补强）。
-- 🟡 **AI-9 O-4 轻 doCloseRelation 403 失败路径无直接测试**：endRelation 全链路测试覆盖成功/幂等/F6，403（REAUTH_FAILED）分支仅靠 catch toast 无断言。
-- ✅ **AI-9 O-1 变异声称差异** → 已在 AI-10a 修正测试注释精度（bf6e000，文档声称 vs 实际锁定数字对齐）。**已收口。**
-- 🟡 **AI-9 附带发现 · settings/actions.js:159 .btn-danger 死类**（既有遗留，非 AI-9 引入）：`.btn-danger` 类全仓无 CSS 规则（死类落回标准白按钮）。修法 = 删类名或补规则（对照 glass 体系，现吃引擎默认）。
-- 🟡 **AI-9 附带发现 · CHAT_CONVERSATION_CLOSED 前端无消费点**（AI-2 错误码）：前端无 code→toast 映射表，统一展示 MSG 中文，code 仅测试断言用——跨面注记（符合 D4 语义，前端零新增映射），可后续补前端 code 消费统一层。
-- 🟡 **frontend-decoupling.md 补 close/my-relations 接口条目**（需求 T 早于 AI-1 完结，文档未记录 AI-1 POST /api/conversations/:id/close + AI-7 GET /api/my-relations 两新接口）：docs/frontend-decoupling.md 标准业务接口清单需补两条（供新前端换壳接入）。
-- 🟡 **NO_PERMISSION 跨面注记**（chat/api.js:259 发送消息 + contract/api.js:686 创建类入口）：closed 会话创建/发送类入口返回 NO_PERMISSION 而非 CONVERSATION_CLOSED——与 AI-2 OBS-3 一致的有意设计（closed frame 不渲染 plus/输入栏，入口天然不可达，前端零影响）；跨面一致性注记，勿误当 bug。
-- 🟡 **CONTRACT_REVOKED 文案语义待核**（AI-1 观察项）：text.js「「{name}」已撤销双方签署的合同」文案 vs 级联收束（revoked_by=0 系统撤销）场景语义是否失准——AI-9 未核，攒批时对账。
+- **C8 `role-tabs::after`**：非孤儿，是滑动下划线指示器；删了会丢激活下划线。
+- **C12 constants 同文案多键**：状态 tag 与操作 toast 文案语义不同，合并会降低清晰度。
+- **C4 台账内联 SQL**（contract.js）：LEDGER_DB 覆写域，挪 db.js 会循环依赖，有意保留+注释。
+- **B2 `.form-select` v 箭头 background-image**：无 JS 兜底（select 被 initCustomSelects 隐藏仅 JS 跑时），保留。
+- **U10 会话鉴权缓存**：登出/封禁/停用须即时失效，而 Pages 多实例无法全局失效——任何 TTL 窗口都引入「已封禁用户仍可操作」的安全窗口。保持每请求实时 D1 鉴权，不做会话缓存。
+- **keepalive**：已降级为保底保险（initDb schema 版本判断已治本冷启动）；保留 /api/keepalive 路由 + keepD1Warm，开销可忽略。停用需用户外部操作（keepalive-worker/ 在仓库外）。

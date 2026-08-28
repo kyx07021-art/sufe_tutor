@@ -1,11 +1,11 @@
 /**
- * 认证域数据层（V-1-4 从 server/db.js 提取）：users / invite_codes / 用户私有数据清理。
+ * 认证域数据层（从 server/db.js 提取）：users / invite_codes / 用户私有数据清理。
  * 导入：core/util、core/crypto、src/shared/config（常量单源）。mapper 与 SQL 只在本文件。
  */
 import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
 import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../shared/config.js';
-// 教师评分重算依赖：统计来自评价域、写库来自教师域（Z-5-F1 断线修复，补全两 helper）
+// 教师评分重算依赖：统计来自评价域、写库来自教师域（断线修复，补全两 helper）
 import { dbGetApprovedReviewStats } from '../reviews/repo.js';
 import { dbUpdateTeacherRating } from '../teacher/repo.js';
 
@@ -16,7 +16,7 @@ export async function dbFindUserByUsername(db, username) {
   return await dbGet(db, USER_BY_USERNAME_SQL, [username]);
 }
 
-// B1：认证路由限流同批的用户查询语句（与 dbFindUserByUsername 同 SQL 单源；供 authRateBatch 的附加查询）
+// 认证路由限流同批的用户查询语句（与 dbFindUserByUsername 同 SQL 单源；供 authRateBatch 的附加查询）
 export function dbUserLookupStmt(db, username) {
   return db.prepare(USER_BY_USERNAME_SQL).bind(username);
 }
@@ -85,7 +85,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
 
   if (role === 'student') {
     // 学生侧：删自建需求。S3 单科目：状态收敛 open/closed、合同不绑定需求（S5 独立化），
-    // 无「已签约保留」顾虑——无条件全删（原 contracted 保留/置 revoked 的 N-12 逻辑随旧状态机废止）。
+    // 无「已签约保留」顾虑——无条件全删（原 contracted 保留/置 revoked 的 逻辑随旧状态机废止）。
     await dbRun(db, 'DELETE FROM student_demands WHERE user_id=?', [userId]);
     const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
     await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
@@ -94,7 +94,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     // 教师侧：被评价记录保留（评价格局归学生，教师不可自删）
   }
 
-  // S1-04: signing branch removed — the new-site model has no signing_contracts table (S5 contract
+  // signing branch removed — the new-site model has no signing_contracts table (S5 contract
   // independentization drops it). Deactivation no longer terminates pending signing requests.
 
   // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。

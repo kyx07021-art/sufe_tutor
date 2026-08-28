@@ -24,7 +24,7 @@ test('modal--wide 规则就位：仅提升 max-width（不设 width），移动�
 });
 
 test('文本浮窗全覆盖 modal--wide（政策/使用指南/合同查看/签署通读/存证明细/预览/模块介绍）', () => {
-  // V-4-1h：v1 app-*.js 已删；modal--wide 分布改断言 v2 源（core + features 域）
+  // v1 app-*.js 已删；modal--wide 分布改断言 v2 源（core + features 域）
   const read = f => readFileSync(f, 'utf8');
   const core = read('./src/client/core/ui-modal.js') + read('./src/client/core/router.js');
   const onboard = read('./src/client/features/onboard/actions.js');

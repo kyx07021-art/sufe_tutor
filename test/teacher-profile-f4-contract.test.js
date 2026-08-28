@@ -1,11 +1,10 @@
 /**
- * PA-1d-F4 (I-40) server contract: teacher profile save accepts camelCase + snake_case dual-receive,
+ * server contract: teacher profile save accepts camelCase + snake_case dual-receive,
  * partial save = keep old value (merge), subjects object-array write/read consistent, philosophy column.
  *
- * The deep-audit finding: handleSaveProfile only read snake_case (province/teacher_name/price_min...)
- * with a required province, so the new-frontend camelCase PUT (teacherName/region/priceMin...) returned
- * 400 PROVINCE_REQUIRED, blanked omitted fields (full overwrite), and the frontend's subject object rows
- * were never persisted. This file locks the fixed server contract.
+ * 历史缺陷：handleSaveProfile 只读 snake_case（province/teacher_name/price_min...）且要求必填省份，
+ * camelCase PUT（teacherName/region/priceMin...）会 400 PROVINCE_REQUIRED、空白覆盖省略字段（全量覆盖）、
+ * 前端 subject 对象行从不落库。本文件锁定修复后的服务端契约。
  *
  * Uses the same D1 shim pattern as test/teacher-profile-guard.test.js.
  */

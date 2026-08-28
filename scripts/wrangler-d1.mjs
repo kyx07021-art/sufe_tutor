@@ -1,5 +1,5 @@
 /**
- * wrangler D1 远程执行共享层（V-4-1c 抽取；validate-prod-data 与 d1-migration-drill 共用，防相似组件重复）。
+ * wrangler D1 远程执行共享层（抽取；validate-prod-data 与 d1-migration-drill 共用，防相似组件重复）。
  * 零 shell：wrangler 全局 JS bin 经 process.execPath 直跑（Windows .cmd EINVAL 绕开、无注入面）。
  * 本网络对 Cloudflare API 有偶发抖动（fetch failed 实测命中）→ runWrangler 内建 3 次重试（全新子进程，无状态残留）。
  */
@@ -7,9 +7,9 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-// 部署字面量（有意决定，F4 裁决保留脚本层）：库名仅 wrangler D1 部署工具使用（worker 经 binding 读取，不依赖库名），
+// 部署字面量（有意决定，裁决保留脚本层）：库名仅 wrangler D1 部署工具使用（worker 经 binding 读取，不依赖库名），
 // 全仓无运行时第二引用；放 shared/config 会随客户端 bundle 泄出内部基建命名，故留共享脚本层并钉死契约。
-// 若改动绑定名，必须同步此处与 CLAUDE.md「常量约定」段落。
+// 若改动绑定名，必须同步此常量。
 export const D1_DB_NAME = 'sufe-tutor-db-apac';
 
 const RETRIES = 3;

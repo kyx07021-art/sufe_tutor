@@ -2,17 +2,17 @@
  * Review eligibility gate tests (S6-R3: new trust model).
  *
  * dbCanReview(db, studentUserId, teacherUserId) requires all three conditions:
- *   1. a conversation exists for the (student, teacher) pair (any status — active or closed);
- *   2. bidirectional messages: student >=1 AND teacher >=1 user-generated messages
- *      (kind IN text/image/file; system bubbles contract/signing_* do not count);
- *   3. teacher verification approved (teacher_verifications.status='approved').
+ * 1. a conversation exists for the (student, teacher) pair (any status — active or closed);
+ * 2. bidirectional messages: student >=1 AND teacher >=1 user-generated messages
+ * (kind IN text/image/file; system bubbles contract/signing_* do not count);
+ * 3. teacher verification approved (teacher_verifications.status='approved').
  *
  * Self-review is rejected first. Malformed ids are rejected as NO_CONVERSATION.
  *
  * Fixture shape matches the production tables exactly (conversations UNIQUE(student,teacher),
  * messages.kind CHECK incl. system kinds, teacher_verifications.status CHECK) so the assertions
  * lock the real gate semantics. Each condition is separately mutated below (removing a check
- * turns its dedicated test red) to prove the guard is load-bearing (G2 variation).
+ * turns its dedicated test red) to prove the guard is load-bearing (variation).
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';

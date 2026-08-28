@@ -1,5 +1,5 @@
 /**
- * 需求十三 · 时间组件（B4：直接 import contract ESM）。S5 后仅剩起草合同弹窗使用时间组件。
+ * 需求十三 · 时间组件（直接 import contract ESM）。S5 后仅剩起草合同弹窗使用时间组件。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

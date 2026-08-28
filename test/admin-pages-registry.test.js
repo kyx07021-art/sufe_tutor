@@ -1,7 +1,7 @@
 /**
  * U-4: admin registry completeness — the 12 admin management pages must all be registerPage'd with a
  * real enter function (no dormant empty enter), visible for the admin role. Catches the
- * v2 "module defined but never assembled" / dormant-page class (Z-14-F2 / U-3 series).
+ * v2 "module defined but never assembled" / dormant-page class (/ U-3 series).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

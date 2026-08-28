@@ -46,7 +46,7 @@ function onActionClick(e) {
   fn(el, e);
 }
 
-// Demand-hall sort/filter change delegation (B3): the five controls carry
+// Demand-hall sort/filter change delegation (): the five controls carry
 // data-change="demand.applyControls" (shell), re-rendering the cached browse list
 // locally with no network. Same pattern as posts.sort / complaints.reason / chat.
 function onChange(e) {

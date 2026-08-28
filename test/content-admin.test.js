@@ -103,7 +103,7 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   const post = data.items.find(i => i.type === 'post');
   assert.equal(post.author.username, 'alice');
   assert.equal(post.title, '物理笔记');
-  // Q-2i-M5d：CONTENT_MAPPER 派生 title 单源锁定（防模板/分隔符改动无测试拦截——审计发现 3）
+  // CONTENT_MAPPER 派生 title 单源锁定（防模板/分隔符改动无测试拦截——审计发现 3）
   const teacher = data.items.find(i => i.type === 'teacher');
   assert.equal(teacher.title, '教师档案 · bobt', 'CONTENT_TITLE_TEACHER 模板 {name} 单源');
   const carol = await registerWithContact(db, req(), { username: 'carol', password: 'pass123456', role: 'student' });

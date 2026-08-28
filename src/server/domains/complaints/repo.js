@@ -1,10 +1,10 @@
 /**
- * 投诉/反馈域数据层（V-1-4 从 server/db.js 提取）：feedbacks / complaints / 候选搜索。
+ * 投诉/反馈域数据层（从 server/db.js 提取）：feedbacks / complaints / 候选搜索。
  * S6-C4（2026-08-22，new-site）：feedbacks 匿名身份模型——
- *   - dbCreateFeedback 签名改为对象参数（匿名：userId 可空 + clientToken；contact/attrs 落库）。
- *   - dbGetFeedbacksByUser 支持 { userId }（登录）或 { clientToken }（匿名）两种身份查询。
- *   - dbGetFeedbacksAdmin 改 LEFT JOIN（匿名行 user_id 为 NULL，INNER JOIN 会丢匿名反馈）。
- *   - attrs JSON 列经 safeJsonObject mapper 单点反序列化（匿名举报元数据）。
+ * - dbCreateFeedback 签名改为对象参数（匿名：userId 可空 + clientToken；contact/attrs 落库）。
+ * - dbGetFeedbacksByUser 支持 { userId }（登录）或 { clientToken }（匿名）两种身份查询。
+ * - dbGetFeedbacksAdmin 改 LEFT JOIN（匿名行 user_id 为 NULL，INNER JOIN 会丢匿名反馈）。
+ * - attrs JSON 列经 safeJsonObject mapper 单点反序列化（匿名举报元数据）。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { safeJsonArray, safeJsonObject } from '../../core/json.js';
@@ -38,7 +38,7 @@ export async function dbGetFeedbacksByUser(db, { userId = null, clientToken = ''
 export async function dbGetFeedbacksAdmin(db, status) {
   // 可选 status 下推过滤（白名单，防注入）；不传则返回全部。
   // S6-C4：匿名反馈 user_id 为 NULL，LEFT JOIN 才能带出（INNER JOIN 会静默丢匿名行）。
-  // feedbacks.status 合法值仅 open/resolved（'pending' 会使「未处理」过滤恒空）——Z-6-F4：字面量走 STATUS
+  // feedbacks.status 合法值仅 open/resolved（'pending' 会使「未处理」过滤恒空）——字面量走 STATUS
   const where = (status === STATUS.OPEN || status === STATUS.RESOLVED) ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
   const rows = await dbAll(db,
@@ -84,7 +84,7 @@ export async function dbGetComplaintsByUser(db, userId) {
 }
 
 export async function dbGetComplaintsAdmin(db, status) {
-  // Z-6-F4：状态字面量走 STATUS（open/resolved）
+  // 状态字面量走 STATUS（open/resolved）
   const where = (status === STATUS.OPEN || status === STATUS.RESOLVED) ? ' WHERE c.status=?' : '';
   const params = where ? [status] : [];
   const rows = await dbAll(db,
@@ -109,7 +109,7 @@ export async function dbResolveComplaint(db, complaintId) {
 // —— 投诉对象候选：按角色搜用户（id 精确 / 昵称模糊），排除自己 ——
 export async function dbSearchUsersByRole(db, role, q, excludeId, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
   const num = /^\d+$/.test(q) ? +q : 0;
-  // S2-2（SQLi 审计）：q 中 %/_ 转义字面 + ESCAPE 子句（对齐 dbListPosts）——防 LIKE 通配符注入放大匹配/枚举
+  // （SQLi 审计）：q 中 %/_ 转义字面 + ESCAPE 子句（对齐 dbListPosts）——防 LIKE 通配符注入放大匹配/枚举
   const like = `%${likeEscape(q)}%`;
   return await dbAll(db,
     `SELECT id, username, role FROM users WHERE role=? AND id<>? AND (username LIKE ? ESCAPE '\\' OR (? > 0 AND id = ?))
@@ -131,7 +131,7 @@ export async function dbRecentInteractions(db, userId, role, limit = LIMITS.COMP
 // 帖子候选：按标题模糊 / id 精确
 export async function dbSearchPosts(db, q, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
   const num = /^\d+$/.test(q) ? +q : 0;
-  // S2-2（SQLi 审计）：同 dbSearchUsersByRole——q 中 %/_ 转义字面 + ESCAPE
+  // （SQLi 审计）：同 dbSearchUsersByRole——q 中 %/_ 转义字面 + ESCAPE
   const like = `%${likeEscape(q)}%`;
   return await dbAll(db,
     `SELECT id, title, user_id FROM posts WHERE title LIKE ? ESCAPE '\\' OR (? > 0 AND id = ?)

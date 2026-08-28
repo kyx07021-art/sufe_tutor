@@ -171,7 +171,7 @@ test('非学科项目：白名单去重、报价钳制、project 不在 projects
     nonacademic_prices: [
       { project: 'music', price_min: -10, price_max: 9999999 },
       { project: 'chess', price_min: 200, price_max: 100 },
-      { project: 'chess', price_min: 300, price_max: 400 }, // Q-2c-F7 BUG-M：重复 project 只留首条
+      { project: 'chess', price_min: 300, price_max: 400 }, // BUG-M：重复 project 只留首条
       { project: 'painting', price_min: 50, price_max: 80 }, // 未勾选项目 → 剔除
     ],
   } }, reqOf(token));
@@ -198,7 +198,7 @@ test('擅长科目白名单：合法入库、注入/未知 id 滤除去重、非
   // 非数组 → 400
   r = await handleSaveProfile(db, { profile: { ...baseProfile, subjects: 'math,physics' } }, reqOf(token));
   assert.equal(r.status, 400, 'subjects 非数组拒绝');
-  // 缺省 → 保留原值（PA-1d-F4 I-40 合并语义：部分省略 = 不改该字段，非清空）
+  // 缺省 → 保留原值（合并语义：部分省略 = 不改该字段，非清空）
   const { subjects, ...noSubj } = baseProfile;
   r = await handleSaveProfile(db, { profile: noSubj }, reqOf(token));
   assert.equal(r.status, 200, '缺省 subjects 不报错');
@@ -222,7 +222,7 @@ test('年级/性别白名单：合法入库、非法静默回退空串（性别�
   // 历史 nonbinary 保留（展示层视同未填）
   r = await handleSaveProfile(db, { profile: { ...baseProfile, gender: 'nonbinary' } }, reqOf(token));
   assert.equal(rowOf(raw, tea).gender, 'nonbinary', '历史 nonbinary 兼容保留');
-  // Q-2c-F2 守护：undefined/null 穿透白名单（原 `p.x != null` 只拦非空非法值）→ repo 裸绑 undefined → 500
+  // 守护：undefined/null 穿透白名单（原 `p.x != null` 只拦非空非法值）→ repo 裸绑 undefined → 500
   for (const miss of [{ grade: undefined, gender: undefined }, { grade: null, gender: null }]) {
     const rr = await handleSaveProfile(db, { profile: { ...baseProfile, ...miss } }, reqOf(token));
     assert.equal(rr.status, 200, 'grade/gender undefined/null 归一空串不 500');

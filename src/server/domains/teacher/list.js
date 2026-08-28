@@ -1,24 +1,24 @@
 /**
- * S4-09..12 + PA-1d-F6b Teacher plaza list: SQL sort/filter pushdown + match integration.
+ * ..12 + Teacher plaza list: SQL sort/filter pushdown + match integration.
  *
- * I-29 shape: GET /api/teachers?sort=match|rating|exp|price&order=asc|desc
- *   &filters={subjects[],gender,personalities[],priceMin,priceMax}
+ * shape: GET /api/teachers?sort=match|rating|exp|price&order=asc|desc
+ * &filters={subjects[],gender,personalities[],priceMin,priceMax}
  * 200: { items:[...], total, teachers:[...] }
  *
  * - sort whitelist {match,rating,exp,price}; invalid/absent -> no sort (dbGetTeachers order kept)
  * - order {asc,desc}, default desc; null/undefined sort keys go LAST regardless of order
  * - filters accept BOTH the `filters` JSON query param and flat params
- *   (subjects/personalities comma lists, gender, priceMin, priceMax), merged into one object
- * - PA-1d-F6b: subjects/gender/personalities/price filters and the price/rating/exp sorts
- *   are pushed into dbGetTeachers (buildTeacherPublicQuery) and applied in SQL BEFORE the
- *   PUBLIC_LIST_MAX LIMIT — so global sort/filter semantics survive a table > the cap.
+ * (subjects/personalities comma lists, gender, priceMin, priceMax), merged into one object
+ * - subjects/gender/personalities/price filters and the price/rating/exp sorts
+ * are pushed into dbGetTeachers (buildTeacherPublicQuery) and applied in SQL BEFORE the
+ * PUBLIC_LIST_MAX LIMIT — so global sort/filter semantics survive a table > the cap.
  * - sort='match' stays in JS (needs the student's open demand + per-row match data); it
- *   ranks the capped set — the most recent PUBLIC_LIST_MAX teachers that pass the filters.
- * - match (S4-12 / I-32): computed only for a logged-in student with an open demand
- *   (the most recent one, fetched server-side). matchScore 0-100 weighted; matchCount =
- *   screening dims hit (subject/gender/personality/price). Everyone else / no demand -> both null.
+ * ranks the capped set — the most recent PUBLIC_LIST_MAX teachers that pass the filters.
+ * - match (/ ): computed only for a logged-in student with an open demand
+ * (the most recent one, fetched server-side). matchScore 0-100 weighted; matchCount =
+ * screening dims hit (subject/gender/personality/price). Everyone else / no demand -> both null.
  * - response dual-key: legacy v2 consumers read `teachers`, the new frontend reads `items`;
- *   both reference the same array; `total` is the post-cap (and post-filter) count.
+ * both reference the same array; `total` is the post-cap (and post-filter) count.
  *
  * Row fields are read defensively (snake_case vs the new-model camelCase) so this handler
  * works whichever shape mapTeacherProfileRow outputs when the parallel mapper lands.
@@ -37,9 +37,9 @@ function finiteOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** PA-1d-F6b: only sort='match' remains in JS — price/rating/exp are pushed into the
- *  dbGetTeachers SQL (buildTeacherPublicQuery). match needs the student's open demand +
- *  per-row profile data, so it cannot be a SQL ORDER BY; it ranks the capped set here. */
+/** only sort='match' remains in JS — price/rating/exp are pushed into the
+ * dbGetTeachers SQL (buildTeacherPublicQuery). match needs the student's open demand +
+ * per-row profile data, so it cannot be a SQL ORDER BY; it ranks the capped set here. */
 const matchKey = t => t.matchScore ?? null;
 const SORT_GETTERS = { match: matchKey };
 
@@ -110,17 +110,17 @@ export function parseListParams(url) {
   return { sort, order, filters: normalizeFilters(filters) };
 }
 
-/** GET /api/teachers —— plaza list (I-29). Login-gated: interfaces.md I-29 requires an
- *  authenticated user (no guest browsing, S6 §17), consistent with the demand plaza (I-34)
- *  which is requireUser. Anonymous requests get a 401.
+/** GET /api/teachers —— plaza list (). Login-gated: interfaces.md requires an
+ * authenticated user (no guest browsing, S6 ), consistent with the demand plaza ()
+ * which is requireUser. Anonymous requests get a 401.
  *
- *  PA-1d-F6b: filters (subjects/gender/personalities/price) and the SQL-expressible sorts
- *  (price/rating/exp) are pushed into dbGetTeachers and applied BEFORE the PUBLIC_LIST_MAX
- *  LIMIT — global sort/filter semantics survive a table larger than the cap. sort='match'
- *  cannot be expressed in SQL (it needs the student's open demand + per-row match/profile
- *  data); it is computed below over the capped set (the most recent PUBLIC_LIST_MAX
- *  teachers that pass the filters) and ranked in JS (documented boundary: "最近 200 内按
- *  匹配度排名"). */
+ * filters (subjects/gender/personalities/price) and the SQL-expressible sorts
+ * (price/rating/exp) are pushed into dbGetTeachers and applied BEFORE the PUBLIC_LIST_MAX
+ * LIMIT — global sort/filter semantics survive a table larger than the cap. sort='match'
+ * cannot be expressed in SQL (it needs the student's open demand + per-row match/profile
+ * data); it is computed below over the capped set (the most recent PUBLIC_LIST_MAX
+ * teachers that pass the filters) and ranked in JS (documented boundary: "最近 200 内按
+ * 匹配度排名"). */
 export async function handleGetTeachers(db, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -128,7 +128,7 @@ export async function handleGetTeachers(db, req) {
   const sqlSort = sort === 'match' ? null : sort; // match 需需求+档案数据，非 SQL 可表达 → 留在 JS
   const teachers = await dbGetTeachers(db, { viewerId: me.id, filters, sort: sqlSort, order });
 
-  // S4-12: match fields only for a logged-in student with an open demand; otherwise both null.
+  // match fields only for a logged-in student with an open demand; otherwise both null.
   if (me.role === 'student') {
     const demand = await dbGetStudentOpenDemand(db, me.id);
     for (const t of teachers) {

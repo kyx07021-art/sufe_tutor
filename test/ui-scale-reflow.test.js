@@ -1,21 +1,21 @@
 /**
- * v0.27.6 UI 滑块拖动期元素级模拟重排（B4：直接 import core/ui-scale-reflow ESM）。
+ * v0.27.6 UI 滑块拖动期元素级模拟重排（直接 import core/ui-scale-reflow ESM）。
  *
  * v2 形态：src/client/core/ui-scale-reflow.js 导出 uiScaleReflow 对象
  * （prepare/begin/renderAt/teardown/_samples/_units），行为与 v1 全局 __uiScaleReflow 一致。
  *
- * 机制：拖动期把真实重排的"目标位"采样成离散档位（UI_SCALE_REFLOW_SAMPLE_STEP，v0.31.4 P4 定为 20
+ * 机制：拖动期把真实重排的"目标位"采样成离散档位（UI_SCALE_REFLOW_SAMPLE_STEP，v0.31.4 定为 20
  * → [80,100,120]），用 per-element transform（translate+scale）把每个布局单元移动到真实重排后的
  * 位置——合成器只读，零 reflow 零 repaint；真实页面 --ui-scale 拖动期不动，松手 commit 才一次真重排。
  *
  * 本测试用 stub getBoundingClientRect 模拟真实重排目标（侧栏随缩放扩张 → 内容列右缘钉视口、
  * 左缘被顶右收窄的非均匀目标位），验证：
- *   1. prepare：采样档位 = [80,100,120]（CONFIG 单源 UI_SCALE_REFLOW_SAMPLE_STEP=20）；采样后 --ui-scale 还原；
- *   2. renderAt(100)：全恒等 → 无 translate 数据（全置 none，拖动起点零冗余）；
- *   3. renderAt(120)：非均匀收窄正确——顶栏钉宽 sy=1.2、侧栏 scale(1.2) 顶角锚定、内容列
- *      translate(48,12.8) scale(0.9538,1.2)（sx<1 = 真实收窄）、侧栏项 isText 等比 × 父链补偿收敛恒等；
- *   4. teardown：--ui-rf-transform 数据 + data-ui-reflow-unit 属性全撤（成对零残留；V-3-1c2 零 <style> 注入）；
- *   5. 页面切换后 prepare 重采：新可见页单元收录、旧页单元移除。
+ * 1. prepare：采样档位 = [80,100,120]（CONFIG 单源 UI_SCALE_REFLOW_SAMPLE_STEP=20）；采样后 --ui-scale 还原；
+ * 2. renderAt(100)：全恒等 → 无 translate 数据（全置 none，拖动起点零冗余）；
+ * 3. renderAt(120)：非均匀收窄正确——顶栏钉宽 sy=1.2、侧栏 scale(1.2) 顶角锚定、内容列
+ * translate(48,12.8) scale(0.9538,1.2)（sx<1 = 真实收窄）、侧栏项 isText 等比 × 父链补偿收敛恒等；
+ * 4. teardown：--ui-rf-transform 数据 + data-ui-reflow-unit 属性全撤（成对零残留；零 <style> 注入）；
+ * 5. 页面切换后 prepare 重采：新可见页单元收录、旧页单元移除。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,7 +87,7 @@ function teardown() {
   delete globalThis.getComputedStyle;
 }
 
-// V-3-1c2：从单元元素读取 --ui-rf-transform 自定义属性数据通道（JS setProperty 注入的 transform 值）。
+// 从单元元素读取 --ui-rf-transform 自定义属性数据通道（JS setProperty 注入的 transform 值）。
 // 'none'（identity 单元）→ rule ''（与 v1 跳过规则语义等价：无 transform 效果）
 function readTransform(id) {
   const el = document.getElementById(id);
@@ -166,9 +166,9 @@ test('祖先缩放补偿：侧栏项随父缩放收敛恒等（无自身 transfo
   teardown();
 });
 
-// v0.31.4（P1/P5）断线回归：SHELL_SELECTORS 曾写 '.sidebar'（真实 DOM 是 .client-sidebar）——
+// v0.31.4（/）断线回归：SHELL_SELECTORS 曾写 '.sidebar'（真实 DOM 是 .client-sidebar）——
 // 整条侧栏（含左下用户卡）未遍历零单元。改对类名后 .client-sidebar 成单元，侧栏宽随 scale 采样
-// 扩张（P5 分界移动同源）。
+// 扩张（分界移动同源）。
 test('P1/P5：.client-sidebar 是 shell 单元（侧栏宽随 scale 扩张、分界移动）', () => {
   setup();
   uiScaleReflow.prepare();
@@ -180,7 +180,7 @@ test('P1/P5：.client-sidebar 是 shell 单元（侧栏宽随 scale 扩张、分
   teardown();
 });
 
-// v0.31.4（P2）文本元素统一等比：文本单元视觉缩放 = 字号比例（1.2），不随父块 rect 拉伸变扁；
+// v0.31.4（）文本元素统一等比：文本单元视觉缩放 = 字号比例（1.2），不随父块 rect 拉伸变扁；
 // 块单元照旧 rect 拉伸（允许 sx≠sy）。
 test('P2：文本单元统一等比（视觉 sx=sy=字号比例，不受父拉伸影响）；块单元照旧 rect 拉伸', () => {
   setup();
@@ -203,7 +203,7 @@ test('P2：文本单元统一等比（视觉 sx=sy=字号比例，不受父拉�
   teardown();
 });
 
-// v0.31.4（P3）分隔线单元：参与预览（只位移 + 宽随布局），视觉高度恒 1px（不随字号/祖先放大）。
+// v0.31.4（）分隔线单元：参与预览（只位移 + 宽随布局），视觉高度恒 1px（不随字号/祖先放大）。
 test('P3：分隔线单元——宽随布局、视觉高度恒 1px（不放大不压按钮）', () => {
   setup();
   uiScaleReflow.prepare(); uiScaleReflow.begin(); uiScaleReflow.renderAt(120);

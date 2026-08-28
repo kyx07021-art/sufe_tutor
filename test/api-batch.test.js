@@ -1,13 +1,13 @@
 /**
- * B2/F2（v0.27.0 网络层重构）—— POST /api/batch 批量只读端点回归
+ * /（v0.27.0 网络层重构）—— POST /api/batch 批量只读端点回归
  *
  * 覆盖：
- *   - 基本批量：{gets:[...]} → results 逐 path 返回 {status, data}（公开 + 需鉴权混合）
- *   - 单子请求失败不阻断其余（私有端点无令牌 401，公开端点照常 200）
- *   - 匿名公开列表子请求命中边缘缓存（零 D1）
- *   - 参数校验：空/超上限/非 /api/ 路径 → 400
- *   - 鉴权批量：带令牌子请求正常取数（authUser 经请求记忆化共享 1 次 D1）
- *   - 批量请求体拒绝写方法（gets 只读语义——服务端不接收 method 字段，天然只读）
+ * - 基本批量：{gets:[...]} → results 逐 path 返回 {status, data}（公开 + 需鉴权混合）
+ * - 单子请求失败不阻断其余（私有端点无令牌 401，公开端点照常 200）
+ * - 匿名公开列表子请求命中边缘缓存（零 D1）
+ * - 参数校验：空/超上限/非 /api/ 路径 → 400
+ * - 鉴权批量：带令牌子请求正常取数（authUser 经请求记忆化共享 1 次 D1）
+ * - 批量请求体拒绝写方法（gets 只读语义——服务端不接收 method 字段，天然只读）
  *
  * D1 形状：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch([...])（同 worker-public-cache.test.js shim）
  */
@@ -91,7 +91,7 @@ test('基本批量：公开 + 私有混合子请求逐 path 返回 status/data',
   const { results } = JSON.parse(await res.text());
   assert.equal(results.length, 2);
   const byPath = Object.fromEntries(results.map(r => [r.path, r]));
-  // PA-1d-F7：/api/teachers 已登录门禁（I-29），匿名批量不再有公开列表样例——公开样例用 /api/posts。
+  // /api/teachers 已登录门禁（），匿名批量不再有公开列表样例——公开样例用 /api/posts。
   assert.equal(byPath['/api/posts'].status, 200, '公开帖子列表 200');
   assert.ok(Array.isArray(byPath['/api/posts'].data.posts), '帖子数据数组');
   assert.equal(byPath['/api/notifications'].status, 401, '无令牌私有端点 401（单子请求失败不阻断其余）');
@@ -117,7 +117,7 @@ test('鉴权批量：带令牌子请求正常取数', async (t) => {
 test('匿名公开列表子请求命中边缘缓存（零 D1 直返）', async (t) => {
   installCache();
   const { env, calls } = await setup(t);
-  // 先预热公开列表边缘缓存（/api/posts；/api/teachers 已登录门禁 PA-1d-F7，不再预热）
+  // 先预热公开列表边缘缓存（/api/posts；/api/teachers 已登录门禁 ，不再预热）
   await worker.fetch(new Request('https://test.local/api/posts'), env, ctx);
   assert.ok(cacheStore.has('https://test.local/api/posts'), '公开列表已写边缘缓存');
   const callsBefore = calls.length;

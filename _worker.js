@@ -8,23 +8,21 @@
  * 安全: server/ 与 docs/ 目录随静态资源上传但在此统一 404，防源码公开访问
  * 留档: routeApi 的应答经 logRequest 留档——仅写操作与失败请求（读/轮询流量不入留档，见 log.js）
  */
-import { initDb } from './server/db.js';
+import { initDb } from './src/server/core/db.js';
 import { json, error, errorMsg, parseBody } from './src/server/core/util.js';
 import { MSG } from './src/shared/codes.js';
 import { CONFIG } from './src/shared/config.js';
-import { productionReady, notReadyResponse } from './server/startup.js';
-import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
+import { productionReady, notReadyResponse } from './src/server/core/startup.js';
+import { recordRequestMetric, flushMetrics } from './src/server/core/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
-import { initLogDb, bindLogDb, logRequest, logDropStats } from './src/server/core/log.js'; // Q-2b-F3 收口：health 暴露留档失败计数（logDropStats 死导出消除）
+import { initLogDb, bindLogDb, logRequest, logDropStats } from './src/server/core/log.js'; // 收口：health 暴露留档失败计数（logDropStats 死导出消除）
 import { bindTextAuditEnv } from './src/server/core/text-audit.js';
-import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // Z-15-F8：server/contract.js 死 shim 已删，直引真源
+import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // server/contract.js 死 shim 已删，直引真源
 import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 
-// ============ Vite content-hash direct serving (S0-24 decision) ============
-// New-site build pipeline = Vite (new-frontend -> dist/assets/* content-hashed names); the HTML
-// references hashed assets via relative `./assets/` URLs with zero worker rewriting; /assets/*
-// immutable is handled by the _headers static layer. The v2 content-hash virtualization pipeline
-// (hash-assets -> manifest -> injectManifest -> versionedBase) has been fully removed (S0-22).
+// ============ 内容哈希资产直通 ============
+// 构建管线（scripts/build.mjs）产出 dist/assets/* 内容哈希名；HTML 已携带绝对 /assets/* 引用，
+// worker 零改写直通；/assets/* immutable 由 _headers 静态层承担。
 
 // API 分发：声明式路由表（架构 v2）。批量只读/健康检查/保活为编排层特殊路由。
 import { createRouter } from './src/server/router.js';
@@ -43,7 +41,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
         method: 'GET', path: '/api/health',
         handler: c => {
           const gate = productionReady(c.env);
-          return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString(), logDrop: logDropStats() }, gate.ok ? 200 : 503); // Q-2b-F3 收口：留档失败量级可观测（isolate 内累计）
+          return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString(), logDrop: logDropStats() }, gate.ok ? 200 : 503); // 收口：留档失败量级可观测（isolate 内累计）
         },
       },
       {
@@ -55,12 +53,12 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   return dispatchApi({ db, p, method, body, url, req, env });
 }
 
-// PA-2f LOW-1：health/keepalive 是探活端点（独立保活 Worker cron + 发版脚本 readiness 检查），
+// LOW-1：health/keepalive 是探活端点（独立保活 Worker cron + 发版脚本 readiness 检查），
 // 豁免 rateGate——探活永不 429，也不消耗探活 IP 的用户流量 global 桶（300/min 共享桶被探活挤占
 // 会确定性误伤该 IP 的真实用户请求；探活端点本身零用户数据面，无滥用面）。
 const PROBE_PATHS = new Set(['/api/health', '/api/keepalive']);
 
-// B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
+// 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
 // 偶发 ~6s 慢往返按 worker 实例隔离，keepalive 只热它所在实例，用户请求路由到其他实例仍冷）。
 // 公开列表（帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
 // 一致性：TTL 30s 自愈（公开列表低频变更，发布/审核后 30s 内可见）。
@@ -68,13 +66,13 @@ const PROBE_PATHS = new Set(['/api/health', '/api/keepalive']);
 // 字段（posts.liked/favorited），共享缓存跨用户下发即泄露；
 // 访客请求无 per-user 数据，是冷启动缓存的目标受众。登录用户走实时 routeApi 保私有正确。
 // 无 caches 环境（本地 dev / vm 测试）回落直取（可用性 fallback，不改变鉴权与数据）。
-// S0-22 evaluation: /api/posts (posts/api.js authUser optional) still returns 200 to anonymous
+// evaluation: /api/posts (posts/api.js authUser optional) still returns 200 to anonymous
 // requests, so the cache write gate (status===200) can fire -> cache is alive, retained.
-// PA-1d-F7: /api/teachers is now login-gated (I-29 requireUser, consistent with the demand
-// plaza I-34); anonymous 401 means the cache write gate never fires, so its predicate branch
+// /api/teachers is now login-gated (requireUser, consistent with the demand
+// plaza ); anonymous 401 means the cache write gate never fires, so its predicate branch
 // was removed as dead logic. /api/demands (demand/api.js requireUser) is likewise login-gated;
 // anonymous 401 means the cache write gate never fires -> dead branch, removed from the
-// predicate (interface I-34 login-visible; if the frontend later stops anonymous access to
+// predicate (interface login-visible; if the frontend later stops anonymous access to
 // posts, remove the whole block).
 const PUBLIC_LIST_TTL_S = 30;
 export function isAnonymous(request) {
@@ -85,7 +83,7 @@ export function isPublicListCacheable(p, url) {
   return false;
 }
 
-// B2（v0.27.0 网络层重构）：公开列表边缘缓存读 helper——主请求路径与 /api/batch 子请求共用。
+// （v0.27.0 网络层重构）：公开列表边缘缓存读 helper——主请求路径与 /api/batch 子请求共用。
 // 命中返回解析后的 JSON data（object），miss/读异常返回 null（可用性 fallback，回落正常 handler，绝不 500）。
 // 生产实证铁律（v0.26.9）：workerd Cache API 的 match 响应 body 流有锁定/不可重复读风险，
 // 一律 text() 读一次重建 json，勿 clone/重复读原流。
@@ -102,7 +100,7 @@ async function readPublicListCache(url) {
   return null;
 }
 
-// B2 补（v0.27.0 审计）：公开列表边缘缓存写 helper——/api/batch 子请求 miss 后写回。
+// 补（v0.27.0 审计）：公开列表边缘缓存写 helper——/api/batch 子请求 miss 后写回。
 // 直接 await put（生产实证 waitUntil 异步写 → 紧随请求 miss）：text 极小毫秒级完成，
 // 响应返回时缓存已就绪，下一个请求必命中。写失败静默（缓存是加速层，不影响主响应）。
 async function writePublicListCache(url, jsonText) {
@@ -116,10 +114,10 @@ async function writePublicListCache(url, jsonText) {
   } catch { /* 缓存写失败静默：不影响主响应 */ }
 }
 
-// B2（v0.27.0 网络层重构）：批量只读端点——一次鉴权 + N 个子 GET 并发。
+// （v0.27.0 网络层重构）：批量只读端点——一次鉴权 + N 个子 GET 并发。
 // 设计（调研：API batching / BFF 聚合）：客户端 prefetch/域刷新/多模块首载把 N 个独立 GET
 // 合并为 1 次往返——HTTP/1.1 下免浏览器 6 连接队列串行，HTTP/2 下减 worker 调用与 D1 往返；
-// 子请求仍走 routeApi（复用公开列表边缘缓存 + 各 handler 校验）；authUser 经 B1 reqCtx 记忆化
+// 子请求仍走 routeApi（复用公开列表边缘缓存 + 各 handler 校验）；authUser 经 reqCtx 记忆化
 // 共享 1 次 D1 鉴权；单子请求失败不阻断其余（结果带独立 status）。
 // 写操作禁止入 batch——写路径仍走单请求，保证错误码/toast/二次认证/留档语义。
 // 安全：子请求与直接 GET 权限面完全一致（不升级权限），batch 只省往返不改变路由语义。
@@ -134,7 +132,7 @@ async function handleBatch(db, body, url, req, env) {
   if (!paths.every(p => p.startsWith('/api/') && !/\s/.test(p) && p.length < 300)) {
     return errorMsg('INVALID_PARAMS', 400); // 只允许 /api/ 相对路径（防外域/协议相对/注入）
   }
-  // Z-1-F2：auth/check 是存在性探测端点，自带限流桶（RATE_LIMITS.check）；batch 子请求不经 rateGate，
+  // auth/check 是存在性探测端点，自带限流桶（RATE_LIMITS.check）；batch 子请求不经 rateGate，
   // 放行会以批量 GET 放大 ~32 倍探测速率绕过限流——禁止该路径入 batch，保持直接 GET 为唯一入口。
   // 加固：判定与 handleBatch 子请求路由同解析器（new URL().pathname，router 精确匹配），消除
   // split 字符串比较 vs 路由 URL 解析的类不一致（安全审查）；显式尾部斜杠 + 点段归一化变体同拦
@@ -154,8 +152,8 @@ async function handleBatch(db, body, url, req, env) {
       }
       const res = await routeApi(db, subUrl.pathname, 'GET', {}, subUrl, req, env);
       const data = await res.json();
-      // B2 审计补：匿名公开列表 miss 子请求写回边缘缓存——否则访客预取全走批量时
-      // 边缘缓存永不被预热（B6 冷启动收益被绕过），后续直连 GET 才温。await put 保响应返回即就绪。
+      // 审计补：匿名公开列表 miss 子请求写回边缘缓存——否则访客预取全走批量时
+      // 边缘缓存永不被预热（冷启动收益被绕过），后续直连 GET 才温。await put 保响应返回即就绪。
       if (res.status === 200 && isAnonymous(req) && isPublicListCacheable(subUrl.pathname, subUrl)) {
         await writePublicListCache(subUrl, JSON.stringify(data));
       }
@@ -216,9 +214,9 @@ export default {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       const res = await env.ASSETS.fetch(request);
-      // HTML documents (incl. SPA fallback): Vite already wrote `./assets/` hashed references into
-      // the HTML, so the worker passes it through verbatim with zero rewriting. ETag/304 is handled
-      // natively by ASSETS (no rewriting -> no ETag drift; the worker no longer self-holds).
+      // HTML documents (incl. SPA fallback): the HTML already carries content-hashed asset references
+      // (from the build), so the worker passes it through verbatim with zero rewriting. ETag/304 is
+      // handled natively by ASSETS (no rewriting -> no ETag drift; the worker no longer self-holds).
       // 304 响应无 content-type：按路径推断（/、/index.html、SPA 无扩展名路由均为 HTML）
       const ct = res.headers.get('content-type') || '';
       const isHtml = res.ok
@@ -250,7 +248,7 @@ export default {
     await env._dbInited;
 
     const db = env.DB;
-    // Q-2a-L5：限流闸门前置 parseBody——rateGate 不消费 body（参数预留），超限请求在 body
+    // 限流闸门前置 parseBody——rateGate 不消费 body（参数预留），超限请求在 body
     // 被读取解析前直接 429（1.1MB 大 body 的 DoS 放大消除：限流拒绝不再为读 body 付带宽/CPU）。
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
     if (!PROBE_PATHS.has(p)) {
@@ -271,19 +269,19 @@ export default {
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
     try {
       // v0.26.0 E2 高频轻量日常审核断点：内容域写请求途中统一过监听断点（数据副本 + 上下文入队列 →
-      // 审核节点）。v0.30.0（S2-1）起节点为门牌合规 L1 规则层（AUDIT_MAP 抽取自由文本字段交
+      // 审核节点）。v0.30.0（）起节点为门牌合规 规则层（AUDIT_MAP 抽取自由文本字段交
       // auditFreeText），命中详细门牌号 → 400 reject。驳回文案走上传过程自身的 toast（api 调用方
       // catch 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。审核缺配置/异常拒绝写入。
       const audit = await auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
       if (audit.reject) {
         recordRequestMetric({ path: p, status: 400, durationMs: Date.now() - t0 });
-        // Z-2-F2：审核拒绝是「写 + 400」最该留档的事件（log.js 契约：非 GET 与失败请求入留档），
+        // 审核拒绝是「写 + 400」最该留档的事件（log.js 契约：非 GET 与失败请求入留档），
         // 原早退分支漏 logRequest 致审核事件在 activity_log 不可见——补统一落库点（同成功路径口径）
         ctx.waitUntil(flushMetrics(db));
         ctx.waitUntil(logRequest(db, { method: request.method, path: p, body, status: 400, req: request, durationMs: Date.now() - t0 }));
         return applySecurityHeaders(error(audit.reject, 400, audit.code), p);
       }
-      // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
+      // 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
       // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）。
       // 【命中读 text 重建，catch 回落 routeApi】：workerd Cache API 的 match 响应 body 流
       // 有锁定/不可重复读风险（生产实证 clone 后仍 500、durationMs 4ms）——改为 text() 读一次
@@ -311,16 +309,15 @@ export default {
           try { return applySecurityHeaders(json(JSON.parse(text)), p); } catch { /* 文本异常：回落原 res */ }
         }
       }
-      // 数据版本戳（v0.23.0 静默数据层）已删除（PA-1i-F1）：新前端（new-frontend）对客户端数据
-      // 版本协议零消费（grep 实证），旧 v2 客户端随壳下线。写操作不再 bump 数据域版本。
+      // 数据版本戳（静默数据层）已删除——写操作不再 bump 数据域版本。
       // 会话缓存已整体迁至客户端（app-datahub.js）：服务端读缓存（v0.22.5/8 按身份分桶）
       // 随 v0.23.0 删除——同身份重复读由客户端缓存覆盖（60s TTL + 8s 版本探测刷新），
       // per-user 数据在浏览器侧天然按会话隔离，跨用户零泄露面更小。
-      // 留档改 ctx.waitUntil 托管（U10 v0.25.106）：响应路径不再等待留档写库——每写请求省 1 次 D1 往返
+      // 留档改 ctx.waitUntil 托管（v0.25.106）：响应路径不再等待留档写库——每写请求省 1 次 D1 往返
       // （登录 6.4s→~4.4s，网络层架构债专项第一步）。workerd 的 ctx.waitUntil 是官方保活通道，
       // 保证留档完成（非悬浮 Promise；历史 0 留档事故是裸 await 后响应结束被掐断，waitUntil 正确托管）。
       // logRequest 内部吞错，留档失败绝不阻断响应。
-      // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）
+      // logRequest 兼作本请求全部留档的统一落库点（业务 logEvent 队列 + 本条访问留档一次 batch）
       const finalMs = Date.now() - t0;
       recordRequestMetric({ path: p, status: res.status, durationMs: finalMs });
       ctx.waitUntil(flushMetrics(db));

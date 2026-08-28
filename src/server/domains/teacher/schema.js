@@ -1,5 +1,5 @@
 /**
- * teacher 域 schema（V-1-4b）：教师档案 / 学籍核验记录 DDL、列迁移与评分回填迁移。
+ * teacher 域 schema（）：教师档案 / 学籍核验记录 DDL、列迁移与评分回填迁移。
  */
 import { dbRun } from '../../core/util.js';
 import { INITIAL_RATING, INITIAL_WEIGHT } from '../../../shared/config.js';

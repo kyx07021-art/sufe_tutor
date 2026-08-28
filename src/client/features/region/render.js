@@ -8,7 +8,7 @@ import { escHtml } from '../../core/dom.js';
 import { checkboxItemsHtml, segTabsHtml } from '../../core/ui.js';
 import { TEXT } from '../../constants/text.js';
 
-// M3: grade options follow the region's school system -- five-four (Shanghai) has no primary-6 and
+// grade options follow the region's school system -- five-four (Shanghai) has no primary-6 and
 // maps grade 6 to prep class; default six-three keeps primary-6 and drops prep.
 export function gradeOptionsForProvince(provinceId) {
   const fiveFour = R.isFiveFour(provinceId);
@@ -32,7 +32,7 @@ export function regionResolvePolicy(provinceId, year) {
 }
 
 
-export function renderProvinceSelect(selectId, selectedId) { // Q-4b-L2: removed inert changeAction param (data-region-change was never consumed; callers bind change directly)
+export function renderProvinceSelect(selectId, selectedId) { // removed inert changeAction param (data-region-change was never consumed; callers bind change directly)
   const opts = R.provinces.map(p =>
     `<option value="${escHtml(p.id)}"${p.id === selectedId ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');

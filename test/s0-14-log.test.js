@@ -1,19 +1,19 @@
 /**
- * S0-14 log choke mutation guards (new-site foundation, in-place reuse of v2 core/log.js).
+ * log choke mutation guards (new-site foundation, in-place reuse of v2 core/log.js).
  *
- * Locks the audit-log write contract (E1 / Q-2b-F3 / B4 / S0-14 acceptance): every semantic
+ * Locks the audit-log write contract (E1 / / / acceptance): every semantic
  * event lands in activity_log with its detail AES-encrypted at rest, sensitive keys stripped
  * before encryption, a request-level batch flush (1 round-trip), an observable dropped-counter
  * when a write is swallowed, and — when bound — an independent LOG_DB that keeps audit rows out
  * of the business database.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - logEvent drops encryptDetail -> stored detail is plaintext JSON, encrypted=0 -> red
- *   - logEvent drops the sanitize pass -> phone/email round-trip in plaintext -> red
- *   - logEvent drops droppedLogs++ -> logDropStats stays flat after a swallowed failure -> red
- *   - logEvent writes immediately even with req -> a deferred row appears before logRequest -> red
- *   - getLogDb ignores LOG_DB_OVERRIDE -> a bound row lands in the business db instead -> red
- *   - queryLog stops decrypting on read -> returned detail is ciphertext -> red
+ * - logEvent drops encryptDetail -> stored detail is plaintext JSON, encrypted=0 -> red
+ * - logEvent drops the sanitize pass -> phone/email round-trip in plaintext -> red
+ * - logEvent drops droppedLogs++ -> logDropStats stays flat after a swallowed failure -> red
+ * - logEvent writes immediately even with req -> a deferred row appears before logRequest -> red
+ * - getLogDb ignores LOG_DB_OVERRIDE -> a bound row lands in the business db instead -> red
+ * - queryLog stops decrypting on read -> returned detail is ciphertext -> red
  *
  * Uses a real node:sqlite in-memory DB (same d1Shim as s0-08). LOG_DB_OVERRIDE / droppedLogs /
  * crypto KEY_CACHE are module-level state — every test rebinds the env first (node:test runs

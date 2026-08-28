@@ -1,5 +1,5 @@
 /**
- * 架构 v2 声明式路由表（V-1-4c：每个 domain 自持 routes，app.js 只做拼接）。
+ * 架构 v2 声明式路由表（每个 domain 自持 routes，app.js 只做拼接）。
  * 特殊路由（通知）属于 core 或根基础设施，保留在本文件。
  */
 import { routes as authRoutes } from './domains/auth/api.js';

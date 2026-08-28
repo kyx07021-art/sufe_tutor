@@ -1,5 +1,5 @@
 /**
- * 需求九 标准浮窗「点击界外关闭」配置项（B4：直接 import core/ui-modal）。
+ * 需求九 标准浮窗「点击界外关闭」配置项（直接 import core/ui-modal）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

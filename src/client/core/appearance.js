@@ -81,9 +81,9 @@ export function applyOrbs() {
   const sizeSpan = (cfg.sizeMax || 0) - (cfg.sizeMin || 0);
   const opSpan = (cfg.opMax || 0) - (cfg.opMin || 0);
   const ORB_COLORS = ['--lg-orb-a','--lg-orb-b','--lg-orb-c','--lg-orb-d','--lg-orb-e','--lg-orb-f','--lg-orb-g','--lg-orb-h','--lg-orb-i'];
-  // V-3-1c1: zero <style> injection (CSP style-src-elem 'self'). Dynamic geometry/
+  // zero <style> injection (CSP style-src-elem 'self'). Dynamic geometry/
   // color/duration flow via CSS custom-property data channel (el.style.setProperty —
-  // h5a-g6 note: CSSOM is not governed by style-src-attr, F1 verified); visual rules
+  // h5a-g6 note: CSSOM is not governed by style-src-attr, verified); visual rules
   // all live in glass.css .lg-orb with fallback defaults — rule 44 (rendering in CSS,
   // JS carries data only) preserved.
   const frag = document.createDocumentFragment();
@@ -99,7 +99,7 @@ export function applyOrbs() {
     const dur = (DUR * (0.8 + ((oi * 17) % 60) / 100)).toFixed(1);
     const color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
     const el = document.createElement('div');
-    el.className = `lg-orb lg-orb--dir${dir}`; // --i{n} class removed in V-3-1c1 (rule carrier folded into .lg-orb var channel, zero consumers)
+    el.className = `lg-orb lg-orb--dir${dir}`; // --i{n} class removed in (rule carrier folded into .lg-orb var channel, zero consumers)
     el.style.setProperty('--lg-w', size + 'vmax');
     el.style.setProperty('--lg-h', size + 'vmax');
     el.style.setProperty('--lg-x', left + 'vmax');

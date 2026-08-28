@@ -1,6 +1,6 @@
 /**
  * student/demand feature actions: list, browse/filter, create/edit, intents, pushes, match detail.
- * v1 parity (B4 redo): every rendered action is fully wired -- no empty stubs behind data-action.
+ * v1 parity (redo): every rendered action is fully wired -- no empty stubs behind data-action.
  * Edit PUT is merge-preserve: fields the simplified form cannot edit are carried over from the
  * source demand so the full-column server UPDATE never drops data (audit blocking-fix A).
  */
@@ -197,7 +197,7 @@ export async function openDemandModal(demandId) {
 
 // v1 parity: wizard init -- province select into d-province-wrap, region-lock + grade/subject pool,
 // address visibility, custom selects, form listeners (submit / change / type tabs / time slots),
-// then land on P1. Direct DOM bindings (no inline handlers); idempotent via form.dataset.wizardBound.
+// then land on . Direct DOM bindings (no inline handlers); idempotent via form.dataset.wizardBound.
 export function initDemandForm(selectedProvince) {
   const wrap = document.getElementById('d-province-wrap');
   const form = document.getElementById('demand-form');
@@ -223,12 +223,12 @@ export function initDemandForm(selectedProvince) {
       if (c && c.id === 'd-type-tabs') setDemandType(e.detail.key);
     });
     applyTabBindings(form);      // type tabs + score-mode tabs
-    bindTimeSlotTree(form);      // P7 time-slot add rows
+    bindTimeSlotTree(form);      // time-slot add rows
   }
   onDemandProvinceChange(); // initial run: region note + lock online + grade options + subject pool
-  toggleAddressField();     // P2 address section visibility (shanghai+offline only)
+  toggleAddressField();     // address section visibility (shanghai+offline only)
   initCustomSelects(form);  // province/grade/gender/method/identity custom dropdowns (idempotent)
-  demandWizardGoTo(1);      // always start from P1 (edit prefill re-lands on P1 at its end)
+  demandWizardGoTo(1);      // always start from (edit prefill re-lands on at its end)
 }
 
 // v1 parity: province change -- region lock note (offline only unlocked for Shanghai), school-system
@@ -278,9 +278,9 @@ export function updateDemandSubjects() {
 }
 
 // v1 parity: score rows follow checked subjects incrementally (keep existing user input).
-// Audit fix (F1): the "please pick subjects first" placeholder <p> must be REPLACED by the first
+// Audit fix (): the "please pick subjects first" placeholder <p> must be REPLACED by the first
 // batch of rows (v1 uses replaceWith) -- appending after it left the hint permanently on the page.
-// F5: row order realigns with the checkbox order (checked.forEach append).
+// row order realigns with the checkbox order (checked.forEach append).
 export function updateDemandScores() {
   const prov = document.getElementById('d-province')?.value || '';
   const grade = document.getElementById('d-grade')?.value || '';
@@ -314,7 +314,7 @@ export function updateDemandScores() {
 // gender → target checks → score/skill rows → teaching goal + personality tag-picks → pref gender →
 // method → address (hidden value first, then picker hydrates district/unit) → time slots → budget →
 // submitter/contacts/info. Programmatic checkbox changes do not fire change events, so rows are
-// rebuilt/refilled manually. Ends back on P1 so the user can walk the pages (visited completion).
+// rebuilt/refilled manually. Ends back on so the user can walk the pages (visited completion).
 export function prefillDemandForm(d) {
   _dwEditMode = true;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
@@ -362,7 +362,7 @@ export function prefillDemandForm(d) {
   set('d-student-contact', d.student_contact || '');
   set('d-info', d.additional_info || '');
   document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
-  demandWizardGoTo(1); // edit always re-lands on P1 (fields preserved across pages)
+  demandWizardGoTo(1); // edit always re-lands on (fields preserved across pages)
 }
 
 // v1 parity: prefill saved score rows by matching subject (traversal compare, never attribute-selector
@@ -385,7 +385,7 @@ export function prefillStudentScores(scores) {
   document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
 }
 
-// v1 parity: P2 address area -- visible + required only for shanghai+offline; any other combo hides
+// v1 parity: address area -- visible + required only for shanghai+offline; any other combo hides
 // and clears the value (so a stale address never rides into the payload). Mounts the district/unit
 // picker on show, hydrating the hidden #d-address (idempotent rebuild).
 export function toggleAddressField() {
@@ -749,7 +749,7 @@ export function setDemandType(type) {
   const na = document.getElementById('d-section-nonacademic');
   if (ac) ac.classList.toggle('hidden', !isAc);
   if (na) na.classList.toggle('hidden', isAc);
-  // Type-linked P5 title (scores vs skills) + score/skill pane swap; non-academic clears score rows
+  // Type-linked title (scores vs skills) + score/skill pane swap; non-academic clears score rows
   // (so academic subjects never leak into the skills page), academic rebuilds them.
   const title = document.getElementById('d-scores-title');
   if (title) title.textContent = isAc ? TEXT.LABEL_CURRENT_SCORES : TEXT.LABEL_SKILL_STATUS;
@@ -767,7 +767,7 @@ export function setDemandType(type) {
   }
 }
 
-// P5 non-academic skill-state textareas follow the checked projects (incremental: keep typed rows)
+// non-academic skill-state textareas follow the checked projects (incremental: keep typed rows)
 export function renderSkillNotes() {
   const el = document.getElementById('d-skill-notes');
   if (!el) return;
@@ -816,7 +816,7 @@ export function toggleTagPickAction(el) {
 // ============================================================
 // Demand wizard controller: 8 persistent pages (display-swap never unloads state) + stepper
 // + per-page validation. JS only toggles classes and writes --dw-step-active; the slide
-// transform lives in CSS. Back always visible except P1; last page's action is the submit button.
+// transform lives in CSS. Back always visible except ; last page's action is the submit button.
 // Completion semantics: create-mode done = validated; edit-mode visited = flipped through.
 // ============================================================
 let _dwStep = 1;
@@ -877,7 +877,7 @@ export function demandWizardValidateStep(n) {
   const gid = id => document.getElementById(id);
   if (n === 1) {
     if (!gid('d-province') || !gid('d-province').value) { showToast(TEXT.VALIDATE_SELECT_PROVINCE, 'error'); return false; }
-    return true; // address validation lives on P2 (method page, shanghai+offline only)
+    return true; // address validation lives on (method page, shanghai+offline only)
   }
   if (n === 2) {
     const needAddr = SUFE_REGIONS.allowsOffline(gid('d-province').value) && gid('d-method').value === 'offline';
@@ -911,5 +911,5 @@ export function demandWizardValidateStep(n) {
     }
     return true;
   }
-  return true; // P2 (method has default) / P5 (scores optional) / P6 (teacher pref optional) pass through
+  return true; // (method has default) / (scores optional) / (teacher pref optional) pass through
 }

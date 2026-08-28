@@ -1,5 +1,5 @@
 /**
- * D3 401 预取风暴收敛（B4：直接 import core/api + core/state）。
+ * D3 401 预取风暴收敛（直接 import core/api + core/state）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

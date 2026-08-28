@@ -1,5 +1,5 @@
 /**
- * 评价域数据层（V-1-4 从 server/db.js 提取）：reviews。
+ * 评价域数据层（从 server/db.js 提取）：reviews。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { dbRecomputeTeacherRating } from '../auth/repo.js';
@@ -18,7 +18,7 @@ export async function dbCreateReview(db, teacherUserId, reviewerUserId, rating, 
 
 export async function dbGetApprovedReviews(db, teacherUserId) {
   // 门控：已注销评价者/被评教师的数据不对外（教师注销后评价行保留留档，但不再经此公开出口）
-  // reviewerName = 契约 I-31 键（新前端 DetailMiddle 消费）；reviewer_name 保留（v2 旧前端渲染路径）
+  // reviewerName 与 reviewer_name 双键：前端读 reviewerName，旧渲染路径保留 reviewer_name
   return await dbAll(db, `SELECT r.*, u.username as reviewer_name, u.username as reviewerName
     FROM reviews r JOIN users u ON r.reviewer_user_id=u.id
     WHERE r.teacher_user_id=? AND r.status='approved'
@@ -35,7 +35,7 @@ export async function dbGetReviewByPair(db, reviewerUserId, teacherUserId) {
 }
 
 // 修改评价：重置为待审核（内容变更须重审）
-// 网安审计 N-09：若原评价已通过（评分已计入教师 rating_sum/count），修改时立即摘除旧贡献——
+// 网安审计 若原评价已通过（评分已计入教师 rating_sum/count），修改时立即摘除旧贡献——
 // 否则「通过→改→被管理员拒绝」路径下 wasApproved=false 不再重算，教师评分永久残留旧版本贡献。
 // 摘除 = 对本评价落 pending 后重算该教师评分（重算只统计 approved 评价，旧贡献自然出局）。
 export async function dbUpdateReview(db, reviewId, rating, comment) {
@@ -50,7 +50,7 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
 
 // 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
 export async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
-  // reviewerName = 契约 I-31 键；reviewer_name 保留（v2 旧前端 admin 渲染路径）
+  // reviewerName = 契约 键；reviewer_name 保留（v2 旧前端 admin 渲染路径）
   let sql = `SELECT r.*, u1.username as reviewer_name, u1.username as reviewerName, u2.username as teacher_name
     FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id`;
   const cond = [], params = [];

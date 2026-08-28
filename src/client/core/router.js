@@ -53,7 +53,7 @@ export function pagesForRole() {
   return [...ranked, ...all];
 }
 // Logged-in default page equals old ROLE_PAGES[role][0]: first role-visible feature page
-// in registration order. B2 features call registerPage; while the registry is empty the
+// in registration order. features call registerPage; while the registry is empty the
 // builtin about page must NOT become the login home page. Fallback keeps the old v1
 // role-first ids (student=my-demands / teacher=browse-demands / admin=admin-stats).
 const ROLE_FIRST_PAGE = { [ROLES.STUDENT]: 'my-demands', [ROLES.TEACHER]: 'browse-demands', [ROLES.ADMIN]: 'admin-stats' };

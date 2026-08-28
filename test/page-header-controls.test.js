@@ -1,25 +1,25 @@
 /**
- * v0.25.101 Q7 + v0.31.5 P4 页头筛选/排序控件统一标准按钮样式
+ * v0.25.101 Q7 + v0.31.5 页头筛选/排序控件统一标准按钮样式
  *
  * Q7 用户：「筛选和排序两个紧挨着的下拉栏样式不一样」「包括排序按钮本身和筛选项下拉栏，都应该是
  * 标准按钮样式」「别处的下拉栏是什么样式我不管」「你的按钮控件没有标准高度吗？为啥筛选按钮
  * 比旁边的下拉栏矮一截？」
  *
- * v0.31.5 P4 用户返工：「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」「单纯统一高度到
+ * v0.31.5 用户返工：「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」「单纯统一高度到
  * 40px 是没法解决观感问题的」——Q7 曾只设 --g-fill/--g-frost 引擎变量不挂 .glass 类，引擎不消费，
- * 观感仍是输入框（白染 0.10 + 9px + 细边，非按钮的透明磨砂透镜+弯月环）。P4 改为：按钮语境
+ * 观感仍是输入框（白染 0.10 + 9px + 细边，非按钮的透明磨砂透镜+弯月环）。改为：按钮语境
  * （筛选组/页头操作区）触发器在 JS 端挂 .btn .btn-soft .glass .glass--pressable，标准按钮玻璃面
  * 由按钮组件提供；CSS 只留布局适配（高度/定宽/字面/居中/圆角对齐）。
  *
  * 本测试覆盖：
- *   - --btn-h token 存在且 = 40px * ui-scale；
- *   - 页头排序触发器：按钮语境布局适配（--g-r 对齐按钮圆角、.875rem/600、height var(--btn-h)、居中），
- *     且不再设引擎变量（--g-fill 等已由 .btn 组件提供，防死变量复现）；
- *   - 页头筛选按钮：同字面、height var(--btn-h)；
- *   - 筛选项下拉：紧凑按钮字面、height var(--btn-h)；
- *   - app-ui.js 按钮语境触发器挂 .btn .btn-soft .glass .glass--pressable（组件级按钮配置）；
- *   - glass.css 输入控件族排除 .glass 触发器（引擎 surface 不被 0-1-0 直写盖掉）；
- *   - 非页头 custom-select-trigger 基础规则保留（不误伤表单）。
+ * - --btn-h token 存在且 = 40px * ui-scale；
+ * - 页头排序触发器：按钮语境布局适配（--g-r 对齐按钮圆角、.875rem/600、height var(--btn-h)、居中），
+ * 且不再设引擎变量（--g-fill 等已由 .btn 组件提供，防死变量复现）；
+ * - 页头筛选按钮：同字面、height var(--btn-h)；
+ * - 筛选项下拉：紧凑按钮字面、height var(--btn-h)；
+ * - app-ui.js 按钮语境触发器挂 .btn .btn-soft .glass .glass--pressable（组件级按钮配置）；
+ * - glass.css 输入控件族排除 .glass 触发器（引擎 surface 不被 0-1-0 直写盖掉）；
+ * - 非页头 custom-select-trigger 基础规则保留（不误伤表单）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -76,7 +76,7 @@ test('P4 筛选项下拉：紧凑按钮字面 + 标准高度', () => {
 });
 
 test('P4 按钮语境触发器 JS 挂标准按钮组件类（组件级按钮配置）', () => {
-  // V-4-1h：v1 app-ui.js 已删；按钮语境在 v2 src/client/core/ui.js
+  // v1 app-ui.js 已删；按钮语境在 v2 src/client/core/ui.js
   const js = readFileSync('./src/client/core/ui.js', 'utf8');
   assert.ok(/sel\.closest\('\.filter-group'\) \|\| sel\.closest\('\.page-header-actions'\)/.test(js),
     '按钮语境判定：筛选组/页头操作区');
@@ -103,7 +103,7 @@ test('P4 非页头场景：表单/其他面板下拉保持输入控件族（不�
 });
 
 test('P4 页头 HTML：教师信息/需求大厅排序+筛选按钮同页头动作容器', () => {
-  // V-4-1h：v1 静态壳已删；页头动作容器由 v2 shell.js 渲染（filterToggleBtn 模板 + demand-sort select）
+  // v1 静态壳已删；页头动作容器由 v2 shell.js 渲染（filterToggleBtn 模板 + demand-sort select）
   const shell = readFileSync('./src/client/core/shell.js', 'utf8');
   assert.ok(shell.includes('filterToggleBtn(\'teacher.toggleFilters\', \'filter-toggle-btn\')'),
     '教师信息页筛选按钮在动作容器');

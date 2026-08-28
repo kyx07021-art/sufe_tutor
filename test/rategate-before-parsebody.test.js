@@ -1,5 +1,5 @@
 /**
- * Q-2a-L5 守护：限流闸门先于 parseBody（DoS 放大消除）。
+ * 守护：限流闸门先于 parseBody（DoS 放大消除）。
  * 审计：_worker.js parseBody 先于 rateGate——1.1MB body 在限流判定前被完整读入解析，限流拒绝不省成本。
  * 修复：rateGate 前置（不消费 body，参数预留）。
  * 变异：调回 parseBody 先于 rateGate → 超限大 body 返回 413 而非 429 → 红。

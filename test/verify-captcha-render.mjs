@@ -1,13 +1,13 @@
 /**
  * 拼图验证码渲染回归（v1.4.17 起强制——渲染改动交付红线见 CLAUDE.md）：
  * playwright 真实浏览器 canvas 像素断言，防止 destination-out/in 缺 fill 类渲染 bug 再犯。
- * 覆盖 v2 迁移版（/v2 = src/client/core/captcha.js esbuild bundle，V-2 生产路径；V-4-1h 后唯一形态，
+ * 覆盖 v2 迁移版（/v2 = src/client/core/captcha.js esbuild bundle，生产路径；后唯一形态，
  * v1 经典 app-captcha.js 已删）。用法：node test/verify-captcha-render.mjs
  * （需 playwright chromium；不进 npm test glob，交付渲染改动前手动跑）
  *
  * 断言：①有效缺口中心 alpha=0（透明洞已抠出）②拼图块中心 alpha>0 且四角 alpha=0（已裁剪成形状非矩形）
- *      ③透明洞连通域计数 >= 3（有效 1 + 无效空缺 2；连通域而非网格单元——单个 32px 洞覆盖多个
- *        采样单元，按单元计数阈值恒被满足，删掉无效空缺 fill 也拦不住；连通域计数才能区分）
+ * ③透明洞连通域计数 >= 3（有效 1 + 无效空缺 2；连通域而非网格单元——单个 32px 洞覆盖多个
+ * 采样单元，按单元计数阈值恒被满足，删掉无效空缺 fill 也拦不住；连通域计数才能区分）
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
@@ -37,7 +37,7 @@ const server = createServer((req, res) => {
     res.end(v2Js);
     return;
   }
-  // 验证页在 test/ 目录（不进 build 静态复制面）；'/v2' 为迁移版（V-4-1h 后唯一形态，v1 经典页已删）
+  // 验证页在 test/ 目录（不进 build 静态复制面）；'/v2' 为迁移版（后唯一形态，v1 经典页已删）
   const file = resolve('.', u === '/v2' ? 'test/captcha-render-verify-v2.html' : u.replace(/^\/+/, '')); // URL path 去前导 / 转相对（Windows resolve 绝对路径会逃到盘符根）
   if (file !== serverRoot && !file.startsWith(serverRoot + sep)) { res.statusCode = 403; res.end('Forbidden'); return; } // 防路径遍历逃逸仓库根
   try {

@@ -1,7 +1,7 @@
 /**
- * my-chats 会话页布局几何回归（G5 / 规则 45）：
+ * my-chats 会话页布局几何回归（/ 规则 45）：
  * playwright 真实浏览器断言会话列表/聊天窗在视口内 + .chats-shell 双栏结构在位。
- * 背景：V-4-1h 删 v1 壳时 my-chats 丢 .chats-shell 网格包裹，client-page--flush 的
+ * 背景：删 v1 壳时 my-chats 丢 .chats-shell 网格包裹，client-page--flush 的
  * height:100% 落在扁平子 div 上 → 列表/聊天窗推出视口外（overflow:hidden 裁剪），
  * 页面只剩满高空块（用户所见"HERO 排版错误 + 组件全消失"）。
  * 用法：node test/verify-chat-layout.mjs（需 playwright；不进 npm test glob）

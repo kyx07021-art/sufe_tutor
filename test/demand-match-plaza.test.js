@@ -1,20 +1,20 @@
 /**
- * PA-1d-F3 (1101): demand plaza match fields wired to the S4 match module.
+ * (1101): demand plaza match fields wired to the S4 match module.
  *
- * GET /api/demands (I-34) rows for a logged-in teacher must carry real matchScore/matchCount
+ * GET /api/demands () rows for a logged-in teacher must carry real matchScore/matchCount
  * computed from that teacher's profile — previously a hardcoded null placeholder. sort=match
  * must order by matchScore (nulls last, time order as the stable tiebreak).
  *
- * Wiring reference: teacher/list.js S4-12 — matchDegree/matchCount from teacher/match/ and
+ * Wiring reference: teacher/list.js — matchDegree/matchCount from teacher/match/ and
  * makeComparator from teacher/list.js are reused verbatim (no implementation copy; match/ is
  * the single source of the score). normalizeTeacher/normalizeDemand defensively consume the
  * mapped profile/demand rows, so no duplication of the scoring algorithm here.
  *
- * Mutation guards (G2):
- *  - removing the `d.matchScore/matchCount` assignment in demand/api.js handleGetDemands
- *    turns "teacher sees real match" red (matchScore would be null);
- *  - removing the in-handler `items.sort(makeComparator(...))` for sort=match turns the
- *    sort-order assertion red (SQL time order would put the low-match row first).
+ * Mutation guards ():
+ * - removing the `d.matchScore/matchCount` assignment in demand/api.js handleGetDemands
+ * turns "teacher sees real match" red (matchScore would be null);
+ * - removing the in-handler `items.sort(makeComparator(...))` for sort=match turns the
+ * sort-order assertion red (SQL time order would put the low-match row first).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -100,7 +100,7 @@ test('teacher with a profile sees real matchScore/matchCount on plaza rows (I-34
   const body = await r.json();
   assert.equal(body.items.length, 2, 'both open demands listed');
   const bySubject = Object.fromEntries(body.items.map(x => [x.subject, x]));
-  // Every row carries a real (non-null) match field — the PA-1d-F3 core assertion.
+  // Every row carries a real (non-null) match field — the core assertion.
   for (const x of body.items) {
     assert.ok(Number.isInteger(x.matchScore) && x.matchScore >= 0 && x.matchScore <= 100,
       `matchScore is a real 0-100 int, got ${x.matchScore}`);

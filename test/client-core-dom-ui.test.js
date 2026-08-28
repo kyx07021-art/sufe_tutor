@@ -1,5 +1,5 @@
 /**
- * B0 dom/ui core tests（parity semantics）.
+ * dom/ui core tests（parity semantics）.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

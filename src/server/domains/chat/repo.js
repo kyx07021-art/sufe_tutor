@@ -1,5 +1,5 @@
 /**
- * Chat domain data layer (extracted from server/db.js at V-1-4): conversations / messages / uploads.
+ * Chat domain data layer (extracted from server/db.js at ): conversations / messages / uploads.
  * S5 landed the standalone contracts table (signing_contracts DROPPED) — this module has no signing layer.
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
@@ -10,7 +10,7 @@ import { STATUS, TEMP_STATUS } from '../../../shared/enums.js';
 // ============================================================
 
 // 同一师生对唯一会话（UNIQUE(student,teacher)）；已存在则返回既有 id。
-// AI-6 会话重启：命中 closed 行 → 重启原会话（status→active + demand 回填，历史保留）——
+// 会话重启：命中 closed 行 → 重启原会话（status→active + demand 回填，历史保留）——
 // 用户模型「一对师生终身一个会话对象，closed 后再次合作 = 重启原会话，非新建」；双调用点
 // （意向/推送接受）经同一元组命中即重启。重启不重设已读游标/不删历史（历史保留）。
 export async function dbUpsertConversation(db, studentUserId, teacherUserId, demandId) {
@@ -20,7 +20,7 @@ export async function dbUpsertConversation(db, studentUserId, teacherUserId, dem
   const row = await dbGet(db,
     'SELECT id, demand_id, status FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
     [studentUserId, teacherUserId]);
-  // AI-6：closed → 重启（条件 UPDATE 幂等：并发双配对只一次生效；demand 回填为新合作需求）
+  // closed → 重启（条件 UPDATE 幂等：并发双配对只一次生效；demand 回填为新合作需求）
   if (row && row.status === STATUS.CLOSED) {
     await dbRun(db, "UPDATE conversations SET status='active', demand_id=? WHERE id=? AND status='closed'",
       [demandId || null, row.id]);
@@ -36,15 +36,15 @@ export async function dbGetConversationById(db, id) {
   return await dbGet(db, 'SELECT * FROM conversations WHERE id=?', [id]);
 }
 
-// AI-8：按双方元组查会话（admin 永删关系定位用；与会话唯一约束 UNIQUE(student,teacher) 一致）
-// S2-T3: tuple lookup also returns temp fields so api.js can decide formal reopen vs temp reuse (I-23).
+// 按双方元组查会话（admin 永删关系定位用；与会话唯一约束 UNIQUE(student,teacher) 一致）
+// S2-T3: tuple lookup also returns temp fields so api.js can decide formal reopen vs temp reuse ().
 export async function dbGetConversationByTuple(db, studentUserId, teacherUserId) {
   return await dbGet(db,
     'SELECT id, demand_id, status, temp_status, temp_initiator_user_id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
     [studentUserId, teacherUserId]);
 }
 
-// S2-T3: temp conversation create (I-23). INSERT OR IGNORE so a concurrent duplicate tuple resolves
+// S2-T3: temp conversation create (). INSERT OR IGNORE so a concurrent duplicate tuple resolves
 // to the existing row (same pattern as dbUpsertConversation). A pre-existing formal conversation
 // (temp_status NULL) is returned unchanged — api.js decides formal reopen vs temp reuse from the
 // tuple lookup. Returns { id, temp_status, temp_initiator_user_id }, or null only on an impossible
@@ -67,7 +67,7 @@ export function dbPrepareTempAdvance(db) {
   return db.prepare('UPDATE conversations SET temp_status=? WHERE id=? AND temp_status=?');
 }
 
-// AI-8: delete conversation (admin relation purge; messages cascade via FK ON DELETE CASCADE —
+// delete conversation (admin relation purge; messages cascade via FK ON DELETE CASCADE —
 // chat/schema.js MESSAGES_DDL). Standalone contracts have no conversation FK (S5) so they survive.
 export async function dbDeleteConversation(db, conversationId) {
   return await dbRun(db, 'DELETE FROM conversations WHERE id=?', [conversationId]);
@@ -83,14 +83,14 @@ export async function dbGetConversationWithNames(db, conversationId) {
 }
 
 // My participating conversations list (peer usernames + last-message preview + temp status).
-// S2-T4 temp visibility (I-17): init rows visible only to the initiator; sent/formal rows visible to both participants.
+// S2-T4 temp visibility (): init rows visible only to the initiator; sent/formal rows visible to both participants.
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   // contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
   // 提示已并入签约请求气泡底下（status='signed' 模板渲染），会话列表字段无消费者后删除。
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
-  // I-17/PA-1c-F3：teacher_name 取教师公开名（teacher_profiles.teacher_name 空回退 username）。
+  // /teacher_name 取教师公开名（teacher_profiles.teacher_name 空回退 username）。
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       c.temp_status, c.temp_initiator_user_id,
       us.username AS student_name, COALESCE(NULLIF(tp.teacher_name, ''), ut.username) AS teacher_name,
@@ -108,7 +108,7 @@ export async function dbGetMyConversations(db, userId) {
       SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
       FROM messages m JOIN (
         SELECT conversation_id, MAX(id) AS mid FROM messages
-        WHERE conversation_id IN (SELECT id FROM conversations WHERE student_user_id=? OR teacher_user_id=?) -- Q-2d-F5：最近消息聚合限定本用户会话集，全表 GROUP BY → 会话集内
+        WHERE conversation_id IN (SELECT id FROM conversations WHERE student_user_id=? OR teacher_user_id=?) -- 最近消息聚合限定本用户会话集，全表 GROUP BY → 会话集内
         GROUP BY conversation_id) x
         ON x.mid=m.id
     ) lm ON lm.conversation_id=c.id
@@ -117,10 +117,10 @@ export async function dbGetMyConversations(db, userId) {
     ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId, userId]);
 }
 
-// AI-7: unified relationship list — aggregate by two-party tuple (conversation + last message + latest
+// unified relationship list — aggregate by two-party tuple (conversation + last message + latest
 // contracts status), for the relation graph / relationship management. Read-only.
 // The conversation is the tuple (UNIQUE(student,teacher)) one-to-one; the latest contract status is taken
-// by tuple MAX(id) (contracts.conversation_id may be NULL for standalone rows, matching AI-1 cascade scope).
+// by tuple MAX(id) (contracts.conversation_id may be NULL for standalone rows, matching cascade scope).
 // Explicit column list (not c.*): read cursors (student_last_read_id/teacher_last_read_id) are not exposed
 // (same low-sensitivity leak closure as dbGetMyConversations).
 export async function dbGetMyRelations(db, userId) {
@@ -161,7 +161,7 @@ export async function dbMarkConversationRead(db, convId, userId) {
 export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_LIMIT) {
   // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）；
   // 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
-  // Q-2d-F1：初始加载（sinceId=0）取最近 limit 条——先 DESC 取最新再反转成升序（前端按序渲染
+  // 初始加载（sinceId=0）取最近 limit 条——先 DESC 取最新再反转成升序（前端按序渲染
   // 并取末条 id 作轮询游标）；旧实现 sinceId=0 取最早 limit 条，长会话一打开就掉进最早历史，
   // 轮询从最末条接续直接跳号断带。增量轮询（sinceId>0）保持升序追加新消息。
   const rows = await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
@@ -179,11 +179,11 @@ const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, k
 export function dbPrepareMessageInsert(db) { return db.prepare(MSG_INSERT_SQL); }
 
 export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // 缩略图随消息落库
-  const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb, null]); // Q-2d-F2：非 chat 域（合同/签约气泡）不带幂等键
+  const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb, null]); // 非 chat 域（合同/签约气泡）不带幂等键
   return Number(result.meta.last_row_id);
 }
 
-// Q-2d-F2：按幂等键批量查已落消息（handleSendBatch 去重判据——键全命中 = 超时重发，返回既有回执）
+// 按幂等键批量查已落消息（handleSendBatch 去重判据——键全命中 = 超时重发，返回既有回执）
 export async function dbGetMessagesByClientKeys(db, convId, userId, keys) {
   if (!keys || !keys.length) return [];
   const placeholders = keys.map(() => '?').join(',');
@@ -221,7 +221,7 @@ export function dbPrepareTempUploadDelete(db) {
     AND (SELECT temp_status FROM conversations WHERE id=?) IS ?`);
 }
 
-// AI-1: end-relationship atomic transaction — conversation active→closed + cascading contract revoke.
+// end-relationship atomic transaction — conversation active→closed + cascading contract revoke.
 // S3/S5 single-subject + standalone contracts: the signing layer is gone (signing_contracts DROPPED by
 // S5); demand release no longer applies (demand status converges to open/closed, contracts do not bind
 // demands). Close only revokes in-progress contracts (contract_status='signing' AND revoked=0) matched
@@ -295,6 +295,6 @@ export async function dbDeleteUpload(db, uploadId) {
 
 // 批量事务内的上传删除语句（同 dbPrepareMessageInsert 模式）：DELETE SQL 单源在 db.js，
 // 路由层批量发送不得自持 SQL（加列/改表两处漂移）
-export function dbPrepareUploadDelete(db) { return db.prepare('DELETE FROM uploads WHERE id=? AND user_id=?'); } // Z-4-F2：条件 DELETE 带归属（纵深防御——上层归属校验之外的 DB 层兜底；重复/误删同 id 异主零影响）
+export function dbPrepareUploadDelete(db) { return db.prepare('DELETE FROM uploads WHERE id=? AND user_id=?'); } // 条件 DELETE 带归属（纵深防御——上层归属校验之外的 DB 层兜底；重复/误删同 id 异主零影响）
 
 // ============================================================

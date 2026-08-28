@@ -2,7 +2,7 @@
  * onboard feature registry.
  *
  * Action map: first-visit modal buttons (onboard.*) plus the about-page revisit
- * entries (about-usage-guide / about-revisit-tour — B2 wiring: core/about.js renders
+ * entries (about-usage-guide / about-revisit-tour — wiring: core/about.js renders
  * those buttons with data-action, this registry makes them live; the redundant
  * CustomEvent('about-action') dispatch in about.js has no listener, no double fire).
  */

@@ -1,7 +1,7 @@
 /**
  * reviewStatusMeta + renderProfileReviewsCard 状态标签回归
- * （V-2-4b 审计观察项修复：旧 reviewStatusTagHtml 返回 HTML 串，consumer 对字符串取
- *  .cls/.text 得到 undefined，线上渲染「undefined」；改为 {text, cls} 形状 + 未知态省略标签）。
+ * （审计观察项修复：旧 reviewStatusTagHtml 返回 HTML 串，consumer 对字符串取
+ * .cls/.text 得到 undefined，线上渲染「undefined」；改为 {text, cls} 形状 + 未知态省略标签）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

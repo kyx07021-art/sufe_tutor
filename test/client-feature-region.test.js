@@ -6,7 +6,7 @@ import { actions } from '../src/client/features/region/index.js';
 import { switchScoreMode } from '../src/client/features/region/actions.js';
 
 test('region render: province select has no inline handler and contains all provinces', () => {
-  // Q-4b-L2: inert changeAction param removed — data-region-change was never consumed anywhere
+  // inert changeAction param removed — data-region-change was never consumed anywhere
   // (callers bind change directly); assert it no longer leaks into the DOM
   const html = renderProvinceSelect('d-province', 'shanghai');
   assert.ok(html.includes('id="d-province"'));

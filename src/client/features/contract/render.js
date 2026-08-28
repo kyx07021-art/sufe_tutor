@@ -14,7 +14,7 @@ import { TEXT } from '../../constants/text.js';
 
 // Sentinel prefix mirroring server CONTRACT_BUSINESS_END (contract/api.js). Lives in
 // text.js (the only contract-6 Chinese-allowed module) so the client never synthesizes
-// Chinese at runtime (Q-1-F1: char-code obfuscation was a real contract-6 bypass).
+// Chinese at runtime (char-code obfuscation was a real contract-6 bypass).
 export const CONTRACT_BIZ_END = TEXT.CONTRACT_BIZ_END;
 
 export function splitContractBiz(md) {

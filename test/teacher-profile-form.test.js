@@ -1,17 +1,17 @@
 /**
- * Z-3-F1 F1c：教师档案编辑表单渲染 + 预填 + 进入链路（jsdom 直测 ESM）。
+ * c：教师档案编辑表单渲染 + 预填 + 进入链路（jsdom 直测 ESM）。
  *
  * 覆盖：
- *   - renderTeacherProfileForm：四区结构（基本/学科/非学科/私密）字段全部在位，
- *     必填标记、白名单选项（TEACHER_GRADES/GENDERS/TEACHING_METHODS/SUBJECTS）、
- *     已有档案回显（value/selected/checked 预填）、零内联事件/样式、服务端值 escHtml 转义；
- *   - profile null（无档案教师）→ 空表单默认值；
- *   - enterTeacherProfile：GET /api/teacher/profile → 渲染表单 → time_slots 预填 →
- *     Shanghai address picker 挂载（hidden 值同步）→ 失败路径错误态。
+ * - renderTeacherProfileForm：四区结构（基本/学科/非学科/私密）字段全部在位，
+ * 必填标记、白名单选项（TEACHER_GRADES/GENDERS/TEACHING_METHODS/SUBJECTS）、
+ * 已有档案回显（value/selected/checked 预填）、零内联事件/样式、服务端值 escHtml 转义；
+ * - profile null（无档案教师）→ 空表单默认值；
+ * - enterTeacherProfile：GET /api/teacher/profile → 渲染表单 → time_slots 预填 →
+ * Shanghai address picker 挂载（hidden 值同步）→ 失败路径错误态。
  *
- * 测试夹具必须用生产形状（G3）：GET profile 的 time_slots = mapper 出口数组（T-6-F3 safeJsonArray）
- *   [{type:'week',dow,start,end}]（缺 type 会被 prefillTimeSlots 过滤 → 断言空转）；提交 body 仍为 JSON 串。
- * 断言锁真实行为（G2）：删掉 prefillTimeSlots 调用测试必须变红。
+ * 测试夹具必须用生产形状（）：GET profile 的 time_slots = mapper 出口数组（safeJsonArray）
+ * [{type:'week',dow,start,end}]（缺 type 会被 prefillTimeSlots 过滤 → 断言空转）；提交 body 仍为 JSON 串。
+ * 断言锁真实行为（）：删掉 prefillTimeSlots 调用测试必须变红。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +28,7 @@ globalThis.window = dom.window;
 globalThis.localStorage = dom.window.localStorage;
 globalThis.sessionStorage = dom.window.sessionStorage;
 globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-// F1d2: initCustomSelects wraps the ZJ/Beijing 21-tier gk-grade-select with a MutationObserver —
+// d2: initCustomSelects wraps the ZJ/Beijing 21-tier gk-grade-select with a MutationObserver —
 // the global must exist in jsdom or wrapping throws and the whole form init fails.
 globalThis.MutationObserver = dom.window.MutationObserver;
 setEnsureAuth(() => true);
@@ -50,7 +50,7 @@ const FULL_PROFILE = {
   school: '上海财经大学', real_name: '王老师', graduation_year: 2022,
   subjects: ['math', 'english'], price_min: 100, price_max: 150,
   teaching_method: 'online',
-  // PROD 形状：mapper 出口数组（T-6-F3 safeJsonArray），含 type:'week'（缺 type 会被 prefill 过滤）
+  // PROD 形状：mapper 出口数组（safeJsonArray），含 type:'week'（缺 type 会被 prefill 过滤）
   time_slots: [{ type: 'week', dow: 1, start: '18:00', end: '20:00' }],
   personality_tags: ['patience'], nonacademic_projects: ['music'],
   nonacademic_prices: [{ project: 'music', price_min: 200, price_max: 300 }],
@@ -88,7 +88,7 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   for (const id of requiredFields) {
     assert.ok(html.includes(`<span class="req">*</span>`), `必填标记存在（${id}）`);
   }
-  // 契约 6：零内联事件/样式属性
+  // 零内联事件/样式属性
   assert.ok(!/onclick=/.test(html), '零内联 onclick');
   assert.ok(!/onchange=/.test(html), '零内联 onchange');
   assert.ok(!/style=/.test(html), '零内联 style 属性');
@@ -134,7 +134,7 @@ test('F1c 进入链路：GET profile → 渲染表单 → time_slots 预填 → 
   const el = dom.window.document.getElementById('teacher-profile-content');
   assert.ok(el.querySelector('#teacher-profile-form'), '表单已渲染');
   assert.ok(el.querySelector('#tp-province'), '省份 select 在');
-  // time_slots 预填：PROD 形状（type:week）→ 真实行渲染（G2：删 prefill 必红）
+  // time_slots 预填：PROD 形状（type:week）→ 真实行渲染（删 prefill 必红）
   const rows = el.querySelectorAll('#tp-time-slots .time-slot');
   assert.equal(rows.length, 1, 'time-slot 行真实渲染 1 行（非空容器空转）');
   assert.equal(rows[0].querySelector('.slot-dow').value, '1', '星期 select 预填 dow=1');
@@ -158,9 +158,9 @@ test('F1c 进入链路：加载失败 → 错误态渲染（零 JS 抛错）', a
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1 F1d1：字段联动交互（省份→地址区显隐 + method 无条件锁定、personality/非学科
+// d1：字段联动交互（省份→地址区显隐 + method 无条件锁定、personality/非学科
 // 标签点选 + 上限钳制、非学科报价行重渲染保留已填值、毕业年份钳制）。
-// F1d1-4 修复：直调 actions.*（不依赖点击委托）；被测 profile 初始不预选被测标签
+// d1-4 修复：直调 actions.*（不依赖点击委托）；被测 profile 初始不预选被测标签
 // （否则 toggle 不可观察 → 断言空转）。
 // ─────────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ test('F1d1 联动：地址区显隐 + 上海地址 picker 挂载 + hidden 同步
 });
 
 test('F1d1 标签：personality 点选 + 上限钳制（toast 提示不选中）', async () => {
-  const el = await setupForm({}); // 初始不预选被测标签（F1d1-4）
+  const el = await setupForm({}); // 初始不预选被测标签（d1-4）
   const host = el.querySelector('#tp-personality');
   assert.ok(host.querySelectorAll('.tag-pick').length > 0, 'personality 容器标签已注入（非死 UI）');
   const tags = [...host.querySelectorAll('.tag-pick')];
@@ -273,7 +273,7 @@ test('F1d1 毕业年份钳制 [1980, 2030]', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1 F1d2：gaokao 高考成绩编辑器（渲染 / 收集 shape / 交互）。
+// d2：gaokao 高考成绩编辑器（渲染 / 收集 shape / 交互）。
 // 收集 shape 与服务端契约（teacher/api.js sanitize）一致：
 // [{subject, score?} | {subject, grade?}]，subject 白名单含浙江技术，
 // 主科原始分 / 再选等第，空行跳过，hidden track 行跳过。
@@ -363,7 +363,7 @@ test('F1d2 科目勾选变化 → 编辑器重渲染（首选 pill 出现）', a
   teardown();
 });
 
-// Z-3-F1-F1d2 O2: legacy "old" track (science/arts) — Xinjiang is still pre-reform in the
+// O2: legacy "old" track (science/arts) — Xinjiang is still pre-reform in the
 // policy map, so renderTeacherGaokaoEditor takes the `else` branch (tracks from
 // policies.old.tracks, raw-score rows per track). Locks the bidirectional pill switch:
 // initial track = science (first key when both tracks are checked), row visibility toggles
@@ -419,10 +419,10 @@ test('F1d2 old track 新疆：science/arts 双向切换 + 分数行显隐 + 跨�
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1 F1d3：收集/校验/提交。payload.profile 形状与服务端 handleSaveProfile 契约一致
+// d3：收集/校验/提交。payload.profile 形状与服务端 handleSaveProfile 契约一致
 // （province/grade/gender/subjects/price/method/time_slots JSON 串/gaokao_scores 数组/
 // 非学科报价行/credential 回传）；必填校验失败零请求；成功回读刷新。
-// 注意：下方 F3_SAVE_PROFILE 是 GET 回读 fixture（:439 注入 profile 响应）——time_slots 为 mapper 出口数组；
+// 注意：下方 _SAVE_PROFILE 是 GET 回读 fixture（:439 注入 profile 响应）——time_slots 为 mapper 出口数组；
 // 提交 body 的 time_slots 才是 JSON 串（:455 断言）。
 // ─────────────────────────────────────────────────────────────
 
@@ -494,7 +494,7 @@ test('F1d3 time_slots 必填：无时间段 → toast + 零 POST', async () => {
   teardown();
 });
 
-// F1d3 审计 GAP 补齐（独立审计 PASS 后覆盖空洞：GAP-A 凭证回传 / GAP-B 价格区间 /
+// d3 审计 GAP 补齐（独立审计 PASS 后覆盖空洞：GAP-A 凭证回传 / GAP-B 价格区间 /
 // GAP-C 回读刷新 / GAP-D 缓存失效——均锁真实行为，删逻辑必红）。
 
 test('F1d3 GAP-A 凭证回传：有存量凭证原样回传（防保存清空）', async () => {
@@ -547,7 +547,7 @@ test('F1d3 GAP-C 成功回读：保存后重拉档案并重渲染', async () => 
 
 test('F1d3 GAP-D 缓存失效：保存后 invalidate(teachers) 清公开列表缓存', async () => {
   setup();
-  state.allTeachers = [{ user_id: 40 }]; // 预置陈旧缓存（G4：测试后重置）
+  state.allTeachers = [{ user_id: 40 }]; // 预置陈旧缓存（测试后重置）
   globalThis.fetch = async (url, opts) => {
     if ((opts || {}).method === 'POST') return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
     return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
@@ -560,9 +560,9 @@ test('F1d3 GAP-D 缓存失效：保存后 invalidate(teachers) 清公开列表�
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1 F1e：核验区块（四态渲染 / chsi 格式预检 / admission 守卫 / 集成）。
-// FileReader 在 jsdom 不可用，admission 的 FileReader 路径由代码审查 + F1g 浏览器 QA 覆盖；
-// 这里锁四态渲染、chsi 预检（G2：删预检必红）、未选照片守卫、enterTeacherProfile 集成。
+// e：核验区块（四态渲染 / chsi 格式预检 / admission 守卫 / 集成）。
+// FileReader 在 jsdom 不可用，admission 的 FileReader 路径由代码审查 + g 浏览器 QA 覆盖；
+// 这里锁四态渲染、chsi 预检（删预检必红）、未选照片守卫、enterTeacherProfile 集成。
 // ─────────────────────────────────────────────────────────────
 
 test('F1e 核验四态渲染：none 双通道 / pending 按通道 / approved / rejected 可重提', () => {
@@ -586,7 +586,7 @@ test('F1e 核验四态渲染：none 双通道 / pending 按通道 / approved / r
   html = renderTeacherVerifySection({ status: 'rejected' });
   assert.ok(html.includes(TEXT.VERIF_REJECTED), 'rejected tag');
   assert.ok(html.includes('verify-chsi-pane'), 'rejected 可重提（双通道）');
-  // 契约 6：零内联事件/样式
+  // 零内联事件/样式
   assert.ok(!/onclick=/.test(html) && !/style=/.test(html), '零内联事件/样式');
 });
 

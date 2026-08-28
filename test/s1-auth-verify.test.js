@@ -1,16 +1,16 @@
 /**
- * New-site backend S1: /api/auth/me enhancement (I-05) + /api/auth/verify (I-06).
+ * New-site backend S1: /api/auth/me enhancement () + /api/auth/verify ().
  *
  * Covers:
- *   - handleAuthMe: requires a valid token; returns user + teacherName ('' when no
- *     teacher_profiles.teacher_name value, the value when present) + contactMasks
- *     {phone, email} masked ('' = unbound).
- *   - handleVerifyIdentity: requires a valid token; password branch correct/wrong; OTP
- *     branch correct/wrong against the user's bound contact (phone preferred, email
- *     fallback); success issues a one-time session-bound capToken (consumable once by
- *     confirmDangerOtp). AK-A1b: captcha is a client-side anti-abuse UX gate — the server
- *     no longer confirms it; the auth rate limit (authRateBatch, 8/10min) is the primary
- *     anti-bruteforce defense and is independently locked below.
+ * - handleAuthMe: requires a valid token; returns user + teacherName ('' when no
+ * teacher_profiles.teacher_name value, the value when present) + contactMasks
+ * {phone, email} masked ('' = unbound).
+ * - handleVerifyIdentity: requires a valid token; password branch correct/wrong; OTP
+ * branch correct/wrong against the user's bound contact (phone preferred, email
+ * fallback); success issues a one-time session-bound capToken (consumable once by
+ * confirmDangerOtp). AK-A1b: captcha is a client-side anti-abuse UX gate — the server
+ * no longer confirms it; the auth rate limit (authRateBatch, 8/10min) is the primary
+ * anti-bruteforce defense and is independently locked below.
  *
  * Direct handler invocation with node:sqlite DatabaseSync + d1Shim (v2 test convention).
  */
@@ -22,7 +22,7 @@ import { initDb } from '../src/server/core/db.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { confirmDangerOtp } from '../src/server/core/danger-ops.js';
 import { handleAuthMe, handleRegister } from '../src/server/domains/auth/api.js';
-import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: bind 收敛到 settings 单源
+import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // bind 收敛到 settings 单源
 import { handleVerifyIdentity } from '../src/server/domains/auth/verify.js';
 import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // stubs fetch so no real SMS/email is sent
 
@@ -75,7 +75,7 @@ async function registerUser(db, raw, username) {
   return { id, token: data.authToken, phone: target };
 }
 
-// ---------------- GET /api/auth/me (I-05) ----------------
+// ---------------- GET /api/auth/me () ----------------
 test('GET /api/auth/me: no token -> 401 LOGIN_REQUIRED', async () => {
   const { db } = await setup();
   const r = await handleAuthMe(db, authedReq(''));
@@ -122,7 +122,7 @@ test('GET /api/auth/me: teacherName from teacher_profiles.teacher_name when the 
   assert.equal(data.user.teacherName, '王老师', 'teacherName read from teacher_profiles row');
 });
 
-// ---------------- POST /api/auth/verify (I-06) ----------------
+// ---------------- POST /api/auth/verify () ----------------
 test('POST /api/auth/verify: no token -> 401', async () => {
   const { db } = await setup();
   const r = await handleVerifyIdentity(db, { credential: { type: 'password', value: 'x' } }, authedReq(''));
@@ -177,7 +177,7 @@ test('POST /api/auth/verify: wrong OTP code -> 403 VERIFY_FAILED', async () => {
   assert.equal((await r.json()).code, 'AUTH_VERIFY_FAILED');
 });
 
-// ---------------- PA-1a-F2: verify auth rate limit (AK-A1b: primary anti-bruteforce defense) ----------------
+// ---------------- verify auth rate limit (AK-A1b: primary anti-bruteforce defense) ----------------
 test('POST /api/auth/verify: password brute force rate-limited to 8/10min (reauth bucket; mutation: removing authRateBatch -> over-limit not rejected -> red)', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'verify_rl');

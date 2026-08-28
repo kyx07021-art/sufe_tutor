@@ -1,22 +1,22 @@
 /**
- * S2-T3/S2-T4/S2-T6: temp conversation repo layer — dbCreateTempConversation (I-23),
- * tuple lookup temp fields, dbGetMyConversations temp visibility (I-17),
- * dbGetMyRelations temp fields (I-15), dbPrepareTempAdvance (I-24 init -> sent -> NULL).
+ * S2-T3/S2-T4/S2-T6: temp conversation repo layer — dbCreateTempConversation (),
+ * tuple lookup temp fields, dbGetMyConversations temp visibility (),
+ * dbGetMyRelations temp fields (), dbPrepareTempAdvance (init -> sent -> NULL).
  *
  * Data-layer direct tests (d1Shim in-memory SQLite, initDb pattern from my-relations.test.js).
  * The temp columns live in chat/schema.js (S2-T1 owns the migration); until it lands the columns
  * may be absent, so the seed ensures them idempotently (no-op once the schema adds them).
  *
  * Mutation guards (auditor verifies by temporarily reverting):
- *  - removing the temp columns from the SELECT lists of dbGetConversationByTuple /
- *    dbGetMyConversations / dbGetMyRelations -> temp_status / temp_initiator_user_id come back
- *    undefined -> the field assertions below go red.
- *  - removing the whole temp visibility AND-condition in dbGetMyConversations -> the receiver sees
- *    the init row -> the leak-prevention assertion (receiver does NOT see init) goes red.
- *  - removing only the `temp_status <> 'init'` term -> the sent row becomes invisible to the
- *    receiver (temp_initiator is not the receiver) -> the sent-visible assertion goes red.
- *  - removing the `temp_status=?` guard in dbPrepareTempAdvance -> the re-advance changes=0
- *    assertion goes red (the row would move again from NULL).
+ * - removing the temp columns from the SELECT lists of dbGetConversationByTuple /
+ * dbGetMyConversations / dbGetMyRelations -> temp_status / temp_initiator_user_id come back
+ * undefined -> the field assertions below go red.
+ * - removing the whole temp visibility AND-condition in dbGetMyConversations -> the receiver sees
+ * the init row -> the leak-prevention assertion (receiver does NOT see init) goes red.
+ * - removing only the `temp_status <> 'init'` term -> the sent row becomes invisible to the
+ * receiver (temp_initiator is not the receiver) -> the sent-visible assertion goes red.
+ * - removing the `temp_status=?` guard in dbPrepareTempAdvance -> the re-advance changes=0
+ * assertion goes red (the row would move again from NULL).
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

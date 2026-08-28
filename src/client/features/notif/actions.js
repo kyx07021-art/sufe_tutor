@@ -19,7 +19,7 @@ import { TEXT } from '../../constants/text.js';
 let _notifList = [];
 
 // Probe refresh replaces the cache array -- re-hang so block filtering and read flips
-// keep working on the same reference (audit M1).
+// keep working on the same reference (audit ).
 dhOnDomainRefresh('notifications', () => {
   const c = dhPeek('/api/notifications');
   if (c && c.notifications) _notifList = c.notifications;

@@ -1,5 +1,5 @@
 /**
- * Q-2a-L4 守护：listSessions 出口时间戳 ISO-8601 带 Z（自描述时区）。
+ * 守护：listSessions 出口时间戳 ISO-8601 带 Z（自描述时区）。
  * 审计：库内 UTC 'YYYY-MM-DD HH:MM:SS' 不自描述，客户端裸 new Date() 按本地解析（早 8 小时）。
  * 修复：auth/api.js handleListSessions 出口 created_at/expires_at 转 ISO（toIso）。
  * 变异：去掉 toIso（直接吐库内格式）→ 断言 Z 后缀失败 → 红。

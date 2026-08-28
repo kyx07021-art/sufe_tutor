@@ -3,7 +3,7 @@
  * 无 cursor → 纯倒序无 WHERE、LIMIT 51；有 cursor → 复合条件 (created_at,id)；
  * 51 行 → hasMore 且 nextCursor=末行编码；50 行 → nextCursor=null（不再 LIMIT 300 硬截断）；
  * mapper 出口（mapDemandRow）= 单科目业务形状（subject/targetType/preferredTags 等），
- * 联系方式/门牌列不存储（S3 §15 整列删除）→ 任何出口拿不到，无 Full 解密变体。
+ * 联系方式/门牌列不存储（S3 整列删除）→ 任何出口拿不到，无 Full 解密变体。
  * fake D1：db.prepare(sql).bind(...).all() 链捕获 SQL/params。
  */
 import test from 'node:test';
@@ -87,7 +87,7 @@ test('mapper 出口：单科目业务形状 + JSON 列 safeJsonArray；联系方
   assert.deepEqual(d.preferredTags, ['patience'], 'JSON 列走 safeJsonArray');
   assert.equal(d.preferredGender, 'female');
   assert.equal(d.status, 'open');
-  // S3 §15：联系方式/门牌列不存储 → 任何出口都拿不到（无 Full 解密变体）
+  // S3 联系方式/门牌列不存储 → 任何出口都拿不到（无 Full 解密变体）
   for (const k of ['parent_contact', 'student_contact', 'submitter_type', 'address_detail']) {
     assert.ok(!(k in d), `${k} 永不出口`);
   }

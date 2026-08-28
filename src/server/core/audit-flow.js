@@ -2,7 +2,7 @@
  * 内容域写路径统一审核断点（v1.5.0 起 fail-closed）
  *
  * 每条用户上传数据在写入前过本断点：按路径映射抽取自由文本字段交 text-audit 咽喉。
- * L1 门牌规则确定性拦截；L2 语义层未配置/超时/异常 → 拒绝写入（不再 300ms fail-open）。
+ * 门牌规则确定性拦截；语义层未配置/超时/异常 → 拒绝写入（不再 300ms fail-open）。
  * 调用点：_worker fetch 对内容域写请求统一调用。新增内容域写路径先在此登记。
  */
 import { auditFreeText } from './text-audit.js';
@@ -12,10 +12,10 @@ import { LIMITS } from '../../shared/config.js';
 // ============================================================
 // 内容域写路径（创建 + 编辑全口径）
 // ============================================================
-// S0-18 rebuilt against the current route table (S2/S3 delivery): dead prefixes removed
+// rebuilt against the current route table (S2/S3 delivery): dead prefixes removed
 // (signing-requests merged into signing_contracts, teacher/awards + intents/pushes gone),
 // /api/demands flattened to body.additionalInfo, /api/conversations/ now also extracts
-// firstMessage (I-23 temp conversation). Every prefix below must match a real registered
+// firstMessage (temp conversation). Every prefix below must match a real registered
 // POST/PUT route — enforced by test/s0-18-audit-flow.test.js route cross-check.
 const CONTENT_WRITE_PREFIXES = [
   '/api/posts', '/api/demands', '/api/teacher/profile', '/api/reviews', '/api/settings',
@@ -39,7 +39,7 @@ const AUDIT_MAP = [
   { prefix: '/api/complaints',      pick: b => [b.reason, b.detail] },
   { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther, b.trialPayOther, b.contractMd] },
   { prefix: '/api/conversations/',  pick: b => [
-      b.firstMessage, // I-23: temp conversation first message is real user free-text (stored as a chat message)
+      b.firstMessage, // temp conversation first message is real user free-text (stored as a chat message)
       ...(Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []),
       b.schedule,
     ] },
@@ -51,11 +51,11 @@ const AUDIT_MAP = [
 
 /**
  * 统一断点：内容域写请求过审。
- * 返回 { ok:true } 放行；{ reject:'文案' } 拒绝（L1 门牌 / L2 语义 / 审核服务不可用）。
+ * 返回 { ok:true } 放行；{ reject:'文案' } 拒绝（门牌 / 语义 / 审核服务不可用）。
  */
 export async function auditBeforeWrite({ path, method, body, ip, userId }) {
   if (!isContentWrite(path, method)) return { ok: true };
-  // Z-2-F7：合法 JSON 文本 null（parseBody 原样返回）无自由文本可审——放行，
+  // 合法 JSON 文本 null（parseBody 原样返回）无自由文本可审——放行，
   // 否则 AUDIT_MAP pick(null) 解构属性 TypeError → 内容域写路径传 JSON null 即 500
   if (body == null) return { ok: true };
   const item = {
@@ -65,7 +65,7 @@ export async function auditBeforeWrite({ path, method, body, ip, userId }) {
   const rule = AUDIT_MAP.find(r => item.path.startsWith(r.prefix));
   if (!rule) return { ok: true }; // 非自由文本内容写（点赞/头像/附件等）直接放行
   const texts = (rule.pick(item.body) || []).filter(t => typeof t === 'string' && t.trim());
-  // Q-2b-F1（回滚重做）：单请求自由文本字段超预算 = 拒绝写入（fail-closed）——否则恶意大 batch
+  // （回滚重做）：单请求自由文本字段超预算 = 拒绝写入（fail-closed）——否则恶意大 batch
   // 在 handler 校验前逐项顺序打 DeepSeek，N 次第三方调用 + 4N 秒挂起（成本/DoS 放大）。
   // 预算 = LIMITS.AUDIT_MAX_FIELDS（= MSG_BATCH_MAX 对齐：合同表单最多 6 字段、chat batch 单批
   // 上限 13 条均放行；>13 的恶意超大 batch 拦截）。溢出文案用 INVALID_PARAMS——

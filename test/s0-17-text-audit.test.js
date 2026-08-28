@@ -1,25 +1,25 @@
 /**
- * S0-17 text-audit throat (src/server/core/text-audit.js) — migration verification +
+ * text-audit throat (src/server/core/text-audit.js) — migration verification +
  * mutation-guarded tests for the new-site foundation (in-place reuse of v2 core/text-audit.js,
- * S0-11 already routed the LLM-response JSON block through safeJsonObject).
+ * already routed the LLM-response JSON block through safeJsonObject).
  *
  * The throat is the single audit entry for every free-text field. Two layers:
- *   L1 deterministic rule layer (ADDRESS_GUARD + digit-harmony suffix) — blocks door-number
- *     variants ("2788好" = "号" written as a homophone, hyphenated "2-7-8-8号", Chinese-numeral
- *     "贰柒捌捌号") WITHOUT any semantic dependency.
- *   L2 semantic layer (DeepSeek chat/completions) — fail-closed: no key / HTTP non-OK / network
- *     exception / non-JSON model output ALL reject the write (layer:'error'), never fail open.
+ * deterministic rule layer (ADDRESS_GUARD + digit-harmony suffix) — blocks door-number
+ * variants ("2788好" = "号" written as a homophone, hyphenated "2-7-8-8号", Chinese-numeral
+ * "贰柒捌捌号") WITHOUT any semantic dependency.
+ * semantic layer (DeepSeek chat/completions) — fail-closed: no key / HTTP non-OK / network
+ * exception / non-JSON model output ALL reject the write (layer:'error'), never fail open.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - auditSemantic drops `if (!key) return UNAVAILABLE` -> no-key + PASS stub returns
- *     {ok:true} -> red (no-key fail-closed is the core S0-17 mutation).
- *   - auditFreeText drops the isYearLike() exclusion inside the harmonic `some()` -> a
- *     legitimate "2019好" year is flagged -> red.
- *   - auditSemantic drops the `typeof j.flagged !== 'boolean'` parse guard -> model content
- *     "{}" (flagged undefined, falsy) or '{"flagged":"yes"}' (truthy string) is treated as a
- *     pass / semantic rejection instead of service-unavailable -> the layer assertion goes red.
- *   - auditSemantic drops the `!res.ok` guard -> an HTTP 500 whose body still carries a valid
- *     {"flagged":false} is parsed as a pass -> red.
+ * - auditSemantic drops `if (!key) return UNAVAILABLE` -> no-key + PASS stub returns
+ * {ok:true} -> red (no-key fail-closed is the core mutation).
+ * - auditFreeText drops the isYearLike() exclusion inside the harmonic `some()` -> a
+ * legitimate "2019好" year is flagged -> red.
+ * - auditSemantic drops the `typeof j.flagged !== 'boolean'` parse guard -> model content
+ * "{}" (flagged undefined, falsy) or '{"flagged":"yes"}' (truthy string) is treated as a
+ * pass / semantic rejection instead of service-unavailable -> the layer assertion goes red.
+ * - auditSemantic drops the `!res.ok` guard -> an HTTP 500 whose body still carries a valid
+ * {"flagged":false} is parsed as a pass -> red.
  *
  * The two last guards need dedicated shapes: plain non-JSON prose ("没法判断") has no JSON block
  * (j=null) and would reject through the `!j` branch even if the flagged-boolean guard were
@@ -39,7 +39,7 @@ const PASS = () => ({ ok: true, json: async () => ({ choices: [{ message: { cont
 const FLAG = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": true, "reason": "locatable address"}' } }] }) });
 
 test('S0-17 L1: door-number variants rejected at the rule layer (no semantic dependency)', async () => {
-  bindTextAuditEnv(null); // no key — L1 hits happen BEFORE the semantic layer, so no key is irrelevant
+  bindTextAuditEnv(null); // no key — hits happen BEFORE the semantic layer, so no key is irrelevant
   try {
     const cases = [
       '浦东新区杨高中路2-7-8-8号',
@@ -60,7 +60,7 @@ test('S0-17 L1: door-number variants rejected at the rule layer (no semantic dep
 test('S0-17 L1: 4-digit 19xx/20xx year + harmony char is NOT a door number (Z-2-F8 exemption)', async () => {
   const origFetch = globalThis.fetch;
   globalThis.fetch = PASS;
-  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' }); // years pass L1 -> must reach the semantic layer
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' }); // years pass -> must reach the semantic layer
   try {
     const years = ['2019好老师', '1949好日子', '二〇二六好', '2026届毕业'];
     for (const t of years) {

@@ -1,26 +1,26 @@
 /**
  * D-3 onboarding feature regression (v2 ESM port of the v1 vm sandbox test):
  * multi-step tour engine + five tour scripts integrity/depth + first-visit modal +
- * B1/B2/B3 boot/entry/dead-control wiring.
+ * //boot/entry/dead-control wiring.
  *
  * Covers:
- *   - runTour stepping: click the hole -> next step (real click pass-through to the target)
- *   - closeModal steps point at the modal body (.modal) and auto-close on advance
- *   - unmounted targets (.hidden ancestor) poll via rAF; missing targets auto-skip on timeout
- *   - global skip button stays visible the whole tour and ends it on click
- *   - startOnboardingTour picks the script by login state + role
- *   - revisit entry migrated to the about page only (sidebar button removed)
- *   - per-module interaction depth >= 3 in every script (hard requirement)
- *   - script integrity: shapes valid, page ids registered, last step self
- *   - full walk-throughs of all four user scripts (demo chat/contract injection asserted)
- *   - first-visit modal: summarized policy + role-dependent primary button
- *   - pass:false interception (intent CTA / notif block do not pass through)
- *   - scroll architecture, animation stabilization, R27 dynamic hole binding
- *   - CSS rules direct file read (overlay mount + hole/bubble delay)
- *   - browseAsGuest / afterAuthSuccess tour wiring
- *   - B1: showOnboardingIfNeeded first-visit semantics + app.js boot call site
- *   - B2: about page revisit buttons real-clicked (usage guide modal + tour overlay)
- *   - B3: browse-demands sort/filter controls re-render locally, no new network
+ * - runTour stepping: click the hole -> next step (real click pass-through to the target)
+ * - closeModal steps point at the modal body (.modal) and auto-close on advance
+ * - unmounted targets (.hidden ancestor) poll via rAF; missing targets auto-skip on timeout
+ * - global skip button stays visible the whole tour and ends it on click
+ * - startOnboardingTour picks the script by login state + role
+ * - revisit entry migrated to the about page only (sidebar button removed)
+ * - per-module interaction depth >= 3 in every script (hard requirement)
+ * - script integrity: shapes valid, page ids registered, last step self
+ * - full walk-throughs of all four user scripts (demo chat/contract injection asserted)
+ * - first-visit modal: summarized policy + role-dependent primary button
+ * - pass:false interception (intent CTA / notif block do not pass through)
+ * - scroll architecture, animation stabilization, R27 dynamic hole binding
+ * - CSS rules direct file read (overlay mount + hole/bubble delay)
+ * - browseAsGuest / afterAuthSuccess tour wiring
+ * - showOnboardingIfNeeded first-visit semantics + app.js boot call site
+ * - about page revisit buttons real-clicked (usage guide modal + tour overlay)
+ * - browse-demands sort/filter controls re-render locally, no new network
  *
  * Setup pattern (same discipline as notif-block-ui.test.js): feature onLoad
  * "installed" flags are module-level singletons -- a mid-test assertion failure
@@ -101,7 +101,7 @@ const notif = { id: 1, text: '有新的试课意向，请及时处理', is_read:
 const post = { id: 1, title: '高中数学笔记', body_md: '分享一份函数专题笔记', username: '张老师', user_id: 3, like_count: 2, liked: false, created_at: '2026-08-01T00:00:00Z' };
 
 /** Fresh jsdom + globals + mounted shell + fetch stub (endpoint-keyed fixtures).
- *  demandRows is overridable for the B3 sort/filter test. */
+ * demandRows is overridable for the sort/filter test. */
 function baseSetup({ demandRows = null } = {}) {
   const dom = new JSDOM('<!doctype html><html><body><div id="app"></div></body></html>', {
     url: 'http://localhost/', pretendToBeVisual: true,
@@ -734,7 +734,7 @@ test('afterAuthSuccess() (login): does not auto-run the tour', async (t) => {
   assert.equal(doc.querySelector('.tour-overlay'), null, 'plain login does not run the tour');
 });
 
-// ---- B1/B2/B3 (BLOCKING regression fixes) ----
+// ---- //(BLOCKING regression fixes) ----
 
 test('B1 boot wiring: showOnboardingIfNeeded first-visit semantics + app.js call site', (t) => {
   baseSetup();

@@ -1,5 +1,5 @@
 /**
- * v0.25.94 下拉栏空态塌陷治理（B4：直接 import core/ui）。
+ * v0.25.94 下拉栏空态塌陷治理（直接 import core/ui）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +33,7 @@ test('触发器默认空纵向高度（min-height）防塌陷', () => {
 });
 
 test('起草弹窗已无需求下拉（S5 合同独立不绑需求）', () => {
-  // V-4-1h：v1 app-contracts.js 已删；S5 合同独立不绑需求：起草弹窗已无需求下拉。
+  // v1 app-contracts.js 已删；S5 合同独立不绑需求：起草弹窗已无需求下拉。
   // v2 签约弹窗入口已随 S5 下线（发起签约按钮移除，OBS-1 修复），无任何需求下拉空态提示残留。
   const c = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
   assert.ok(!c.includes('SIGNING_NO_DEMAND_HINT'), 'SIGNING_NO_DEMAND_HINT 已随签约弹窗移除');

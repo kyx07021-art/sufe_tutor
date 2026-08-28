@@ -1,14 +1,14 @@
 /**
  * demand 域 schema（S3 单科目新模型）：学生需求单科目化 DDL / 列迁移 / 热点索引。
  *
- * §15 定案：①联系方式整列删除（parent_contact/student_contact/address_detail/submitter_type 不存储）
+ * 定案：①联系方式整列删除（parent_contact/student_contact/address_detail/submitter_type 不存储）
  * ②teaching_method 三态 online/offline/both ③target_type 由 subject 派生（不落库）
  * ④display_id 删除 ⑤intents/pushes 归 S2 统一删除（表在 postEnsure 幂等 DROP）
  * ⑥状态收敛 open/closed（删 contracted/revoked）。
  *
  * 旧表（v13 前）迁移：数据拆分（target_subjects 数组→单科目拆行 + current_scores 单值化）由
- * scripts/migrate-demands-single-subject.mjs（S3-3）在部署前对生产库执行；本文件 DDL 面向新形状，
- * 存量库经 ensureColumns 补新列（旧列残留不主动删——W1 无兼容层，S5 收口时随表重建一并清理）。
+ * scripts/migrate-demands-single-subject.mjs（）在部署前对生产库执行；本文件 DDL 面向新形状，
+ * 存量库经 ensureColumns 补新列（旧列残留不主动删——无兼容层，S5 收口时随表重建一并清理）。
  */
 import { dbAll, dbRun } from '../../core/util.js';
 

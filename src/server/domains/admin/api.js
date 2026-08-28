@@ -1,5 +1,5 @@
 /**
- * admin 域 API（V-1-4c 实体迁入）。
+ * admin 域 API（实体迁入）。
  * 邀请码 / 统计 / 用户管理 / 需求管理 / 聊天管理 / 日志检索 / 广播 / 密钥轮换 / 统一内容审核。
  * 评价审核在 reviews/api.js；教师认证审核在 teacher/api.js；反馈工单在 complaints/api.js。
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
@@ -10,22 +10,30 @@ import { requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
-  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode,
+  dbCreateInviteCode, dbGetUserById, dbSetUserBanned,
+} from '../auth/repo.js';
+import {
+  dbListInviteCodes, dbRevokeInviteCode,
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands,
-  dbGetDemandById, dbAdminForceDeleteDemand, dbDeleteMessage,
-  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned,
-  dbAdminSearchUsers,
-  dbGetDemands, dbGetMessageById,
-  dbGetAllContentAdmin, dbGetPostById, dbGetReviewById, dbGetFeedbackById, dbGetComplaintById,
-  dbGetUpload, dbGetTeacherProfile, dbGetContractById,
-  dbDeletePost, dbDeleteReview, dbDeleteFeedback, dbDeleteComplaint, dbDeleteUpload,
-  dbDeleteContract,
-} from '../../../../server/db.js';
+  dbGetStudentUsersAdmin, dbAdminSearchUsers, dbGetAllContentAdmin,
+  dbDeleteFeedback, dbDeleteComplaint,
+} from '../admin/repo.js';
+import {
+  dbGetDemands, dbGetDemandById, dbAdminForceDeleteDemand,
+} from '../demand/repo.js';
+import {
+  dbDeleteMessage, dbGetMessageById, dbGetUpload, dbDeleteUpload,
+} from '../chat/repo.js';
+import { dbGetTeachers, dbGetTeacherProfile } from '../teacher/repo.js';
+import { dbGetPostById, dbDeletePost } from '../posts/repo.js';
+import { dbGetReviewById, dbDeleteReview } from '../reviews/repo.js';
+import { dbGetFeedbackById, dbGetComplaintById } from '../complaints/repo.js';
+import { dbGetContractById, dbDeleteContract } from '../contract/repo.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../../core/log.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
-import { reencryptChunk } from '../../../../server/reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁；A-12 分片续跑）
-import { getDashboardMetrics } from '../../../../server/telemetry.js'; // v1.5.0 观测 dashboard 数据
+import { reencryptChunk } from '../../core/reencrypt.js';
+import { getDashboardMetrics } from '../../core/telemetry.js';
 import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
 
 export async function handleGenInvite(db, body, req) {
@@ -148,7 +156,7 @@ export async function handleAdminUsers(db, url, req) {
   if (err) return err;
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return errorMsg('INVALID_ROLE');
-  // 用户名搜索（q 可选）：LIKE 转义在数据层单点，返回与列表路径相同的完整行形状（U-3a F2）
+  // 用户名搜索（q 可选）：LIKE 转义在数据层单点，返回与列表路径相同的完整行形状（）
   const q = String(url.searchParams.get('q') || '').trim();
   if (q) return json({ users: await dbAdminSearchUsers(db, role, q) });
 
@@ -188,7 +196,7 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
-  // 管理员删除需求 = 危险操作（不可逆），须 capToken 二次认证（P12 同封禁/处罚口径）
+  // 管理员删除需求 = 危险操作（不可逆），须 capToken 二次认证（同封禁/处罚口径）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   // 管理员可删全部需求（含已关闭）；合同不绑定需求（S5 独立化），删除无需联动清理，
   // 与常规路径 dbDeleteDemand 同口径（S3 单科目模型无悬空引用事故面）。
@@ -205,7 +213,7 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
   if (err) return err;
   const m = await dbGetMessageById(db, messageId);
   if (!m) return errorMsg('MESSAGE_NOT_FOUND', 404);
-  // 管理员删除消息 = 危险操作（不可逆），须 capToken 二次认证（P12 同封禁/处罚口径）
+  // 管理员删除消息 = 危险操作（不可逆），须 capToken 二次认证（同封禁/处罚口径）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteMessage(db, messageId);
   await logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
@@ -234,16 +242,16 @@ export async function handleAdminDecryptLog(db, logId, req) {
 
 // v1.5.0 密钥轮换：管理员经二次认证触发全库密文重加密。
 // 契约：Worker Secrets 先同时配置新钥与 *_OLD 旧钥；成功后在发布层删除旧钥。无法解密的行只计数不覆盖。
-// A-12 分片：D1 Free 单调用 50 次查询上限，全量逐行重加密必超限——单次调用只处理
+// 分片：D1 Free 单调用 50 次查询上限，全量逐行重加密必超限——单次调用只处理
 // ≤REENCRYPT_ROW_BUDGET 行（reencryptChunk），body.cursor 透传续跑，done=true 才完成；
-// capToken 一次性，客户端每轮续跑需重新 re-auth 签发（脚本续跑循环在 A-12-3 落地）。
+// capToken 一次性，客户端每轮续跑需重新 re-auth 签发（脚本续跑循环在 -3 落地）。
 export async function handleAdminReencrypt(db, body, req, env = null) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const cursor = (body && body.cursor) || null;
   const res = await reencryptChunk(db, cursor, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
-  // Z-2-F4：reencryptChunk 扁平形状——logEvent 记出参 res.cursor（收尾轮 done=true 时入参 cursor 已过期）
+  // reencryptChunk 扁平形状——logEvent 记出参 res.cursor（收尾轮 done=true 时入参 cursor 已过期）
   await logEvent(db, { action: 'admin.crypto.reencrypt', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'system', entityId: 0, detail: { cursor: res.cursor ?? null, done: !res.cursor, chunk: { fields: res.fields, attachments: res.attachments, logs: res.logs } }, req });
   return json({ ok: true, done: !res.cursor, cursor: res.cursor,
@@ -260,7 +268,7 @@ export async function handleAdminBroadcast(db, body, req) {
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return errorMsg('BROADCAST_EMPTY');
-  // V-2-4 结构化：type=BROADCAST + params {title,text}，前缀拼装移交客户端渲染
+  // 结构化：type=BROADCAST + params {title,text}，前缀拼装移交客户端渲染
   const count = await dbBroadcastNotification(db, title, text);
   await logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: text.length }, req });
@@ -268,9 +276,9 @@ export async function handleAdminBroadcast(db, body, req) {
 }
 
 // ============================================================
-// D1/D2 统一内容审核（V-1-4c 迁入）
+// D1/D2 统一内容审核（迁入）
 // ============================================================
-const TYPE_LABEL = { // Q-2i-M5：显示文案 codes.js MSG 单源
+const TYPE_LABEL = { // 显示文案 codes.js MSG 单源
   post: MSG.CONTENT_LABEL_POST, demand: MSG.CONTENT_LABEL_DEMAND, teacher: MSG.CONTENT_LABEL_TEACHER,
   review: MSG.CONTENT_LABEL_REVIEW, message: MSG.CONTENT_LABEL_MESSAGE, feedback: MSG.CONTENT_LABEL_FEEDBACK,
   complaint: MSG.CONTENT_LABEL_COMPLAINT, upload: MSG.CONTENT_LABEL_UPLOAD,
@@ -332,7 +340,7 @@ export async function handleContentAction(db, type, id, body, req) {
   }
   if (action === 'ban') await dbSetUserBanned(db, authorId, 1);
 
-  // 处罚后自动通知作者：V-2-4 结构化（label/rule/reason/summary/action 数据，文案客户端渲染）
+  // 处罚后自动通知作者：结构化（label/rule/reason/summary/action 数据，文案客户端渲染）
   const summaryClip = String(summary || '').slice(0, LIMITS.PENALTY_SUMMARY_MAX);
   await notifyUser(db, authorId, 'CONTENT_PENALTY', {
     label, rule: rule || '', reason, summary: summaryClip, action,
@@ -359,7 +367,7 @@ async function doDeleteContent(db, type, id) {
 }
 
 // ============================================================
-// admin 域路由表（V-1-4c）
+// admin 域路由表（）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

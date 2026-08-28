@@ -1,5 +1,5 @@
 /**
- * Q-4b-M2：settings 头像修改后 state.user + 侧栏同步（原陈旧到下次登录）。
+ * settings 头像修改后 state.user + 侧栏同步（原陈旧到下次登录）。
  * 服务端改持久层成功但客户端 state.user 不刷新 → 侧栏/设置行陈旧（接口形状不对称）。
  * 变异：删 renderSidebar()/state.user 赋值 → 红。
  *

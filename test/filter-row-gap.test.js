@@ -1,5 +1,5 @@
 /**
- * 需求五 教师筛选栏间距规则（B4：数值直接 import shared/config；V-4-1h 迁移：v1 静态壳已删，
+ * 需求五 教师筛选栏间距规则（数值直接 import shared/config；迁移：v1 静态壳已删，
  * DOM 结构断言改走 v2 源——shell.js 渲染筛选面板、browse.css 间距规则、appearance.js 注入变量）。
  */
 import { test } from 'node:test';

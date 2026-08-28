@@ -1,5 +1,5 @@
 /**
- * W-5 settings.logout 交互链路回归（B4：直接 import settings ESM）。
+ * W-5 settings.logout 交互链路回归（直接 import settings ESM）。
  * 覆盖断线修复：confirmLogout 曾为空函数（ACTION_MAP 接线但点击无反应）。
  * 链路：confirmLogout → confirm 弹窗（确认文案 + 取消/退出按钮）→ 点确认 →
  * handleLogout（登出 API + 会话清空 + 弹窗关闭）。
@@ -68,7 +68,7 @@ test('confirmLogout：点取消不登出（弹窗关闭、状态保留）', asyn
   delete globalThis.fetch; teardown();
 });
 
-// ===== Z-11-F3：注销账户 UI 入口（原 openDeactivateModal 零触发点，弹窗不可达）=====
+// ===== 注销账户 UI 入口（原 openDeactivateModal 零触发点，弹窗不可达）=====
 test('enterAccountSettings：非管理员渲染注销按钮（data-action=settings.openDeactivate）', async () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="account-settings-content"></div></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
@@ -121,7 +121,7 @@ test('openDeactivateModal：弹窗含警告 + 取消/继续按钮，继续走 co
   teardown();
 });
 
-// Q-4b-M1：注销成功后必须登出（handleLogout 清态回 landing）——服务端已置 deactivated 拒令牌，
+// 注销成功后必须登出（handleLogout 清态回 landing）——服务端已置 deactivated 拒令牌，
 // 本地若停留已登录 UI，陈旧登录态直到下次 API 401 才清（UX 缺陷）。变异：删 handleLogout() → 红。
 test('confirmDeactivateAccount：二次认证成功后注销 + 自动登出（Q-4b-M1）', async () => {
   const dom = setup();

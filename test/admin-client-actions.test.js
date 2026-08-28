@@ -1,5 +1,5 @@
 /**
- * Z-13-F1：admin 客户端行为测试——loadAdminUsers/loadAdminContent/loadAdminFeedback
+ * admin 客户端行为测试——loadAdminUsers/loadAdminContent/loadAdminFeedback
  * 拉取 + 渲染链路、renderAdminReviewRow/renderAdminContentRow 结构（data-action 委托按钮）、
  * openContentPenaltyModal 弹窗内容。既有 client-feature-settings-admin-onboard.test.js 只做
  * 存在性冒烟，本测试锁真实行为。
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic } from '../src/client/features/admin/actions.js';
-import adminFeature from '../src/client/features/admin/index.js'; // U-3j L3: seg-tab-change routing
+import adminFeature from '../src/client/features/admin/index.js'; // seg-tab-change routing
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -17,7 +17,7 @@ function setup() {
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window); // U-3j: chart.js renders via global getComputedStyle (browser alias)
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window); // chart.js renders via global getComputedStyle (browser alias)
   state.user = { id: 1, role: 'admin', username: 'admin_sufe' };
   state.authToken = 'tok-admin';
   return dom;
@@ -31,7 +31,7 @@ function teardown() {
 test('loadAdminUsers：拉取后渲染用户名行到列表容器', async () => {
   const dom = setup();
   const list = document.createElement('div');
-  list.id = 'admin-students-list'; // U-3a: loadAdminUsers resolves per-role container id (was admin-users-list)
+  list.id = 'admin-students-list'; // loadAdminUsers resolves per-role container id (was admin-users-list)
   document.body.appendChild(list);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/users?role=student'), '带 role 参数');
@@ -61,7 +61,7 @@ test('U-3i loadAdminContent：seg-tabs（全部 + 10 类型 + active）+ type �
   assert.equal(tabBtns.length, 11, '全部 + 10 类型 tab');
   assert.ok(tabBtns[0].textContent.includes('全部'), '第一个 tab 是全部');
   assert.ok(tabs.querySelector('.seg-tab.active').dataset.type === 'post', '当前筛选 post 高亮');
-  // F1：容器内只有一层 .seg-tabs（segTabsHtml 自持 class），无嵌套空玻璃条
+  // 容器内只有一层 .seg-tabs（segTabsHtml 自持 class），无嵌套空玻璃条
   assert.equal(tabs.querySelectorAll('.seg-tabs').length, 1, '无嵌套 seg-tabs');
   // 空态 + 错误态
   _dhResetForTests();
@@ -86,7 +86,7 @@ test('U-3h loadAdminFeedback：kind/subject/状态 tag + 内容 + resolve 按钮
   assert.ok(list.innerHTML.includes('平台'), 'subject tag');
   assert.ok(list.innerHTML.includes('详情文本'), '内容渲染');
   assert.ok(list.innerHTML.includes('data-action="admin.resolveFeedback" data-id="3"'), 'resolve 按钮委托');
-  // M3：空态分支独立断言（G1 直接测，不靠渲染路径代偿；dhGet 缓存先 reset 防跨调用命中）
+  // 空态分支独立断言（直接测，不靠渲染路径代偿；dhGet 缓存先 reset 防跨调用命中）
   _dhResetForTests();
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ feedbacks: [] }) });
   await loadAdminFeedback();
@@ -176,11 +176,11 @@ test('U-3i renderAdminContentRow：完整卡（type/status/role tag + body 摘�
   assert.ok(html.includes('data-action="admin.penalty" data-id="5" data-type="post"'), '处罚按钮完整委托');
   assert.ok(html.includes('删除') && html.includes('封禁作者'), 'post 显示删除/封禁双动作');
   assert.ok(!/onclick=/.test(html), '零内联事件');
-  // F4：rejected 也应是警示 tag（不是绿色通过态）
+  // rejected 也应是警示 tag（不是绿色通过态）
   const rejected = renderAdminContentRow({ id: 9, type: 'review', status: 'rejected', author: { id: 8, username: '学生乙', role: 'student' } });
   assert.ok(rejected.includes('tag-warn'), 'rejected 用 tag-warn');
   assert.ok(!rejected.includes('tag-ok'), 'rejected 非绿色');
-  // teacher 只给封禁（Q-2f-M2 服务端拒 delete）
+  // teacher 只给封禁（服务端拒 delete）
   const teacher = renderAdminContentRow({ id: 8, type: 'teacher', author: { id: 8, username: '教师甲', role: 'teacher' } });
   assert.ok(teacher.includes('教师档案'), 'teacher type tag');
   assert.ok(teacher.includes('封禁作者'), '封禁按钮');
@@ -240,8 +240,8 @@ test('U-3i performContentPenalty：写路径 body shape 与服务端契约一致
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3a：用户管理页——renderAdminUserRow v1-parity（学生/教师行）、
-// loadAdminUsers 搜索参数、confirmBanUser 按页刷新。G2：删 meta/按钮必红。
+// /用户管理页——renderAdminUserRow v1-parity（学生/教师行）、
+// loadAdminUsers 搜索参数、confirmBanUser 按页刷新。删 meta/按钮必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3a renderAdminUserRow 学生行：用户名 + 需求数 + 注册时间 + 封禁按钮委托', () => {
@@ -282,7 +282,7 @@ test('U-3a loadAdminUsers 搜索：带 q 参数 + 完整行形状渲染（G3 生
   document.body.appendChild(list);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/users?role=teacher&q=' + encodeURIComponent('张')), '搜索 q 参数');
-    // U-3a F2：生产搜索返回与列表路径相同的完整行形状（dbAdminSearchUsers），含 meta/认证态/封禁态
+    // 生产搜索返回与列表路径相同的完整行形状（dbAdminSearchUsers），含 meta/认证态/封禁态
     return { ok: true, status: 200, json: async () => ({ users: [{ user_id: 50, id: 50, username: '张老师', role: 'teacher', banned: 0, created_at: '2026-08-01 12:00:00', grade: 'freshman', rating: 4.8, price_min: 100, price_max: 200, verified: 1, credential_image: 'data:image/png;base64,xxx' }] }) };
   };
   await loadAdminUsers('teacher', '张');
@@ -311,8 +311,8 @@ test('U-3a rework F1：toggleTeacherVerify 走 confirm needReAuth，未确认零
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3k：邀请码管理——生成/列表表格/作废。纯标准接口消费（前后端解耦）。
-// G2：删表格列/revoke 按钮必红。
+// /邀请码管理——生成/列表表格/作废。纯标准接口消费（前后端解耦）。
+// 删表格列/revoke 按钮必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3k generateInviteCode：POST 生成 → modal 显示 code + 复制按钮（data-action）', async () => {
@@ -381,8 +381,8 @@ test('U-3k revokeInvite：confirm 确认 → DELETE → toast', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3b：需求管理页——loadAdminDemands 复用 renderDemandCard(admin) + 分页 + admin 删除。
-// G2：删卡片渲染/删分页按钮必红。
+// /需求管理页——loadAdminDemands 复用 renderDemandCard(admin) + 分页 + admin 删除。
+// 删卡片渲染/删分页按钮必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3b loadAdminDemands：renderDemandCard(admin) 渲染 + 空态 + 加载更多按钮', async () => {
@@ -458,9 +458,9 @@ test('U-3b F1：loadAdminDemands 在途守卫（并发加载只拉一次，双�
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3e：学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
+// /学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
 // 结构化 approve 表单 / reject / revoke），危险操作走 needReAuth 二次认证。
-// G2：删 PENDING 表单/删 status tag/删 revoke 按钮必红。
+// 删 PENDING 表单/删 status tag/删 revoke 按钮必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3e renderVerifCard pending：用户 + 验证码 + 待核验 tag + 结构化表单（5 输入 + approve/reject）', () => {
@@ -609,7 +609,7 @@ test('U-3e loadAdminVerifications 无参数：读 #admin-verif-status 当前值�
   const sel = document.createElement('select');
   sel.id = 'admin-verif-status';
   const opt = document.createElement('option'); opt.value = 'pending'; opt.textContent = '待核验';
-  sel.appendChild(opt); // G3: select value only applies when an option matches
+  sel.appendChild(opt); // select value only applies when an option matches
   sel.value = 'pending';
   document.body.appendChild(sel);
   let seenUrl = '';
@@ -637,8 +637,8 @@ test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3f：帖子管理——v1-parity 行（标题/作者/点赞/时间 + 查看/删除）+ 全文弹窗
-// （mdRender）+ 空态。G2：删查看/删除按钮/全文渲染必红。
+// /帖子管理——v1-parity 行（标题/作者/点赞/时间 + 查看/删除）+ 全文弹窗
+// （mdRender）+ 空态。删查看/删除按钮/全文渲染必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3f renderAdminPostRow：标题 + 作者 + 点赞数 + 时间 + 查看/删除委托', () => {
@@ -720,8 +720,8 @@ test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + �
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3g：合同管理——v1-parity 行（签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除）
-// + 全文弹窗（改动 diff + mdRender）。G2：删状态 tag/查看按钮/全文渲染必红。
+// /合同管理——v1-parity 行（签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除）
+// + 全文弹窗（改动 diff + mdRender）。删状态 tag/查看按钮/全文渲染必红。
 // ─────────────────────────────────────────────────────────────
 
 test('U-3g renderAdminContractRow：签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除委托', () => {
@@ -775,7 +775,7 @@ test('U-3g adminViewContract：从缓存取合同 → 全文弹窗（modal--wide
 });
 
 // ─────────────────────────────────────────────────────────────
-// U-3j：流量统计页——range seg-tabs + 双图表 + 错误态 + seg-tab-change 路由委托
+// 流量统计页——range seg-tabs + 双图表 + 错误态 + seg-tab-change 路由委托
 // ─────────────────────────────────────────────────────────────
 
 test('U-3j loadAdminTraffic：range 下推 + 3 范围 tab 高亮 + 双图表容器 + 口径 hint（非 raw JSON dump）', async () => {
@@ -802,7 +802,7 @@ test('U-3j loadAdminTraffic：buckets 缺失（L2 防护）+ 错误态', async (
   const box = document.createElement('div');
   box.id = 'admin-traffic-box';
   document.body.appendChild(box);
-  // L2：200 + 缺 buckets 的畸形响应不抛（防护后空数据渲染）
+  // 200 + 缺 buckets 的畸形响应不抛（防护后空数据渲染）
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ unit: 'day' }) });
   await loadAdminTraffic();
   assert.ok(box.querySelector('.seg-tab'), '畸形响应仍渲染 tabs');
@@ -836,7 +836,7 @@ test('U-3j L3: seg-tab-change 委托路由 admin-traffic-tabs → loadAdminTraff
 });
 
 // ─────────────────────────────────────────────────────────────
-// U-3h F4：resolveFeedback 点击委托接线（U-3h 重做审计阻断项——按钮零 handler 是 1101 级）
+// resolveFeedback 点击委托接线（重做审计阻断项——按钮零 handler 是 1101 级）
 // ─────────────────────────────────────────────────────────────
 
 test('U-3h F4: 点击 [data-action="admin.resolveFeedback"] 触发 POST resolve + 重载（接线锁死）', async () => {
@@ -855,7 +855,7 @@ test('U-3h F4: 点击 [data-action="admin.resolveFeedback"] 触发 POST resolve 
   btn.dataset.id = '3';
   document.body.appendChild(btn);
   btn.click();
-  // Poll instead of a fixed sleep (flaky under load — same pattern as U-3j L3).
+  // Poll instead of a fixed sleep (flaky under load — same pattern as ).
   const t0 = Date.now();
   while (!resolveUrl && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
   assert.ok(resolveUrl && resolveUrl.endsWith('/api/feedbacks/3/resolve'), '点击委托触发 POST resolve（ACTION_MAP 有键）');
@@ -864,7 +864,7 @@ test('U-3h F4: 点击 [data-action="admin.resolveFeedback"] 触发 POST resolve 
 });
 
 // ─────────────────────────────────────────────────────────────
-// U-3i L4（审计轻级观察）：admin-content-tabs 分支的 seg-tab-change 路由直测
+// （审计轻级观察）：admin-content-tabs 分支的 seg-tab-change 路由直测
 // ─────────────────────────────────────────────────────────────
 
 test('U-3i L4: seg-tab-change 委托路由 admin-content-tabs → loadAdminContent(key)', async () => {
@@ -881,7 +881,7 @@ test('U-3i L4: seg-tab-change 委托路由 admin-content-tabs → loadAdminConte
   document.dispatchEvent(new dom.window.CustomEvent('seg-tab-change', { detail: { key: 'post', container: tabs } }));
   // Poll until loadAdminContent has rendered the real empty-state copy — NOT the initial loader
   // (which is also .empty-state + loaderHtml) — so no async document access survives teardown
-  // (same flaky guard as U-3j L3; the loader/empty distinction is the subtle part).
+  // (same flaky guard as ; the loader/empty distinction is the subtle part).
   const t0 = Date.now();
   while (!list.innerHTML.includes('当前筛选条件下没有内容') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
   assert.ok(seenUrl && seenUrl.includes('/api/admin/content?type=post'), 'content tab 路由 post: ' + seenUrl);

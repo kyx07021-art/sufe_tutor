@@ -278,7 +278,7 @@ export function collectTimeSlots(container) {
 export function prefillTimeSlots(container, raw) {
   if (!container) return;
   let slots = [];
-  // T-6-F3: teacher profile time_slots arrives parsed (safeJsonArray mapper output); the string
+  // teacher profile time_slots arrives parsed (safeJsonArray mapper output); the string
   // branch is retained for demand expected_time (server keeps its string contract).
   if (Array.isArray(raw)) {
     slots = raw.filter(s => s && typeof s === 'object' && s.type === 'week');

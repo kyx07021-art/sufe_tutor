@@ -1,5 +1,5 @@
 /**
- * F1 core/api 幂等 GET 网络抖动自动重试回归（B4：直接 import ESM）。
+ * core/api 幂等 GET 网络抖动自动重试回归（直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

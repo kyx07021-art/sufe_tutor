@@ -1,5 +1,5 @@
 /**
- * Z-10-F1 回归：教师资料面板写评价入口（signed 门控 + 点击→提交链路）
+ * 回归：教师资料面板写评价入口（signed 门控 + 点击→提交链路）
  *
  * 初审 FAIL 根因（1101 级）：ACTION_MAP 的 'teacher.openReview' 调 openReviewModal() 不传参，
  * 而 openReviewModal 无条件 `profilePanelUserId = teacherId`（undefined）→ 覆写 openProfilePanel
@@ -7,10 +7,10 @@
  * 修复 = openReviewModal 仅在参数非空时覆写（按钮无 data-id，读模块态）。
  *
  * 覆盖：
- *   - renderProfilePanel：signed:true 渲染写评价按钮 / signed 缺省不渲染（门控）；
- *   - 链路：openProfilePanel 查 /api/teacher/profile 数据源 → openReviewModal() 不清模块态 →
- *     submitReview POST body 含正确 teacherUserId（修复前为 undefined）；
- *   - openReviewModal(显式 id) 覆写仍生效（既有 v1 入口语义保留）。
+ * - renderProfilePanel：signed:true 渲染写评价按钮 / signed 缺省不渲染（门控）；
+ * - 链路：openProfilePanel 查 /api/teacher/profile 数据源 → openReviewModal() 不清模块态 →
+ * submitReview POST body 含正确 teacherUserId（修复前为 undefined）；
+ * - openReviewModal(显式 id) 覆写仍生效（既有 v1 入口语义保留）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -101,7 +101,7 @@ test('Z-10-F1: openReviewModal(explicitId) still overrides module state (legacy 
   state.user = null;
 });
 
-// Z-10-F1 复审 FAIL 修正：游客点教师卡不得被弹登录——profile 数据源仅学生发起（401 会触发 api()
+// 复审 FAIL 修正：游客点教师卡不得被弹登录——profile 数据源仅学生发起（401 会触发 api()
 // 死令牌处理 → ensureAuth → 登录视图，复审实证的回归）；游客/非学生走列表数据（signed 恒缺 → 无按钮）
 test('Z-10-F1: guest (no token) opens profile panel from list data without auth bounce', async () => {
   const calls = [];

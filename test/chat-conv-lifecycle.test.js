@@ -1,14 +1,14 @@
 /**
- * W-1 审计补强 · 会话列表与生命周期回归（B4：直接 import chat ESM）。
+ * W-1 审计补强 · 会话列表与生命周期回归（直接 import chat ESM）。
  * 覆盖审计要求的零测试区：
- *   - chatBumpConvPreview（last_* 字段 + 置顶 + 重渲染）
- *   - loadConversations 的 pendingOpen 消费（R26 跨页跳会话）
- *   - goChatWithStudent 三分支
- *   - markReadConv 就地消红点 + 静默上报
- *   - openConversation 过期响应守卫（会话切换竞态）
- *   - chatLazyLoadAttachments 成功补载 / 失败 fail 文案 / data-attach 删除
- *   - chatPollTick 空会话清占位 / 签到回应注入 / 收到对方消息就地已读
- *   - renderConvItem 预览分型 / 未读点 / 角色 tag / 时间 / active 态
+ * - chatBumpConvPreview（last_* 字段 + 置顶 + 重渲染）
+ * - loadConversations 的 pendingOpen 消费（R26 跨页跳会话）
+ * - goChatWithStudent 三分支
+ * - markReadConv 就地消红点 + 静默上报
+ * - openConversation 过期响应守卫（会话切换竞态）
+ * - chatLazyLoadAttachments 成功补载 / 失败 fail 文案 / data-attach 删除
+ * - chatPollTick 空会话清占位 / 签到回应注入 / 收到对方消息就地已读
+ * - renderConvItem 预览分型 / 未读点 / 角色 tag / 时间 / active 态
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

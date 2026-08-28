@@ -1,5 +1,5 @@
 /**
- * v0.26.16 requestOtpCode 登录分支裸大陆号发码回归（B4：直接 import auth actions-otp）。
+ * v0.26.16 requestOtpCode 登录分支裸大陆号发码回归（直接 import auth actions-otp）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

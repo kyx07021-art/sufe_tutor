@@ -1,15 +1,15 @@
 /**
  * 任务三（v0.31.0）需求表单 wizard 回归：8 页分步 + 进度条 + 逐页校验 + 页脚切换
- * B4：vm 沙箱 → 直接 import student feature ESM。
+ * vm 沙箱 → 直接 import student feature ESM。
  *
  * 覆盖：
- *   - 渲染：8 个 .dw-step 常驻 DOM，初始仅 P1 激活；步进器 8 芯片，第 1 激活；
- *   - 逐页校验：P1 缺省份/缺上海地址 → 不前进 + toast；P3 缺年级、P4 缺科目、P8 缺联系方式同样拦截；
- *   - 导航：合法前进至 P8 → 提交按钮可见、下一步隐藏；Back 回退；P1 无 Back；
- *   - form novalidate（原生校验关闭，每页 JS 拦）；
- *   - 编辑模式 prefill 回 P1 且字段跨页保留；完成态 done∪visited 驱动进度条（不跟当前页）；
- *   - 提交地址纵深防御与 toggleAddressField 同口径（上海+线上不误拦）；
- *   - F1 回归（独立审计阻断）：勾选科目后占位文案被成绩行替换，不残留。
+ * - 渲染：8 个 .dw-step 常驻 DOM，初始仅 激活；步进器 8 芯片，第 1 激活；
+ * - 逐页校验：缺省份/缺上海地址 → 不前进 + toast；缺年级、缺科目、缺联系方式同样拦截；
+ * - 导航：合法前进至 → 提交按钮可见、下一步隐藏；Back 回退；无 Back；
+ * - form novalidate（原生校验关闭，每页 JS 拦）；
+ * - 编辑模式 prefill 回 且字段跨页保留；完成态 done∪visited 驱动进度条（不跟当前页）；
+ * - 提交地址纵深防御与 toggleAddressField 同口径（上海+线上不误拦）；
+ * - 回归（独立审计阻断）：勾选科目后占位文案被成绩行替换，不残留。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,7 +71,7 @@ test('wizard 渲染：8 步常驻 DOM、初始 P1 激活、步进器 8 芯片、
   const submit1 = doc.getElementById('d-submit');
   assert.ok(submit1.classList.contains('hidden'), 'P1 无提交按钮');
   assert.equal(submit1.disabled, true, 'P1 提交按钮禁用（防 Enter 隐式提交半截表单，审计 🟡3）');
-  // v0.31.7 R1：P4 教学目标 tag-pick 渲染（学科/非学科通用）+ 偏好移入 P6
+  // v0.31.7 R1：教学目标 tag-pick 渲染（学科/非学科通用）+ 偏好移入 
   assert.ok(doc.querySelectorAll('#d-teaching-goals .tag-pick').length >= 6, 'P4 教学目标标签渲染');
   assert.equal(doc.getElementById('d-pref-gender').closest('.dw-step').dataset.step, '6', '偏好老师性别移入 P6 教师偏好页');
   assert.equal(doc.getElementById('d-personality-tags').closest('.dw-step').dataset.step, '6', '偏好老师性格移入 P6');
@@ -88,15 +88,15 @@ test('wizard 逐页校验：P1 缺省份拦截；P2 仅上海+线下缺地址拦
   demandWizardNext(); // 无省份
   assert.deepEqual(active(), [1], '缺省份不前进');
   assert.equal(toasts().at(-1), '请选择省份', '缺省份 toast');
-  // 选上海 → P1 通过（v0.31.5 P3：地址校验已移到 P2）→ 前进 P2
+  // 选上海 → 通过（v0.31.5 地址校验已移到 ）→ 前进 
   doc.getElementById('d-province').value = 'shanghai';
   onDemandProvinceChange();
   demandWizardNext();
   assert.deepEqual(active(), [2], '上海 P1 通过 → P2（地址校验在 P2）');
-  // P2 默认线上 → 不需要地址 → 放行（用户选线上不被强行要求报地址）
+  // 默认线上 → 不需要地址 → 放行（用户选线上不被强行要求报地址）
   demandWizardNext();
   assert.deepEqual(active(), [3], 'P2 线上不需要地址 → 放行到 P3');
-  // 回 P2 选线下 → 缺地址拦截
+  // 回 选线下 → 缺地址拦截
   demandWizardGoTo(2);
   doc.getElementById('d-method').value = 'offline';
   toggleAddressField();
@@ -114,7 +114,7 @@ test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P8 缺联系方式 →
   const { doc, mountForm, toasts, active } = setup();
   mountForm('shanghai');
   const go = (n) => demandWizardGoTo(n);
-  // 填 P1 合法值，直接跳到 P3 测年级拦截
+  // 填 合法值，直接跳到 测年级拦截
   doc.getElementById('d-address').value = '黄浦区·南京东路街道';
   go(3);
   demandWizardNext();
@@ -126,7 +126,7 @@ test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P8 缺联系方式 →
   demandWizardNext(); // 科目未勾
   assert.deepEqual(active(), [4], '缺科目不前进');
   assert.equal(toasts().at(-1), '请至少选择一个科目', '缺科目 toast');
-  // 勾一科 → 前进到 P5 → P6 → P7 → P8（时间/预算空合法，成绩/教师偏好可选）
+  // 勾一科 → 前进到 → → → （时间/预算空合法，成绩/教师偏好可选）
   const cb = [...doc.querySelectorAll('#d-subjects input')].find(c => c.value === 'math');
   assert.ok(cb, '数学科目渲染');
   cb.checked = true;
@@ -142,7 +142,7 @@ test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P8 缺联系方式 →
   assert.ok(!doc.getElementById('d-submit').classList.contains('hidden'), 'P8 提交按钮可见');
   assert.equal(doc.getElementById('d-submit').disabled, false, 'P8 提交按钮启用');
   assert.ok(!doc.getElementById('dw-back').classList.contains('hidden'), 'P8 有上一步');
-  // P8 缺联系方式 → 拦截
+  // 缺联系方式 → 拦截
   demandWizardValidateStep(8);
   assert.equal(toasts().at(-1), '请填写家长与学生联系方式', '缺联系方式 toast');
   // Back 回退
@@ -152,7 +152,7 @@ test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P8 缺联系方式 →
   teardown();
 });
 
-// 独立审计 F1（阻断）回归：勾选科目触发 change → updateDemandScores 必须替换占位文案（v1 replaceWith），
+// 独立审计 （阻断）回归：勾选科目触发 change → updateDemandScores 必须替换占位文案（v1 replaceWith），
 // 不得把成绩行 append 在「请先选择目标科目」提示之后。
 test('F1 回归：勾选科目后占位文案被成绩行替换（hint 不残留）', () => {
   const { dom, doc, mountForm } = setup();
@@ -183,20 +183,20 @@ test('wizard 编辑模式：prefill 后回 P1 且字段值跨页保留', () => {
   });
   assert.deepEqual(active(), [1], '编辑回填后回到 P1');
   assert.equal(doc.getElementById('d-address').value, '黄浦区·南京东路街道', 'P1 地址回填保留');
-  // 跨页值保留：跳到 P4 科目勾选仍在
+  // 跨页值保留：跳到 科目勾选仍在
   demandWizardGoTo(4);
   assert.deepEqual([...doc.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value), ['math'], 'P4 科目勾选跨页保留');
-  // v0.31.7 R1：偏好移入 P6（教师偏好页）；教学目标回填
+  // v0.31.7 R1：偏好移入 （教师偏好页）；教学目标回填
   demandWizardGoTo(6);
   assert.equal(doc.getElementById('d-pref-gender').value, 'female', 'P6 偏好性别回填（R1 移入教师偏好页）');
-  // 跳到 P8 联系方式
+  // 跳到 联系方式
   demandWizardGoTo(8);
   assert.equal(doc.getElementById('d-parent-contact').value, '13800000000', 'P8 联系方式回填');
   assert.equal(doc.getElementById('d-info').value, '周末上课', 'P8 补充说明回填');
   teardown();
 });
 
-// v0.31.7 R1/R2：教学目标 tag-pick 回填 + 非学科切换联动（P5 标题即时改「技能现状」+ 清成绩行 + 技能文本框）
+// v0.31.7 R1/R2：教学目标 tag-pick 回填 + 非学科切换联动（标题即时改「技能现状」+ 清成绩行 + 技能文本框）
 test('R1/R2：教学目标回填；切非学科 → P5 标题改技能现状 + 成绩行清空 + 技能文本框按项目渲染', () => {
   const { doc, mountForm } = setup();
   mountForm('shanghai');
@@ -209,10 +209,10 @@ test('R1/R2：教学目标回填；切非学科 → P5 标题改技能现状 + �
     submitter_type: 'self', parent_contact: '13800000000', student_contact: '13900000000',
     additional_info: '', skill_notes: [{ project: 'music', note: '钢琴八级' }],
   });
-  // R1：教学目标回填（P4 tag-pick selected）
+  // R1：教学目标回填（tag-pick selected）
   const goalSel = [...doc.querySelectorAll('#d-teaching-goals .tag-pick.selected')].map(b => b.dataset.id);
   assert.deepEqual(goalSel, ['interest', 'habit'], '教学目标 tag-pick 回填');
-  // R2：P5 标题即时改技能现状
+  // R2：标题即时改技能现状
   assert.equal(doc.getElementById('d-scores-title').textContent, '技能现状', '非学科 P5 标题 = 技能现状');
   // R2：成绩行清空（学科成绩不残留）+ 技能文本框按勾选项目渲染 + note 回填
   assert.equal(doc.querySelectorAll('#d-scores .region-score-row').length, 0, '非学科成绩行清空');
@@ -235,7 +235,7 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
     const ch = [...doc.querySelectorAll('#dw-stepper .dw-step-chip')].find(c => +c.dataset.step === n);
     return { done: ch.classList.contains('dw-step-chip--done'), lined: ch.classList.contains('dw-step-chip--lined') };
   };
-  // 新建：P1 停留未填写 → 非 done；直接 GoTo(3)（翻页不驱动完成态）
+  // 新建：停留未填写 → 非 done；直接 GoTo(3)（翻页不驱动完成态）
   assert.equal(chipState(1).done, false, '新建 P1 停留未填写 → 非 done（不跟当前页）');
   demandWizardGoTo(3);
   assert.equal(chipState(1).done, false, '翻到 P3 不把 P1 标记完成（visited 仅编辑模式）');
@@ -244,7 +244,7 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
   demandWizardGoTo(1);
   doc.getElementById('d-province').value = 'shanghai';
   onDemandProvinceChange();
-  demandWizardNext(); // P1 校验通过 → done + 到 P2
+  demandWizardNext(); // 校验通过 → done + 到 
   assert.equal(chipState(1).done, true, 'P1 校验通过 → done');
   assert.equal(chipState(1).lined, true, 'P1 连接线（连续前缀起点）实紫');
   teardown();
@@ -256,7 +256,7 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
   prefillDemandForm({ id: 11, province: 'shanghai', student_grade: 'senior1', target_type: 'academic', target_subjects: ['math'], current_scores: [] });
   const ch2 = (n) => [...doc2.querySelectorAll('#dw-stepper .dw-step-chip')].find(c => +c.dataset.step === n);
   assert.ok(ch2(1).classList.contains('dw-step-chip--done'), '编辑模式 P1（翻到过）→ done 实紫');
-  demandWizardGoTo(4); // 翻到 P4 → visited
+  demandWizardGoTo(4); // 翻到 → visited
   assert.ok(ch2(4).classList.contains('dw-step-chip--done'), '编辑模式翻到 P4 → done 实紫');
   assert.ok(!ch2(2).classList.contains('dw-step-chip--done'), '未翻到的 P2 不实紫（连续前缀只到 P1）');
   assert.ok(ch2(2).classList.contains('dw-step-chip--lined') === false, 'P2 连接线不实紫（非连续前缀）');
@@ -264,8 +264,8 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
 });
 
 // v0.31.8（生产验证抓出）：提交地址纵深防御须与 toggleAddressField 同口径「线下许可省+线下」——
-// 曾只按省份判断 → toggleAddressField 线上清地址 → 上海+线上提交被误拦（v0.31.5 P3 改 gate 未同步提交兜底）。
-// T-6-F4：口径改为 SUFE_REGIONS.allowsOffline(province) 单源（无 'shanghai' 字面量硬编码）。
+// 曾只按省份判断 → toggleAddressField 线上清地址 → 上海+线上提交被误拦（v0.31.5 改 gate 未同步提交兜底）。
+// 口径改为 SUFE_REGIONS.allowsOffline(province) 单源（无 'shanghai' 字面量硬编码）。
 test('v0.31.8 提交地址纵深防御含 method 判断（线下许可省+线上不拦）', () => {
   const src = readFileSync('./src/client/features/student/actions.js', 'utf8');
   assert.match(src,

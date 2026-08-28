@@ -1,13 +1,13 @@
 /**
- * S4-17 region dimension (pure). Weight 25.
+ * region dimension (pure). Weight 25.
  * - Demand has no province -> NOT applicable (null).
  * - Demand is online-only -> distance is irrelevant -> NOT applicable (null).
  * - Teacher province differs from demand province -> 0 (cannot reach offline).
  * - Same province:
- *   - Offline-licensed province (Shanghai) with both structured addresses resolvable ->
- *     haversine distance, linear decay to 0 at DISTANCE_MAX_KM (20km).
- *   - Shanghai but an address is missing on either side -> NOT applicable (null, unknown).
- *   - Non-offline-licensed province -> 1 (same province counts as reachable).
+ * - Offline-licensed province (Shanghai) with both structured addresses resolvable ->
+ * haversine distance, linear decay to 0 at DISTANCE_MAX_KM (20km).
+ * - Shanghai but an address is missing on either side -> NOT applicable (null, unknown).
+ * - Non-offline-licensed province -> 1 (same province counts as reachable).
  *
  * haversineKm / distanceScore are pure and exported for unit tests (ported from v2 client
  * src/client/core/match.js).

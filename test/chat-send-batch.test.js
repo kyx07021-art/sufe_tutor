@@ -1,17 +1,17 @@
 /**
- * F9（v0.27.0 网络层重构）—— 聊天批量发送回归
+ * （v0.27.0 网络层重构）—— 聊天批量发送回归
  *
  * 需求：发消息带附件 = 2N+1 串行请求（N 暂存上传 + N+1 发送），网络层重构把发送阶段
  * 合并为一次往返：POST /api/conversations/:id/messages {batch:[{kind,uploadId},...,{kind:'text',body}]}
  * 服务端单事务 db.batch 落库（附件确认 + 文字），响应 { messages:[{id,kind,name}...] }。
  *
  * 覆盖：
- *   - 批量：多附件（uploadId）+ 文字一次落库，响应消息数组（id 升序对应批序）
- *   - 暂存删除：批量发送成功后 uploads 行删除（确认入会话即移出暂存）
- *   - 归属校验：他人 uploadId → 404 整批拒绝（不落半批）
- *   - 校验：空批/超上限/非法项/超长文字 → 400；非 active 会话 → 403
- *   - routeApi 全路径：POST /messages 带 batch → 200/201 + 消息数组
- *   - 单条路径（body 直发）语义不变（回归）
+ * - 批量：多附件（uploadId）+ 文字一次落库，响应消息数组（id 升序对应批序）
+ * - 暂存删除：批量发送成功后 uploads 行删除（确认入会话即移出暂存）
+ * - 归属校验：他人 uploadId → 404 整批拒绝（不落半批）
+ * - 校验：空批/超上限/非法项/超长文字 → 400；非 active 会话 → 403
+ * - routeApi 全路径：POST /messages 带 batch → 200/201 + 消息数组
+ * - 单条路径（body 直发）语义不变（回归）
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -99,7 +99,7 @@ test('批量：多附件（uploadId）+ 文字一次落库，响应消息数组�
   assert.equal(messages[1].kind, 'file');
   assert.equal(messages[2].kind, 'text');
   assert.ok(messages[0].id > 0 && messages[2].id > messages[0].id, 'id 按落库序递增');
-  // PA-2-F3: 响应必须回显每条的 clientKey（前端乐观行替换依赖它）——缺回显 → 前端双行并存。
+  // 响应必须回显每条的 clientKey（前端乐观行替换依赖它）——缺回显 → 前端双行并存。
   assert.deepEqual(messages.map(m => m.clientKey), ['ck-batch-a', 'ck-batch-b', 'ck-batch-c'],
     '响应 messages 必须逐条回显请求的 clientKey');
 

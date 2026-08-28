@@ -2,10 +2,10 @@
  * S6-S4: notification broadcast-mute preference — users.notifyBroadcastMuted column.
  *
  * - The column is declared cross-domain by auth/schema.js ensureColumns (idempotent,
- *   PRAGMA-probe-then-ALTER). This test locks that initDb produces the column:
- *   dropping the auth declaration makes the PRAGMA assertion go red (G2 mutation guard).
+ * PRAGMA-probe-then-ALTER). This test locks that initDb produces the column:
+ * dropping the auth declaration makes the PRAGMA assertion go red (mutation guard).
  * - dbGetNotifyBroadcastMuted / dbSetNotifyBroadcastMuted read/write it with strict
- *   boolean normalization; invalid/absent input keeps the stored value.
+ * boolean normalization; invalid/absent input keeps the stored value.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

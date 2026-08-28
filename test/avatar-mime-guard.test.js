@@ -1,12 +1,12 @@
 /**
- * Q-2a-L1 守护：头像 MIME 大小写不敏感（Data:Image/SVG 大写变体绕过旧 startsWith 字面量比较）
+ * 守护：头像 MIME 大小写不敏感（Data:Image/SVG 大写变体绕过旧 startsWith 字面量比较）
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
-import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: avatar 收敛到 settings 单源（原 handleSaveAvatar 删除）
+import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // avatar 收敛到 settings 单源（原 handleSaveAvatar 删除）
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

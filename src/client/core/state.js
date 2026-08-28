@@ -17,7 +17,7 @@ export const state = {
 
 export const loadSeqs = {};
 
-// Role source of truth is shared/enums ROLES (Z-16-F5: local array removed, consumers iterate Object.values)
+// Role source of truth is shared/enums ROLES (local array removed, consumers iterate Object.values)
 const sessionKey = role => `sufe_session_${role || ''}`;
 const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers', posts: 'adminPosts' };
 const CACHE_DOMAINS = {

@@ -1,19 +1,19 @@
 /**
- * PA-1a2-F1（中）通知列表接口形状不符 I-26 —— 服务端渲染 + 偏好过滤守护测试
+ * （中）通知列表接口形状不符 —— 服务端渲染 + 偏好过滤守护测试
  *
- * 锁定的验收面（docs/interfaces.md §19 I-26）：
- *   - GET /api/notifications 每行携带 { id, type, title, content, created_at, is_read, avatar_src }；
- *     title/content 由服务端按 type + params 渲染（新前端数据即文案，零自行渲染）。
- *   - 服务端按用户偏好过滤：blockSystemNotifications=true 滤系统类通知（avatar_src='system'），
- *     notifyBroadcastMuted=true 滤广播（type='BROADCAST'）。
- *   - 旧行（type NULL）回落存储 text 作 content。
- *   - renderCompletenessGap 为空——新增 NOTIFY_TYPES 键必须同时补渲染条目/avatar_src 分类（D4 同变更集纪律）。
+ * 锁定的验收面（docs/interfaces.md）：
+ * - GET /api/notifications 每行携带 { id, type, title, content, created_at, is_read, avatar_src }；
+ * title/content 由服务端按 type + params 渲染（前端零自行渲染）。
+ * - 服务端按用户偏好过滤：blockSystemNotifications=true 滤系统类通知（avatar_src='system'），
+ * notifyBroadcastMuted=true 滤广播（type='BROADCAST'）。
+ * - 旧行（type NULL）回落存储 text 作 content。
+ * - renderCompletenessGap 为空——新增 NOTIFY_TYPES 键必须同时补渲染条目/avatar_src 分类（D4 同变更集纪律）。
  *
- * 变异守护（G2，还原修复即红 → 还原绿）：
- *   - 删 notif-render.js NOTIF_RENDER 条目 / renderNotification 返回空 title → title 断言红。
- *   - 删 mapNotification 的 rendered 装配 → title/content/avatar_src 缺失 → 红。
- *   - 删 handleGetNotifications 的 blockSystemNotifications 过滤分支 → 系统通知仍出现 → 红。
- *   - 删 notifyBroadcastMuted 过滤分支 → 广播仍出现 → 红。
+ * 变异守护（，还原修复即红 → 还原绿）：
+ * - 删 notif-render.js NOTIF_RENDER 条目 / renderNotification 返回空 title → title 断言红。
+ * - 删 mapNotification 的 rendered 装配 → title/content/avatar_src 缺失 → 红。
+ * - 删 handleGetNotifications 的 blockSystemNotifications 过滤分支 → 系统通知仍出现 → 红。
+ * - 删 notifyBroadcastMuted 过滤分支 → 广播仍出现 → 红。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -120,11 +120,11 @@ test('PA-1a2-F1 renderNotification: unknown / legacy type degrades to empty titl
 });
 
 test('PA-1a2-F1 renderCompletenessGap: every NOTIFY_TYPES key has a render entry + avatar classification', () => {
-  // D4 同变更集纪律：新增通知类型必须同时补渲染，否则新前端渲染空通知不可见。
+  // 同变更集纪律：新增通知类型必须同时补渲染，否则前端渲染空通知不可见。
   assert.deepEqual(renderCompletenessGap(), [], 'no registered type missing render/avatar entry');
 });
 
-// ============================ 端点（I-26） ============================
+// ============================ 端点（） ============================
 
 test('I-26 handleGetNotifications: rows carry title/content/avatar_src (server-side rendered)', async () => {
   const raw = rawOf(); const db = d1Shim(raw);

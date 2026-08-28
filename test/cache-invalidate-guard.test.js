@@ -1,10 +1,10 @@
 /**
- * Q-3b 缓存 invalidate 契约守护（规则 43 补充：动作后失效）：
- *   - F1：/api/posts?sort=new 域标签统一 'posts'（admin 域争用 → invalidate('posts') 不命中永久陈旧）
- *   - F3：admin 写操作成功后 invalidate 对应域（loadAdminX 走 dhGet 缓存，不失效读旧）
- *   - F4：setPrivacyField 成功后 invalidate('account')（/api/privacy-settings 域 account 且服务端不 bump）
- *   - F2 独立于 test/chat-rebind-guard.test.js（需依赖源码 import 注册存活，_dhResetForTests 会清 dhRebinders）
- *   - F5 服务端数据版本映射随 PA-1i-F1 删除（客户端数据版本协议零消费，server/version.js 已删）
+ * 缓存 invalidate 契约守护（规则 43 补充：动作后失效）：
+ * - /api/posts?sort=new 域标签统一 'posts'（admin 域争用 → invalidate('posts') 不命中永久陈旧）
+ * - admin 写操作成功后 invalidate 对应域（loadAdminX 走 dhGet 缓存，不失效读旧）
+ * - setPrivacyField 成功后 invalidate('account')（/api/privacy-settings 域 account 且服务端不 bump）
+ * - 独立于 test/chat-rebind-guard.test.js（需依赖源码 import 注册存活，_dhResetForTests 会清 dhRebinders）
+ * - 服务端数据版本映射随 删除（客户端数据版本协议零消费，server/version.js 已删）
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';

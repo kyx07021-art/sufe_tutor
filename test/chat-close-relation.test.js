@@ -1,9 +1,9 @@
 /**
- * AI-9: 结束关系前端适配——closed 态展示（列表/头部「已结束」tag）+ 结束关系入口
- * （danger confirm needReAuth → capToken → POST close → F7 同步）+ 禁写 gate + 403 兜底。
+ * 结束关系前端适配——closed 态展示（列表/头部「已结束」tag）+ 结束关系入口
+ * （danger confirm needReAuth → capToken → POST close → 同步）+ 禁写 gate + 403 兜底。
  *
  * 变异守护：删 render 的 tag/按钮条件 → 断言红；删 syncClosedConversation 状态置位 → 红；
- * 删 F6 closeBusy 锁 → 双击双 POST 红。
+ * 删 closeBusy 锁 → 双击双 POST 红。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -206,7 +206,7 @@ test('F6 双击守卫：close 在途时二次 endRelation 不重复 POST', async
     await new Promise(r => setTimeout(r, 15));
   };
   await trigger(); // 第一次：close 挂起（closeBusy=true）
-  await trigger(); // 第二次：confirm 重开 + reauth 触发 → F6 锁拦，不重复 POST
+  await trigger(); // 第二次：confirm 重开 + reauth 触发 → 锁拦，不重复 POST
   assert.equal(closeCalls, 1, 'close 在途时第二次被 F6 锁拦');
   release();
   await new Promise(r => setTimeout(r, 30));

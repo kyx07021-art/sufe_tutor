@@ -1,5 +1,5 @@
 /**
- * U-5：admin 面板 12 管理页生产实机验证（G5 几何 + 零 console/pageerror/CSP）。
+ * U-5：admin 面板 12 管理页生产实机验证（几何 + 零 console/pageerror/CSP）。
  * 真实生产 https://sufe-tutor.pages.dev，admin 登录 → 遍历全部管理页 →
  * 断言列表/图表容器渲染（非初始 loader、非错误态）+ 全程零 JS/CSP 违规。
  * 用法：ADMIN_TEST_PASSWORD=<口令> node test/verify-admin-panel.mjs

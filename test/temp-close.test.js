@@ -1,13 +1,13 @@
 /**
- * S2-T8: temp conversation close (I-16) — temp close deletes the row + FK-cascades messages with
+ * S2-T8: temp conversation close () — temp close deletes the row + FK-cascades messages with
  * ZERO notification, unlike formal close which runs the cascade + CONVERSATION_CLOSED.
  *
- * Covers (interfaces.md §17/§19):
- *   - capToken required (no/wrong capToken → 403 REAUTH_FAILED, row survives).
- *   - Successful temp close → 200 { ok, closed, temp } ; row deleted; messages FK-cascaded;
- *     notifications table stays at 0 for both users.
- *   - Re-close after delete → 404 CONVERSATION_NOT_FOUND (idempotent no-op, still zero notifications).
- *   - Non-participant close → 404 (existence not leaked).
+ * Covers (interfaces.md /):
+ * - capToken required (no/wrong capToken → 403 REAUTH_FAILED, row survives).
+ * - Successful temp close → 200 { ok, closed, temp } ; row deleted; messages FK-cascaded;
+ * notifications table stays at 0 for both users.
+ * - Re-close after delete → 404 CONVERSATION_NOT_FOUND (idempotent no-op, still zero notifications).
+ * - Non-participant close → 404 (existence not leaked).
  *
  * The formal close path is covered by test/conversation-close.test.js.
  */

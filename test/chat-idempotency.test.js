@@ -1,15 +1,15 @@
 /**
- * Q-2d 聊天域审计修复守护测试（F1 初始加载取最近 / F2 幂等去重 / F3 空消息文案 / F4 附件净化 /
- * F5 会话列表预览查询会话集限定回归）
+ * 聊天域审计修复守护测试（初始加载取最近 / 幂等去重 / 空消息文案 / 附件净化 /
+ * 会话列表预览查询会话集限定回归）
  *
- * F2 幂等契约（Q-2d-F2）：
- *   - 批量发送逐项携带 clientKey（'批次键.条目序'），服务端整批全部键已落库 → 视为超时重发，
- *     返回既有回执（不重复落库、不重复删暂存——首次已删，重发若再查附件归属必 404）；
- *   - 部分键命中 = 键被复用的异常形状 → 409 拒绝防半新半旧混插；
- *   - 不带键（老协议）→ 正常落库 client_key=NULL。
- *   - DB 层兜底：messages(conversation_id, sender_user_id, client_key) 部分唯一索引。
+ * 幂等契约（）：
+ * - 批量发送逐项携带 clientKey（'批次键.条目序'），服务端整批全部键已落库 → 视为超时重发，
+ * 返回既有回执（不重复落库、不重复删暂存——首次已删，重发若再查附件归属必 404）；
+ * - 部分键命中 = 键被复用的异常形状 → 409 拒绝防半新半旧混插；
+ * - 不带键（老协议）→ 正常落库 client_key=NULL。
+ * - DB 层兜底：messages(conversation_id, sender_user_id, client_key) 部分唯一索引。
  *
- * F1 契约：sinceId=0 初始加载取最近 MSG_LIMIT 条（DESC 取最新再反转升序，前端按序渲染并取
+ * 契约：sinceId=0 初始加载取最近 MSG_LIMIT 条（DESC 取最新再反转升序，前端按序渲染并取
  * 末条 id 作轮询游标）；sinceId>0 增量轮询保持升序。
  */
 import { test } from 'node:test';
@@ -134,7 +134,7 @@ test('PA-1c-F2: duplicate clientKey in the same batch → 400 INVALID_PARAMS (no
   assert.equal(dup.status, 400, 'duplicate clientKey rejected as 400');
   assert.equal((await dup.json()).code, 'COMMON_INVALID_PARAMS', 'stable INVALID_PARAMS code');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c, 0, 'nothing landed');
-  // Mutation intent (G2): removing the seenClientKeys dedup in handleSendBatch turns the 400
+  // Mutation intent (): removing the seenClientKeys dedup in handleSendBatch turns the 400
   // assertion red (the two identical client_keys would hit idx_messages_client_key and return a
   // 500 SERVER_ERROR). Verified at audit time.
 });

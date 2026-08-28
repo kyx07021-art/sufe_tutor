@@ -2,12 +2,12 @@
  * v0.26.0 验证码咽喉 + 凭证扩展（A2-A8）
  *
  * 覆盖：
- *   - otp.requestOtp：真实通道投递（stub 捕获 6 位验证码）、60s 重发限频、单日上限、格式校验；
- *   - otp.verifyOtp：正确/错误/一次性消费/过期；
- *   - credential：bindPhone/bindEmail + 哈希可查列定位 + 占用查 + username 变更冷却；
- *   - 路由集成：handleOtpRequest / handleUpdateSettings（绑定/改用户名，PA-1a-F3 收敛）/
- *     handleGetSettings（username-status/creds，PA-1a-F3 收敛）/
- *     handleLogin（手机号/邮箱密码登录）/ handleLoginWithCode（验证码登录）/ handleCheckUsername（identifier 识别）。
+ * - otp.requestOtp：真实通道投递（stub 捕获 6 位验证码）、60s 重发限频、单日上限、格式校验；
+ * - otp.verifyOtp：正确/错误/一次性消费/过期；
+ * - credential：bindPhone/bindEmail + 哈希可查列定位 + 占用查 + username 变更冷却；
+ * - 路由集成：handleOtpRequest / handleUpdateSettings（绑定/改用户名，收敛）/
+ * handleGetSettings（username-status/creds，收敛）/
+ * handleLogin（手机号/邮箱密码登录）/ handleLoginWithCode（验证码登录）/ handleCheckUsername（identifier 识别）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -21,7 +21,7 @@ import {
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbPhoneTaken, dbEmailTaken,
 } from '../src/server/core/credential.js';
 import { handleOtpRequest, handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister } from '../src/server/domains/auth/api.js';
-import { handleUpdateSettings, handleGetSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: bind/username/status/creds 收敛到 settings 单源
+import { handleUpdateSettings, handleGetSettings } from '../src/server/domains/auth/settings.js'; // bind/username/status/creds 收敛到 settings 单源
 import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode, resetOtpStub, setOtpStubFail } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
 import { dbGet, dbAll } from '../src/server/core/util.js';
@@ -63,7 +63,7 @@ function authedReq(token) {
   return { headers: new Headers({ 'X-Auth-Token': token }) };
 }
 
-// PA-1a-F3: v2 username-status / creds 读端点已收敛到 GET /api/settings（settings 单源）。
+// v2 username-status / creds 读端点已收敛到 GET /api/settings（settings 单源）。
 // 这两个助手把 settings 快照裁剪回旧端点的响应形状。
 async function settingsUsernameStatus(db, req) {
   const r = await handleGetSettings(db, req);
@@ -124,7 +124,7 @@ test('requestOtp：60s 重发限频 + 单日上限（服务端原子强制）', 
   assert.equal((await over.err.json()).error, '验证码发送次数已达上限，请在 24 小时后重试');
 });
 
-// Z-2-F1 回归：单日计数走 rate_limits 桶（v1.5.0 事故——verification_codes 行仅 5 分钟 TTL，
+// 回归：单日计数走 rate_limits 桶（v1.5.0 事故——verification_codes 行仅 5 分钟 TTL，
 // 原 INSERT 内嵌日计数子查询只看近 5 分钟行，OTP_DAILY_MAX 恒不可达，短信轰炸第二道闸失效）。
 // 缺陷 A：预读必须过滤 reset_at（过期桶视为无桶，upsert 自然重置）——不过滤会致过期桶再锁 24h = 48h 锁死。
 // 缺陷 B：计数 +1 在 deliverOtp 成功之后——投递失败删行返回 500 不烧日配额。
@@ -256,12 +256,12 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
   const code = lastOtpCode('13812345678');
   assert.match(String(code), /^\d{6}$/);
 
-  // 绑定（I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防枚举）——PA-1a-F3 收敛到 settings 单源
+  // 绑定（验码先行：占用查在验码之后——只有持码者能触发 409，防枚举）——收敛到 settings 单源
   const bind = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code }, authedReq(u.token));
   assert.equal(bind.status, 200, `绑定应成功: ${JSON.stringify(await bind.json())}`);
   // 第一次绑定已消费该验证码；重复绑定同号 + 同码 → 验码先行失败（码已消费）→ 400 OTP_INVALID_OR_EXPIRED。
   // Mutation guard: if handleUpdateSettings bind branch is reverted to occupied-check-first, this second call
-  // would hit the occupied 409 and this assertion goes red — locking the I-12 verify-first order.
+  // would hit the occupied 409 and this assertion goes red — locking the verify-first order.
   const dup = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code }, authedReq(u.token));
   const dupData = await dup.json();
   assert.equal(dup.status, 400, `verify-first: consumed code → 400 OTP_INVALID_OR_EXPIRED (not 409): ${JSON.stringify(dupData)}`);
@@ -276,7 +276,7 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
   assert.equal(dupOccupied.status, 409, `verify passes + same phone occupied → 409: ${JSON.stringify(dupOccupiedData)}`);
   assert.equal(dupOccupiedData.code, 'AUTH_PHONE_ALREADY_BOUND', 'occupied bind maps to PHONE_ALREADY_BOUND');
 
-  // 用户名修改：冷却前 400；新用户名非法 400 —— PA-1a-F3 收敛到 settings 单源
+  // 用户名修改：冷却前 400；新用户名非法 400 —— 收敛到 settings 单源
   const beforeData = await settingsUsernameStatus(db, authedReq(u.token));
   assert.equal(beforeData.canChange, true);
   const change = await handleUpdateSettings(db, { username: 'carol_x', capToken: '' }, authedReq(u.token));
@@ -343,7 +343,7 @@ test('路由：五合一登录——手机号密码 / 邮箱密码 / 验证码�
   assert.deepEqual((await checkGhost.json()).exists, false);
   const checkGhostPhone = await handleCheckUsername(db, new URL('http://x/api/auth/check?identifier=13900000000'));
   assert.deepEqual((await checkGhostPhone.json()).exists, false);
-  // Q-2a-F5 守护：超长 identifier 早退（> LOGIN_USERNAME_MAX），零 D1 访问（传 null db 不炸）——
+  // 守护：超长 identifier 早退（> LOGIN_USERNAME_MAX），零 D1 访问（传 null db 不炸）——
   // 删钳制则超大参数直打 D1（变异必红）
   const longIdent = 'x'.repeat(61);
   const checkLong = await handleCheckUsername(null, new URL(`http://x/api/auth/check?identifier=${longIdent}`));
@@ -359,9 +359,9 @@ test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'invalid', '过期验证码拒绝');
 });
 
-// B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
+// 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
 // 未绑定 creds 返回空串（前端回落「未绑定」占位，而非 '***'）；绑定后返回脱敏缩略。
-// PA-1a-F3：creds 读端点收敛到 GET /api/settings 的 user.contactMasks（settings 单源）。
+// creds 读端点收敛到 GET /api/settings 的 user.contactMasks（settings 单源）。
 // v1.0 R7：注册必绑手机号（registerUser 走短信验证码注册），故新建用户 phone 为脱敏缩略而非空串；
 // 未绑定语义改为「邮箱未绑 → 空串」验证（手机号已由注册绑定）。
 test('B5 contactMasks：未绑定返回空串（回落「未绑定」），绑定后返回脱敏缩略', async () => {
@@ -441,7 +441,7 @@ test('R6 新码作废旧码：同目标发新码后旧码立即失效', async ()
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'ok', '新码有效');
 });
 
-// ---------------- Q-2b 复审守护（F2：已送达即成功） ----------------
+// ---------------- 复审守护（已送达即成功） ----------------
 test('Q-2b-F2 守护：OTP 已送达但日配额 upsert 失败仍返 ok（不假失败返 500）', async () => {
   const { db } = await setup();
   const target = '+8613812345999';

@@ -1,19 +1,19 @@
 /**
- * S0-16 notify read / mark-read endpoints (new-site foundation, in-place reuse of v2 core/notify.js).
+ * notify read / mark-read endpoints (new-site foundation, in-place reuse of v2 core/notify.js).
  *
- * Locks the S0-16 acceptance surface (I-26/27):
- *   - handleGetNotifications returns { notifications: [...] } with each row's params parsed back
- *     to an object via the single-point mapper (safeJsonObject); corrupt params JSON degrades to
- *     null instead of crashing the endpoint.
- *   - handleMarkNotificationRead / handleMarkAllNotificationsRead enforce ownership: the UPDATE
- *     is always scoped to the caller's user_id. A cross-user call is an idempotent ok with
- *     0 rows flipped — it must never error and never touch another user's read state.
- *   - Unauthenticated callers get 401; an unknown/already-read id is an idempotent 200.
+ * Locks the acceptance surface (/27):
+ * - handleGetNotifications returns { notifications: [...] } with each row's params parsed back
+ * to an object via the single-point mapper (safeJsonObject); corrupt params JSON degrades to
+ * null instead of crashing the endpoint.
+ * - handleMarkNotificationRead / handleMarkAllNotificationsRead enforce ownership: the UPDATE
+ * is always scoped to the caller's user_id. A cross-user call is an idempotent ok with
+ * 0 rows flipped — it must never error and never touch another user's read state.
+ * - Unauthenticated callers get 401; an unknown/already-read id is an idempotent 200.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - mapNotification reverts to raw JSON.parse (no fallback) -> corrupt params row throws -> 500 -> red.
- *   - dbMarkNotificationRead drops `AND user_id=?` -> a cross-user call flips the owner row -> red.
- *   - handleMarkAllNotificationsRead drops `user_id=?` -> clears every user's unread -> red.
+ * - mapNotification reverts to raw JSON.parse (no fallback) -> corrupt params row throws -> 500 -> red.
+ * - dbMarkNotificationRead drops `AND user_id=?` -> a cross-user call flips the owner row -> red.
+ * - handleMarkAllNotificationsRead drops `user_id=?` -> clears every user's unread -> red.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

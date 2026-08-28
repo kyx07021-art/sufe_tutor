@@ -1,17 +1,17 @@
 /**
- * S0-06 crypto choke mutation guards (new-site foundation, in-place reuse of v2 core/crypto.js).
+ * crypto choke mutation guards (new-site foundation, in-place reuse of v2 core/crypto.js).
  *
- * Locks the fail-closed write posture (P14 / Q-2a-F4): no key, or a non-32-byte key, must reject
+ * Locks the fail-closed write posture (/ ): no key, or a non-32-byte key, must reject
  * writes — plaintext is never stored. Also locks the PBKDF2 password-hash round-trip (previously
  * untested) and the bindCryptoEnv key-derivation cache reset on env change.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - aesKeyFromB64 drops the 32-byte length check -> 16-byte key silently encrypts (AES-128) -> red
- *   - encryptField falls back to plaintext when key is missing -> red
- *   - encryptDetail falls back to plaintext when key is missing -> red
- *   - verifyPassword stops re-deriving from the stored salt -> wrong-password accepted, or
- *     same-salt determinism broken -> red
- *   - bindCryptoEnv stops clearing KEY_CACHE -> key-rotation decrypt returns old plaintext -> red
+ * - aesKeyFromB64 drops the 32-byte length check -> 16-byte key silently encrypts (AES-128) -> red
+ * - encryptField falls back to plaintext when key is missing -> red
+ * - encryptDetail falls back to plaintext when key is missing -> red
+ * - verifyPassword stops re-deriving from the stored salt -> wrong-password accepted, or
+ * same-salt determinism broken -> red
+ * - bindCryptoEnv stops clearing KEY_CACHE -> key-rotation decrypt returns old plaintext -> red
  *
  * Note: these tests share module-level crypto state (CRYPTO_ENV / KEY_CACHE) and must run
  * serially — every test rebinds the env first (node:test runs tests in a file sequentially).

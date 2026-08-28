@@ -1,16 +1,16 @@
 /**
- * V-3-1e CSP 收口浏览器实机验证（playwright chromium；不进 npm test glob，交付前手动跑）。
+ * CSP 收口浏览器实机验证（playwright chromium；不进 npm test glob，交付前手动跑）。
  * 用法：node test/verify-csp-strict.mjs（内部先跑 npm run build 生成 dist）
  *
  * 验证目标：
- *   1. 注入面四类真实拦截语义（fixture 页与 web/index.html 同源严格 meta CSP）：
- *      内联 script / onclick handler / <style> 元素 / HTML style 属性四路全被拦（h5a-g6 起
- *      style-src-attr 'none'；CSSOM cssText/setProperty 不受此指令管辖——F1 实测定案）。
- *   2. v2 真实页面（dist/index.html，build 产物）首绘/登录/客户端壳/领域页/弹窗零 CSP 报错：
- *      - returning 上下文（无 onboarding 弹窗）：landing 首绘 → 访客进客户端壳 → sidebar 领域页切换；
- *        另一次加载验证登录视图。
- *      - fresh 上下文（首访）：onboarding 弹窗正常弹出与关闭。
- *      - 全程收集 console/pageerror，断言零 CSP 违规。
+ * 1. 注入面四类真实拦截语义（fixture 页与 web/index.html 同源严格 meta CSP）：
+ * 内联 script / onclick handler / <style> 元素 / HTML style 属性四路全被拦（h5a-g6 起
+ * style-src-attr 'none'；CSSOM cssText/setProperty 不受此指令管辖——实测定案）。
+ * 2. v2 真实页面（dist/index.html，build 产物）首绘/登录/客户端壳/领域页/弹窗零 CSP 报错：
+ * - returning 上下文（无 onboarding 弹窗）：landing 首绘 → 访客进客户端壳 → sidebar 领域页切换；
+ * 另一次加载验证登录视图。
+ * - fresh 上下文（首访）：onboarding 弹窗正常弹出与关闭。
+ * - 全程收集 console/pageerror，断言零 CSP 违规。
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -65,7 +65,7 @@ try {
   // ---------- 1. 注入面四类真实拦截语义（fixture） ----------
   {
     const page = await browser.newPage();
-    // Chromium 的 CSP 违规走 CDP Log.entryAdded（source=security），亦经 console API（error 类型）可见（审计 a0bdd3b F1）
+    // Chromium 的 CSP 违规走 CDP Log.entryAdded（source=security），亦经 console API（error 类型）可见（审计 a0bdd3b ）
     const cdp = await page.context().newCDPSession(page);
     const cspViolations = [];
     await cdp.send('Log.enable'); // CDP 域必须先 enable 才派发 entryAdded
@@ -150,7 +150,7 @@ try {
     await page.close();
   }
 
-  // ---------- 3b. 首访 onboarding：点遮罩关闭负路径（规则 64/65；Z-14-F1 教训：只测 browseGuest 放行路径的盲区）----------
+  // ---------- 3b. 首访 onboarding：点遮罩关闭负路径（规则 64/65；教训：只测 browseGuest 放行路径的盲区）----------
   {
     const page = await browser.newPage();
     const consoleMsgs = [];

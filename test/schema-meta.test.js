@@ -95,7 +95,7 @@ test('schema 版本落后：重跑全量迁移并更新版本到最新', async (
   assert.ok(delta.some(c => /^batch:([3-9]|\d{2,})stmts$/.test(c)), `版本落后时重跑全量迁移（实际调用：${delta.join(', ')}）`);
 });
 
-// V-4-1c 抓出：V-2-4a 给 initNotifyTable 加 type/params 列时未 bump SCHEMA_VERSION（7→8 漏步），
+// 抓出：给 initNotifyTable 加 type/params 列时未 bump SCHEMA_VERSION（7→8 漏步），
 // 存量 v7 库（schema_meta=7 + notifications 缺结构化列）在 initDb 版本判断下跳过全量迁移 → 缺列生产事故。
 // 回归钉死：版本 bump 必须覆盖「上一版本库」的待补列。
 test('版本落后到上一版（v7 存量库缺通知结构化列）：重跑迁移补 type/params', async (t) => {
@@ -113,15 +113,15 @@ test('版本落后到上一版（v7 存量库缺通知结构化列）：重跑�
   assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
 });
 
-// Q-2g 抓出（第三次踩坑）：Q-2d-F2 给 messages 加 client_key 列 + idx_messages_client_key 唯一索引时
+// 抓出（第三次踩坑）：给 messages 加 client_key 列 + idx_messages_client_key 唯一索引时
 // 未 bump SCHEMA_VERSION（9→9 漏步）——存量 v9 库（schema_meta=9 + messages 缺 client_key）在 initDb
 // 版本判断下 `cur(9) >= 9` 短路跳过全量迁移 → client_key 永不补上 → 聊天发送/合同气泡全 500。
-// 回归钉死：版本 bump 必须覆盖「上一版本库」的待补列 + 索引（V-4-1c → Z-4-F1 → Q-2d-F2 同型）。
+// 回归钉死：版本 bump 必须覆盖「上一版本库」的待补列 + 索引（→ → 同型）。
 test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑迁移补列 + 唯一索引', async (t) => {
   const { raw, db } = setup(t);
   await initDb(db, ENV); // 先建出最新全量
   // 模拟 v9 存量生产形状：messages 无 client_key 列 + schema_meta=9（本机 SQLite ≥3.35 支持 DROP COLUMN）
-  raw.exec('DROP INDEX IF EXISTS idx_messages_client_key'); // v9 库本无此索引（Q-2d 才引入），先删再卸列
+  raw.exec('DROP INDEX IF EXISTS idx_messages_client_key'); // v9 库本无此索引（才引入），先删再卸列
   raw.exec('ALTER TABLE messages DROP COLUMN client_key');
   raw.exec("UPDATE schema_meta SET v=9 WHERE k='schema'");
   assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('messages') WHERE name='client_key'`).get().n, 0, '前置：messages 无 client_key');
@@ -135,7 +135,7 @@ test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑
 });
 
 
-// PA-1d-F4 (B1): teacher_profiles philosophy column added with SCHEMA_VERSION 17->18. A legacy v17 DB
+// (): teacher_profiles philosophy column added with SCHEMA_VERSION 17->18. A legacy v17 DB
 // (schema_meta=17 + teacher_profiles missing philosophy) must re-run the full migration and gain the
 // column — otherwise the version gate skips ensureColumns and the column is never added on live DBs.
 // Mutation guard: reverting the bump (SCHEMA_VERSION 17) makes the v=17 gate skip the migration and the
@@ -161,11 +161,11 @@ test('v18 存量库缺 teacher_profiles.philosophy → initDb 重跑迁移补列
   assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
 });
 
-// PA-3-F2 (B1): reviews (teacher_user_id,status) index added with SCHEMA_VERSION 18->19. A legacy v18 DB
+// (): reviews (teacher_user_id,status) index added with SCHEMA_VERSION 18->19. A legacy v18 DB
 // (schema_meta=18 + reviews missing idx_reviews_teacher_status) must re-run the full migration and gain the
 // index — otherwise the version gate skips the migration and the index is never added on live DBs.
 // Mutation guard: reverting the bump (SCHEMA_VERSION 18) makes the v=18 gate skip the migration and the
-// index never appears -> red (V-4-1c -> Z-4-F1 -> Q-2g-F1 same incident class).
+// index never appears -> red (-> -> same incident class).
 test('v18 存量库缺 reviews (teacher_user_id,status) 索引 → initDb 重跑迁移补索引 + 幂等', async (t) => {
   const { raw, db } = setup(t);
   await initDb(db, ENV); // build the latest full schema first (idx_reviews_teacher_status present)
@@ -187,7 +187,7 @@ test('v18 存量库缺 reviews (teacher_user_id,status) 索引 → initDb 重跑
   assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
 });
 
-// PA-3-F2 (G2): the new index actually serves the teacher_user_id prefix lookup — EXPLAIN QUERY PLAN for the
+// (): the new index actually serves the teacher_user_id prefix lookup — EXPLAIN QUERY PLAN for the
 // dbGetApprovedReviews / dbGetApprovedReviewStats WHERE shape must SEARCH USING idx_reviews_teacher_status
 // (not a table scan). Mutating (dropping) the index makes the assertion red.
 test('idx_reviews_teacher_status 服务 teacher_user_id 前缀查找（EXPLAIN QUERY PLAN 用索引）', async (t) => {
@@ -197,11 +197,11 @@ test('idx_reviews_teacher_status 服务 teacher_user_id 前缀查找（EXPLAIN Q
   assert.ok(detail.some(d => /USING INDEX idx_reviews_teacher_status/.test(d)), `EXPLAIN 应走 idx_reviews_teacher_status（实际：${detail.join(' | ')}）`);
 });
 
-// PA-3-F3 (B1): posts idx_posts_created index added with SCHEMA_VERSION 19->20. A legacy v19 DB
+// (): posts idx_posts_created index added with SCHEMA_VERSION 19->20. A legacy v19 DB
 // (schema_meta=19 + posts missing idx_posts_created) must re-run the full migration and gain the index —
 // otherwise the version gate skips the migration and the index is never added on live DBs.
 // Mutation guard: reverting the bump (SCHEMA_VERSION 19) makes the v=19 gate skip the migration and the
-// index never appears -> red (V-4-1c -> Z-4-F1 -> Q-2g-F1 same incident class).
+// index never appears -> red (-> -> same incident class).
 test('v19 存量库缺 posts (created_at,id) 索引 → initDb 重跑迁移补索引 + 幂等', async (t) => {
   const { raw, db } = setup(t);
   await initDb(db, ENV); // build the latest full schema first (idx_posts_created present)
@@ -223,7 +223,7 @@ test('v19 存量库缺 posts (created_at,id) 索引 → initDb 重跑迁移补�
   assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
 });
 
-// PA-3-F3 (B1): notifications idx_notify_user reshaped (user_id,is_read) -> (user_id,id DESC) with
+// (): notifications idx_notify_user reshaped (user_id,is_read) -> (user_id,id DESC) with
 // SCHEMA_VERSION 19->20. A legacy v19 DB (schema_meta=19 + idx_notify_user still the old shape) must
 // re-run the full migration and have the index reshaped (DROP + CREATE in initNotifyTable) — otherwise
 // the version gate skips Stage 5 and live DBs keep the non-covering (user_id,is_read) index.
@@ -248,7 +248,7 @@ test('v19 存量库 idx_notify_user 旧形状 (user_id,is_read) → initDb 重�
   assert.match(raw.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_notify_user'").get().sql, /\(user_id, id DESC\)/, 'idempotent re-run keeps the new shape');
 });
 
-// PA-3-F3 (G2): idx_posts_created actually serves dbListPosts ORDER BY created_at DESC, id DESC —
+// (): idx_posts_created actually serves dbListPosts ORDER BY created_at DESC, id DESC —
 // EXPLAIN QUERY PLAN for the exact dbListPosts sort shape must SCAN USING INDEX idx_posts_created
 // (not a table scan + temp sort). Mutating (dropping) the index makes the assertion red.
 test('idx_posts_created 服务 dbListPosts ORDER BY created_at DESC, id DESC（EXPLAIN QUERY PLAN 用索引）', async (t) => {
@@ -258,7 +258,7 @@ test('idx_posts_created 服务 dbListPosts ORDER BY created_at DESC, id DESC（E
   assert.ok(detail.some(d => /USING INDEX idx_posts_created/.test(d)), `EXPLAIN 应走 idx_posts_created（实际：${detail.join(' | ')}）`);
 });
 
-// S5-02: merged signing_contracts table (AI-4a) -> standalone contracts table migration.
+// merged signing_contracts table (a) -> standalone contracts table migration.
 // Legacy DB re-run copies stage='contract' rows 1:1 (contract number #CD{id} and ledger contract_id
 // stay unchanged -> zero remap), maps ''/'pending' contract_status -> 'signing', generalizes hourly_rate
 // -> rate, then DROPs signing_contracts. Re-run is a no-op (idempotent).
@@ -269,7 +269,7 @@ test('S5 migration: legacy signing_contracts -> standalone contracts (id 1:1 / s
   const s1 = Number(raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s5_s1','x','x','student')").run().lastInsertRowid);
   const t1 = Number(raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s5_t1','x','x','teacher')").run().lastInsertRowid);
   const convId = Number(raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(s1, t1).lastInsertRowid);
-  // seed the legacy merged table with the exact AI-4a SIGNING_CONTRACTS_DDL shape (signing layer +
+  // seed the legacy merged table with the exact a SIGNING_CONTRACTS_DDL shape (signing layer +
   // contract layer). Every contract field is NOT NULL DEFAULT in the real merged table, so the S5
   // migration SELECT reads non-NULL values into the standalone contracts NOT NULL columns.
   raw.exec(`CREATE TABLE signing_contracts (
@@ -312,13 +312,13 @@ test('S5 migration: legacy signing_contracts -> standalone contracts (id 1:1 / s
     .run(s1, t1, convId, t1, 'migrated-body-A', 'prior-business-A');
   raw.prepare("INSERT INTO signing_contracts (id, student_user_id, teacher_user_id, conversation_id, stage, contract_status, hourly_rate, drafter_user_id, contract_md) VALUES (8,?,?,?, 'contract','signed',200,?,?)")
     .run(s1, t1, convId, t1, 'migrated-body-B');
-  // signing-layer row must NOT be copied (the signing layer is dropped wholesale, S5-19)
+  // signing-layer row must NOT be copied (the signing layer is dropped wholesale, )
   raw.prepare("INSERT INTO signing_contracts (id, student_user_id, teacher_user_id, conversation_id, stage, signing_status, hourly_rate) VALUES (9,?,?,?, 'signing','pending',0)")
     .run(s1, t1, convId);
   // simulate a legacy DB: one schema version behind + the merged table present
   raw.prepare("UPDATE schema_meta SET v=? WHERE k='schema'").run(SCHEMA_VERSION - 1);
   assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='signing_contracts'`).get().n, 1, 'precondition: legacy signing_contracts table exists');
-  await initDb(db, ENV); // version behind -> full migration -> postEnsure S5-02 copy + DROP
+  await initDb(db, ENV); // version behind -> full migration -> postEnsure copy + DROP
   assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='contracts'`).get().n, 1, 'contracts table exists');
   const rows = raw.prepare('SELECT id, contract_status, rate, contract_md, prev_business, conversation_id FROM contracts ORDER BY id').all().map(r => ({ ...r }));
   assert.equal(rows.length, 2, 'only stage=contract rows migrated (signing layer dropped)');

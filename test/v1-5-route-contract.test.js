@@ -1,5 +1,5 @@
 /**
- * V-1-5 路由契约：声明式路由表完整性 + routeApi 代表路径内存冒烟。
+ * 路由契约：声明式路由表完整性 + routeApi 代表路径内存冒烟。
  * 不访问网络；D1 用 node:sqlite shim。
  */
 import { test, before, after } from 'node:test';
@@ -76,9 +76,9 @@ test('路由表：108 条、method+path 唯一、关键路径字面量齐全', (
   assert.equal(routes.length, 108, '迁移后路由数 108（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛 + PA-1i-F1 删 GET /api/data-version + AK-A1b 删 POST /api/captcha/verify）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
-  // S5 合同独立化：contract 域恰好 10 条（S5-14 与 interfaces I-44/45/46 对齐）。
+  // S5 合同独立化：contract 域恰好 10 条（与 interfaces /45/46 对齐）。
   // 旧 signing/bindable 路由（/api/conversations/:id/signing、/api/signing-requests/:id/respond、
-  // /api/conversations/:id/bindable-demands）与 /api/contracts/my 已随 S5-19 删除；
+  // /api/conversations/:id/bindable-demands）与 /api/contracts/my 已随 删除；
   // /api/contracts/my → /api/contracts 1:1 改名，新增 GET /api/contracts/:id。
   const contractRoutes = routes.filter(r => r.path === '/api/contracts' || r.path.startsWith('/api/contracts/') || r.path.startsWith('/api/admin/contracts'));
   assert.equal(contractRoutes.length, 10, 'contract 域 10 条路由（S5-14）');
@@ -192,7 +192,7 @@ test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError�
 });
 
 test('AF-6: route-level dirty id params return 404, never 500', async () => {
-  // Q-2a-L2 observation: parseIdParam strict parsing is locked at unit level
+  // observation: parseIdParam strict parsing is locked at unit level
   // (test/parse-id-param.test.js); this locks the same guarantee at the route
   // dispatch level. A dirty segment still matches the route regex
   // (/api/users/:id compiles to ^/api/users/([^/]+)$), but the handler receives

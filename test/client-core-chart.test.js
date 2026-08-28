@@ -41,7 +41,7 @@ test('renderGlassLineChart: empty state text', () => {
   el.remove();
 });
 
-// Z-9-F3 回归：resize 监听器生命周期——同一容器重渲染不累积（同刻至多 1 活监听），dispose 后归 0。
+// 回归：resize 监听器生命周期——同一容器重渲染不累积（同刻至多 1 活监听），dispose 后归 0。
 // jsdom 无 getEventListeners，用 spy 包 addEventListener/removeEventListener 计数净活监听数。
 test('Z-9-F3: repeated renders keep exactly one live resize listener; dispose releases it', () => {
   const el = document.getElementById('chart');

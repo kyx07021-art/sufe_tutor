@@ -1,11 +1,11 @@
 /**
- * 管理域数据层（V-1-4 从 server/db.js 提取）：统计/用户管理/统一内容提取。
+ * 管理域数据层（从 server/db.js 提取）：统计/用户管理/统一内容提取。
  */
-import { dbAll, dbGet, dbRun } from '../../core/util.js'; // Z-6-F1：dbRevokeInviteCode/dbDeleteFeedback/dbDeleteComplaint 补 dbRun（断线修复）
+import { dbAll, dbGet, dbRun } from '../../core/util.js'; // dbRevokeInviteCode/dbDeleteFeedback/dbDeleteComplaint 补 dbRun（断线修复）
 import { LIMITS } from '../../../shared/config.js';
-import { MSG } from '../../../shared/codes.js'; // Q-2i-M5：内容审核 title 文案单源
-import { mapTeacherProfileRow } from '../teacher/repo.js'; // U-3a F2: single-source teacher row decrypt for admin search
-import { likeEscape } from '../posts/repo.js'; // U-3a F2: shared LIKE-escape (same single source as complaints search)
+import { MSG } from '../../../shared/codes.js'; // 内容审核 title 文案单源
+import { mapTeacherProfileRow } from '../teacher/repo.js'; // single-source teacher row decrypt for admin search
+import { likeEscape } from '../posts/repo.js'; // shared LIKE-escape (same single source as complaints search)
 
 // ============================================================
 // 管理员统计
@@ -16,8 +16,8 @@ export async function dbGetUserStats(db) {
     SUM(CASE WHEN role='teacher' THEN 1 ELSE 0 END) as teachers FROM users`);
 }
 
-// 网安审计 N-17：表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
-const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, feedbacks: 1, complaints: 1, teacher_verifications: 1 }; // S6-A3: teacher_awards removed (awards offline, W1); Z-6-F2: teacher_verifications whitelist retained
+// 网安审计 表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
+const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, feedbacks: 1, complaints: 1, teacher_verifications: 1 }; // S6-A3: teacher_awards removed (awards offline, ); teacher_verifications whitelist retained
 // 条件计数（统计页待办队列用）：表名必须过 COUNT_TABLES 白名单（防注入），
 // where 为内部硬编码字面量（status 枚举），禁止拼接用户输入
 export async function dbGetCountWhere(db, table, where) {
@@ -73,14 +73,14 @@ export async function dbGetRecentDemands(db, limit = LIMITS.RECENT_LIMIT) {
 // ============================================================
 // 管理员用户管理
 // ============================================================
-// 学生列表：LEFT JOIN 统计需求数（T-6-F2：统一 user_id 出口，与教师出口/搜索出口同字段名，消前端 role 三元）
+// 学生列表：LEFT JOIN 统计需求数（统一 user_id 出口，与教师出口/搜索出口同字段名，消前端 role 三元）
 export async function dbGetStudentUsersAdmin(db) {
   return await dbAll(db, `SELECT u.id AS user_id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
     FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
     WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
 }
 
-// U-3a rework (audit F2): admin username search must return the FULL row shape the list path
+// rework (audit ): admin username search must return the FULL row shape the list path
 // uses — dbSearchUsersByRole (complaints domain) returns only {id,username,role}, which made
 // search rows lose banned/created_at/demand_count (student) and grade/rating/price/verified
 // (teacher). Reuses mapTeacherProfileRow (single-source decrypt) + likeEscape (posts/repo shared
@@ -143,8 +143,8 @@ const CONTENT_SQL = {
 // 类型清单由 CONTENT_SQL 的键派生（CONTENT_TYPES）——增类型只改 CONTENT_SQL + CONTENT_MAPPER
 // 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」。
 // 无效 type（非键）→ 返回空列表，不再崩溃。
-// Q-2i-M5：title 显示文案 codes.js MSG 单源（原内联中文模板）
-const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : m)); // Q-2i-M5c：未知变量保留原文——用户可控字段值内的 {ascii词}（如附件名 report{2024}.pdf）不再被吞掉
+// title 显示文案 codes.js MSG 单源（原内联中文模板）
+const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : m)); // 未知变量保留原文——用户可控字段值内的 {ascii词}（如附件名 report{2024}.pdf）不再被吞掉
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
   demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.id }), body: [r.subject, r.address_area, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }), // S3 单科目：subject 单值/display_id 删

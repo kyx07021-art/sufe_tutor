@@ -1,27 +1,27 @@
-/** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-// S0-01: new-site identity. SITE_NAME is the platform display name; SITE_ORIGIN is the
+/** 跨栈数值/服务端非文案常量唯一源（）。零依赖，纯数据。 */
+// new-site identity. SITE_NAME is the platform display name; SITE_ORIGIN is the
 // CORS/deployment origin. Per S0 定案④ the prod domain is still TBD — SITE_ORIGIN is a
-// placeholder that S0-23 (_headers CSP/CORS) must reference verbatim (acceptance = placeholder consistency).
+// placeholder that (_headers CSP/CORS) must reference verbatim (acceptance = placeholder consistency).
 export const SITE_NAME = '经世知途·信息门户平台';
 export const SITE_ORIGIN = 'https://jingshi-zhitu.pages.dev';
-export const APP_VERSION = '1.0.0';   // S0-01: new-site baseline version (frontend cache-busting via dhCheckAppVersion)
+export const APP_VERSION = '1.0.0';   // new-site baseline version (frontend cache-busting via dhCheckAppVersion)
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
     CHAT_POLL_MS: 4000,                   // 聊天轮询间隔
     CHAT_SLIDE_DELAY_MS: 120,             // 会话滑动懒加载/自动增高延迟
-    CHAT_ATTACH_CONCURRENCY: 4,           // 附件懒加载并发波数（F11：串行 → ~N/4 波，每波一个 RTT）
+    CHAT_ATTACH_CONCURRENCY: 4,           // 附件懒加载并发波数（串行 → ~N/4 波，每波一个 RTT）
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
     CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）
     CHAT_IMG_THUMB_SIDE: 128, CHAT_IMG_THUMB_QUALITY: 0.72, // 聊天图缩略图（预载立即展示，点开加载原图）
-    COMPLAINT_ATTACH_MAX: 4,                // 投诉附件件数上限（U11；与后端 LIMITS.COMPLAINT_ATTACH_MAX 同值）
+    COMPLAINT_ATTACH_MAX: 4,                // 投诉附件件数上限（；与后端 LIMITS.COMPLAINT_ATTACH_MAX 同值）
     BADGE_POLL_MS: 30000,                 // 红点慢轮询
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
-    GET_RETRY: 1,                         // F1：幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
-    GET_RETRY_BACKOFF_MS: 300,            // F1：GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
-    BATCH_GET_MAX: 16,                    // B2：/api/batch 单次批量读上限（服务端 _worker.js 直接导入共享常量校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
+    GET_RETRY: 1,                         // 幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
+    GET_RETRY_BACKOFF_MS: 300,            // GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
+    BATCH_GET_MAX: 16,                    // /api/batch 单次批量读上限（服务端 _worker.js 直接导入共享常量校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
     // 验证码/凭证（数据单源：前端 src/client/features/auth/actions-otp.js 与后端 src/server/core/otp.js 双端 import 直读 shared config）
     PHONE_REGIONS: [                      // 手机号地区前缀表（固定 +86 前缀显示 + 服务端格式校验共用）
       // 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
@@ -54,7 +54,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
     MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
     GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
-    MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（B4：max-height 注入已删，卡片随内容拉长）
+    MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（max-height 注入已删，卡片随内容拉长）
     MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
     REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
@@ -94,7 +94,7 @@ export const LIMITS = {
   LOGIN_USERNAME_MAX: 60,
   LOGIN_PASSWORD_MAX: 72,
   INVITE_CODE_LEN: CONFIG.INVITE_CODE_LEN,
-  REVIEW_COMMENT_MIN: 2,                // Q-2i-M1：评价最少字数（服务端限额，移入 LIMITS 单源）
+  REVIEW_COMMENT_MIN: 2,                // 评价最少字数（服务端限额，移入 LIMITS 单源）
   RATING_MIN: 1,
   RATING_MAX: 5,
   TITLE_MAX: CONFIG.POST_TITLE_MAX,
@@ -122,15 +122,15 @@ export const LIMITS = {
   MESSAGE_MAX_LEN: 2000,
   // S2-T2: temp conversation send quota (initiator can send 1 message before receiver replies to formalize)
   TEMP_SEND_QUOTA: 1,
-  // S2-T2: I-23 firstMessage length cap
+  // S2-T2: firstMessage length cap
   TEMP_FIRST_MSG_MAX: 1000,
   FILE_MAX_BYTES: 700000,
   THUMB_MAX_BYTES: 20000,
   FILE_NAME_MAX: 100,
   UPLOAD_STAGING_MAX: 12,
   MSG_BATCH_MAX: 13,
-  CLIENT_KEY_MAX: 64,                  // Q-2d-F2: chat 批量发送幂等键长度上限（'批次键.条目序' 形态，服务端仅作唯一性去重不解析）
-  AUDIT_MAX_FIELDS: 13,                  // Q-2b-F1: 内容域写断点单请求最多审 N 个自由文本字段（= MSG_BATCH_MAX 对齐——合同表单最多 6 字段、chat batch 单批上限 13 条均放行，>13 恶意超大 batch 拦截）
+  CLIENT_KEY_MAX: 64,                  // chat 批量发送幂等键长度上限（'批次键.条目序' 形态，服务端仅作唯一性去重不解析）
+  AUDIT_MAX_FIELDS: 13,                  // 内容域写断点单请求最多审 N 个自由文本字段（= MSG_BATCH_MAX 对齐——合同表单最多 6 字段、chat batch 单批上限 13 条均放行，>13 恶意超大 batch 拦截）
   POST_BODY_MAX: 20000,
   FEEDBACK_BODY_MAX: 5000,
   COMPLAINT_DETAIL_MAX: 2000,
@@ -169,7 +169,7 @@ export const LIMITS = {
   PHONE_MAX: 20,
   EMAIL_MAX: 100,
   USERNAME_COOLDOWN_MS: 604800000,
-  // 单次 Worker 调用处理的密文行数上限（A-12 定案）：D1 Free 单调用 50 次查询预算，
+  // 单次 Worker 调用处理的密文行数上限（定案）：D1 Free 单调用 50 次查询预算，
   // 减 handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次
   // 扫描 SELECT 后留足余量。≤30 契约由 test/reencrypt.test.js 锁定（防调大后单调用回归 D1 上限）。
   REENCRYPT_ROW_BUDGET: 20,
@@ -201,7 +201,7 @@ export const RATE_LIMITS = {
   "windowMs": 60000
 },
   login: {
-  // PA-2-F8: 8→30——共享 NAT/并发代理下 8/10min 会确定性误伤合法登录（D5 限额对齐真实业务上限）；
+  // 8→30——共享 NAT/并发代理下 8/10min 会确定性误伤合法登录（D5 限额对齐真实业务上限）；
   // 30/10min 仍远低于真实爆破预算（密码强度 + 全局 300/min + 三振封禁兜底）
   "limit": 30,
   "windowMs": 600000
@@ -243,12 +243,12 @@ export const SECURITY_HEADERS = {
   'Referrer-Policy': "strict-origin-when-cross-origin",
   'Permissions-Policy': "camera=(), microphone=(), geolocation=()",
 };
-// 前端教师注册门控休眠开关（shared config 单源；false=门控启用，true=开放注册休眠；v1 根 constants.js 镜像已随 V-4-1h 删除，消费方 server/startup.js + features/auth/actions-register.js 直读）
+// 前端教师注册门控休眠开关（shared config 单源；false=门控启用，true=开放注册休眠；v1 根 constants.js 镜像已随 删除，消费方 server/startup.js + features/auth/actions-register.js 直读）
 export const INVITE_GATE_DORMANT = false;
 export const INVITE_GATE_ENABLED = true;
 export const INITIAL_RATING = 4.5;
 export const INITIAL_WEIGHT = 10;
-// S4-13: new-model server-side match-degree weights (sum = 100; I-32 contract).
+// new-model server-side match-degree weights (sum = 100; contract).
 // Distinct from v2 client CONFIG.MATCH_WEIGHT (subject 45/region 15/budget 15/personality 15/gender 10) —
 // the new model adds a teaching-method dimension and rebalances toward region/price.
 // Single source of truth for src/server/domains/teacher/match/*.

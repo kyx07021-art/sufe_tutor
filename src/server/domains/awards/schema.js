@@ -1,5 +1,5 @@
 /**
- * awards 域 schema（S6-A5 下线态）：awards 在新站不上线（W1 不保留向后兼容），
+ * awards 域 schema（S6-A5 下线态）：awards 在新站不上线（不保留向后兼容），
  * teacher_awards 表不再创建。
  *
  * 保留文件与导出签名——src/server/core/db.js 以 `import * as awardsSchema` 注册本域

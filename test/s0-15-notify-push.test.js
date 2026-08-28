@@ -1,22 +1,22 @@
 /**
- * S0-15 notify push choke (new-site foundation, in-place reuse of v2 core/notify.js).
+ * notify push choke (new-site foundation, in-place reuse of v2 core/notify.js).
  *
- * Locks the S0-15 acceptance surface:
- *   - initNotifyTable is idempotent: re-calling it on an existing table must be a no-op
- *     (rows preserved, no duplicate columns, index present).
- *   - notifyUser enforces the NOTIFY_TYPES contract (D4): type must be a registered key and
- *     params keys must be a subset of the type shape. Violations are refused AND recorded via
- *     notify.invalid_type / notify.invalid_params — never silently stored (a stored row with a
- *     bad type would render as an empty notification client-side, invisible corruption).
- *   - S0 keeps the full v2 type set as an intermediate state (type reduction is S6-N2).
- *   - A successful push stores a structured row (PA-1i-F1 removed the version-domain bump:
- *     the client data-version protocol is zero-consumed by the new frontend).
+ * Locks the acceptance surface:
+ * - initNotifyTable is idempotent: re-calling it on an existing table must be a no-op
+ * (rows preserved, no duplicate columns, index present).
+ * - notifyUser enforces the NOTIFY_TYPES contract (D4): type must be a registered key and
+ * params keys must be a subset of the type shape. Violations are refused AND recorded via
+ * notify.invalid_type / notify.invalid_params — never silently stored (a stored row with a
+ * bad type would render as an empty notification client-side, invisible corruption).
+ * - S0 keeps the full v2 type set as an intermediate state (type reduction is S6-N2).
+ * - A successful push stores a structured row (removed the version-domain bump:
+ * the client data-version protocol is zero-consumed by the new frontend).
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - initNotifyTable: remove IF NOT EXISTS -> second call throws "table already exists";
- *     DROP+recreate would lose rows -> red.
- *   - notifyUser: remove the type-registry check -> a wrong-type row is stored -> red.
- *   - notifyUser: remove the params-subset check -> an extra-key row is stored -> red.
+ * - initNotifyTable: remove IF NOT EXISTS -> second call throws "table already exists";
+ * DROP+recreate would lose rows -> red.
+ * - notifyUser: remove the type-registry check -> a wrong-type row is stored -> red.
+ * - notifyUser: remove the params-subset check -> an extra-key row is stored -> red.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

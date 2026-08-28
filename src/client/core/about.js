@@ -1,6 +1,6 @@
 /**
  * v2 about core: enterAbout migrated from app-pages.js.
- * Feature buttons dispatch CustomEvents for B2 feature handlers; no inline handlers.
+ * Feature buttons dispatch CustomEvents for feature handlers; no inline handlers.
  */
 import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';

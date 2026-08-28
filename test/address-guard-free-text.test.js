@@ -1,9 +1,9 @@
 /**
  * 门牌号合规红线不得被自由文本字段绕行（S3 单科目适配：body 直传 /api/demands + additionalInfo）
- *  - 需求 additionalInfo：含详细门牌 → 整单 400（与 addressArea 同守）；正常文本 200 且截断到 ADDITIONAL_INFO_MAX
- *  - 教师档案 intro/school：含门牌 → 400（此前仅 address 有守卫）
- *  - 联系方式长度：wechat/email 超 CONTACT_MAX 截断
- *  - S3 §15①：需求联系方式整列删除（parent_contact/student_contact 不存储）→ 联系方式截断断言随旧列删除
+ * - 需求 additionalInfo：含详细门牌 → 整单 400（与 addressArea 同守）；正常文本 200 且截断到 ADDITIONAL_INFO_MAX
+ * - 教师档案 intro/school：含门牌 → 400（此前仅 address 有守卫）
+ * - 联系方式长度：wechat/email 超 CONTACT_MAX 截断
+ * - S3 ①：需求联系方式整列删除（parent_contact/student_contact 不存储）→ 联系方式截断断言随旧列删除
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,7 +70,7 @@ async function seed(db, raw) {
   return { stuToken: await mkToken('stu'), teaToken: await mkToken('tea') };
 }
 
-// S3 单科目需求直传 body（interfaces §19 I-35 形状）
+// S3 单科目需求直传 body（interfaces 形状）
 const baseDemand = {
   subject: 'math', grade: 'senior1', province: 'shanghai', teachingMethod: 'offline',
   addressArea: '杨浦区·四平路街道', // 线下单地址须合法「区·镇/街道」

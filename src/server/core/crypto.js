@@ -16,7 +16,7 @@
  *
  * 密钥一律经 secrets 网关（getSecret：只读 env——Worker Secrets / .dev.vars / 测试注入，fail-closed 零仓库明文）。
  */
-import { getSecret } from '../../../server/secrets.js';
+import { getSecret } from './secrets.js';
 import { SECURITY } from '../../shared/config.js';
 
 // ============================================================
@@ -43,7 +43,7 @@ const bytesToB64 = bytes => {
 // ============================================================
 /**
  * b64 密钥 → AES-GCM CryptoKey；非法密钥返回 null（不抛，调用方按无密钥语义回落）。
- * S0-06/Q-2a-F4: AES-256 only — a 16/24-byte raw key is rejected here (not just at the startup
+ * / AES-256 only — a 16/24-byte raw key is rejected here (not just at the startup
  * release gate) so a valid-base64 short key cannot silently downgrade the cipher to AES-128/192
  * at the encryption choke itself. deriveKey then yields null and the write paths fail closed.
  */

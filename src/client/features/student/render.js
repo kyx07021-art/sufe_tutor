@@ -2,7 +2,7 @@
  * student/demand feature renderers: demand cards, intent rows, demand modal.
  * No inline handlers or inline style attributes (data-action delegation, v2 rule).
  *
- * v1 parity (B4 redo): renderDemandCard full structure -- type/match badge, four-state intent btn,
+ * v1 parity (redo): renderDemandCard full structure -- type/match badge, four-state intent btn,
  * push actions, student/admin ops, big-and-light budget, greet-bubble, intent toggle row;
  * renderIntentTeacherRow with status tag + price + teacher greet; teacher-card push button with
  * global per-minute cooldown (v1 pushCooldownUntil).
@@ -19,7 +19,7 @@ import { gradeOptionsForProvince } from '../region/render.js';
 import { STATUS, DEMAND_TYPES, GENDERS, TEACHING_METHODS, SUBJECTS, NONACADEMIC_PROJECTS, TEACHING_GOALS, PERSONALITY_TAGS } from '../../../shared/enums.js';
 import { CONFIG } from '../../../shared/config.js';
 
-// v1 parity: 8 wizard step labels (P4 split teaching-goal into P4 + teacher-pref into P6).
+// v1 parity: 8 wizard step labels (split teaching-goal into + teacher-pref into ).
 // Single source for the wizard's step count (actions.demandWizardGoTo clamps to this length).
 export const DEMAND_WIZARD_STEPS = [
   TEXT.DW_STEP_PROVINCE, TEXT.DW_STEP_METHOD, TEXT.DW_STEP_STUDENT,
@@ -60,7 +60,7 @@ export function renderDemandCard(d, opts = {}) {
   // Student/admin card ops (reopen/edit/remove) bottom-right
   const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="student.reopenDemand" data-id="${d.id}">${TEXT.BTN_REOPEN_DEMAND}</button>`
     : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="student.editDemand" data-id="${d.id}">${TEXT.BTN_EDIT}</button>` : '')
-    + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.deleteDemand" data-id="${d.id}">${TEXT.BTN_REMOVE}</button>` : ''); // U-3b: admin removes via /api/admin/demands/:id (student path has ownership gate)
+    + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.deleteDemand" data-id="${d.id}">${TEXT.BTN_REMOVE}</button>` : ''); // admin removes via /api/admin/demands/:id (student path has ownership gate)
   // Budget "big-and-light": large thin number + small grey unit; negotiable without unit
   const budgetNum = (d.budget_min || d.budget_max)
     ? `${d.budget_min || TEXT.BUDGET_NO_LIMIT}~${d.budget_max || TEXT.BUDGET_NO_LIMIT}`
@@ -266,7 +266,7 @@ export function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
   const tag = st === STATUS.ACCEPTED ? `<span class="tag tag-ok glass glass--solid">${TEXT.INTENT_STATUS_ACCEPTED}</span>`
     : st === STATUS.REJECTED ? `<span class="tag tag-danger glass glass--solid">${TEXT.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${TEXT.INTENT_STATUS_PENDING}</span>`;
-  const provName = escHtml(provinceName(t.province)); // N-15: unknown province echoes raw id, XSS-safe
+  const provName = escHtml(provinceName(t.province)); // unknown province echoes raw id, XSS-safe
   const viewBtn = `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="student.viewProfile" data-id="${t.user_id}">${TEXT.BTN_VIEW}</button>`;
   const actions = st === STATUS.PENDING
     ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="student.acceptIntent" data-demand="${demandId}" data-teacher="${t.user_id}">${TEXT.BTN_AGREE}</button>

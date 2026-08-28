@@ -1,5 +1,5 @@
 /**
- * core/api.js fetch 挂死保护回归（B4：直接 import ESM）。
+ * core/api.js fetch 挂死保护回归（直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

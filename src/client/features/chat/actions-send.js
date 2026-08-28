@@ -1,14 +1,14 @@
 /**
  * chat feature actions: polling, optimistic send and upload pipeline.
  *
- * Optimistic send contract (B4 audit):
+ * Optimistic send contract (audit):
  * - temporary negative-id bubbles are rendered before the POST; input is cleared.
  * - while an optimistic send is in flight, polling is paused (no duplicate bubble).
  * - on success each temp bubble is replaced by a freshly rendered bubble merged
- *   from the local message + the server receipt id (receipt only carries
- *   {id,kind,name}; sender/body/thumb/created_at must come from the local copy,
- *   otherwise own messages render as theirs with empty content);
- *   if the real bubble already exists (polling race), the temp bubble is removed.
+ * from the local message + the server receipt id (receipt only carries
+ * {id,kind,name}; sender/body/thumb/created_at must come from the local copy,
+ * otherwise own messages render as theirs with empty content);
+ * if the real bubble already exists (polling race), the temp bubble is removed.
  * - on failure/partial success temp bubbles are removed and text restored.
  * - after send, the conversation list preview is bumped (parity with v1).
  */
@@ -66,7 +66,7 @@ export async function sendChatMessage() {
   const optimistic = [];
   const batch = staged.map(it => ({ kind: it.kind, uploadId: it.uploadId }));
   if (text) batch.push({ kind: 'text', body: text });
-  // Q-2d-F2 idempotency: a failed send retried with unchanged content reuses the same
+  // idempotency: a failed send retried with unchanged content reuses the same
   // batch keys (server dedups by key, so a timeout retry cannot insert twice); if the
   // content fingerprint changes (user edits before resending) it is treated as a new send.
   const fp = JSON.stringify([convId, batch]);
@@ -110,7 +110,7 @@ export async function sendChatMessage() {
   try {
     const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch: batchBody } });
     if (chat.convId !== convId) return;
-    chat.pendingBatchKey = null; // Q-2d-F2: successful send retires the key (next send is fresh)
+    chat.pendingBatchKey = null; // successful send retires the key (next send is fresh)
     chat.pendingBatchFp = '';
     const created = data.messages || [];
     const missingTexts = [];
@@ -181,7 +181,7 @@ export function chatOnFilePicked(input) {
 }
 
 export function chatStageFiles(files) {
-  // AI-9: closed-conversation stage gate (stale-tab / drop-race fallback — the input bar is not
+  // closed-conversation stage gate (stale-tab / drop-race fallback — the input bar is not
   // rendered on a closed conversation; prevents orphan staged items lingering in memory)
   if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; }
   files.forEach(f => {

@@ -1,5 +1,5 @@
 /**
- * 按角色会话分键回归（B4：直接 import core/state + core/api）。
+ * 按角色会话分键回归（直接 import core/state + core/api）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

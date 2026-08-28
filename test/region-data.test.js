@@ -2,15 +2,15 @@
  * 地区数据纯函数回归（R2-12 赋分组件修补：上海 11 等第 / 浙江 20 区间 / 政策年份分流）
  *
  * 直测 region-data.js 单源：
- *   - 上海 gradeSystems 修正为 11 等第 × 3 分（70-40，含 B-/C-，等级序列 A+..E）；
- *   - 浙江 2022 高考起新制 = 20 赋分区间（zhejiang20，I1..I20，2022.1 选考即新制，架构审计 M2 修正），
- *     zhejiang21 保留为历史档（2017-2021 高考）；
- *   - policyOf(provinceId, year?) 年份感知：改革首考年前 → 传统文理；浙江 ≤2021 → 21 档旧制；
- *     ≥2022 → 20 区间；学生端无 year → 恒最新。
+ * - 上海 gradeSystems 修正为 11 等第 × 3 分（70-40，含 B-/C-，等级序列 A+..E）；
+ * - 浙江 2022 高考起新制 = 20 赋分区间（zhejiang20，I1..I20，2022.1 选考即新制，架构审计 修正），
+ * zhejiang21 保留为历史档（2017-2021 高考）；
+ * - policyOf(provinceId, year?) 年份感知：改革首考年前 → 传统文理；浙江 ≤2021 → 21 档旧制；
+ * ≥2022 → 20 区间；学生端无 year → 恒最新。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SUFE_REGIONS } from '../src/shared/region-data.js'; // V-2-4c 地区数据单源（服务端/客户端共用）
+import { SUFE_REGIONS } from '../src/shared/region-data.js'; // 地区数据单源（服务端/客户端共用）
 
 const R = SUFE_REGIONS;
 
@@ -125,7 +125,7 @@ test('新设 2026 单位坐标就位：嘉定·菊园街道 / 娄塘镇（行政
   assert.ok(Math.abs(lt.lat - 31.43) < 0.05 && Math.abs(lt.lng - 121.22) < 0.05, `娄塘镇坐标 ${JSON.stringify(lt)} 应在嘉定北部`);
 });
 
-// S0-04：allowsOffline 语义锁——仅上海可线下授课（S4/M8 地址条件依赖：非上海强制 online）
+// allowsOffline 语义锁——仅上海可线下授课（S4/地址条件依赖：非上海强制 online）
 test('allowsOffline：仅上海返回 true，其余 30 省全 false', () => {
   assert.equal(R.allowsOffline('shanghai'), true, '上海允许线下');
   for (const p of R.provinces) {

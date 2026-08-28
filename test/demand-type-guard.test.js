@@ -1,15 +1,15 @@
 /**
- * 需求域服务端校验回归（S3 单科目新模型，§15）
+ * 需求域服务端校验回归（S3 单科目新模型，）
  *
  * handleCreateDemand（demand/api.js）sanitizeDemand + 地址门禁：
- *   - subject 单值白名单（SUBJECTS ∪ NONACADEMIC_PROJECTS），非法 → INVALID_PARAMS（400，拒绝不静默）；
- *   - grade 单值白名单（STUDENT_GRADES），非法 → INVALID_PARAMS（400）；
- *   - province 必填且合法（PROVINCE_REQUIRED）；非线下许可省强制 online；
- *   - teachingMethod online 清空地址；offline/both 必须合法「区·镇/街道」上海地址（ADDRESS_REQUIRED）；
- *   - preferredTags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（非法静默回退空数组，超限截断而非拒绝）；
- *   - preferredGender 白名单 ['','male','female']，非法回退 ''（不限）；
- *   - currentScore 单值文本：数字钳 [0, subjectMaxFor]（region-data 单源），等第字母保留，缺失空串；
- *   - targetType 由 subject 派生（academic/nonacademic），不落库。
+ * - subject 单值白名单（SUBJECTS ∪ NONACADEMIC_PROJECTS），非法 → INVALID_PARAMS（400，拒绝不静默）；
+ * - grade 单值白名单（STUDENT_GRADES），非法 → INVALID_PARAMS（400）；
+ * - province 必填且合法（PROVINCE_REQUIRED）；非线下许可省强制 online；
+ * - teachingMethod online 清空地址；offline/both 必须合法「区·镇/街道」上海地址（ADDRESS_REQUIRED）；
+ * - preferredTags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（非法静默回退空数组，超限截断而非拒绝）；
+ * - preferredGender 白名单 ['','male','female']，非法回退 ''（不限）；
+ * - currentScore 单值文本：数字钳 [0, subjectMaxFor]（region-data 单源），等第字母保留，缺失空串；
+ * - targetType 由 subject 派生（academic/nonacademic），不落库。
  *
  * D1 形状同 teacher-profile-guard.test.js：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch。
  */
@@ -209,9 +209,9 @@ test('QA 最小 body（缺 currentScore/preferredTags/preferredGender 等）→ 
 });
 
 // ---------------------------------------------------------------------------
-// PA-1d-F1: 列表信封对齐契约 {items}（I-33/I-34）。前端 useDemands/demands-service
+// 列表信封对齐契约 {items}（/）。前端 useDemands/demands-service
 // 读 data.items（+ total），后端曾返回 {demands} 致生产恒空列表；smoke mock 按前端预期
-// {items} 造数掩盖了形状失配（Q-6 教训）。变异守护：信封改回 {demands} → 本测试红。
+// {items} 造数掩盖了形状失配（教训）。变异守护：信封改回 {demands} → 本测试红。
 // ---------------------------------------------------------------------------
 test('I-33 envelope: handleGetMyDemands returns { items } (no legacy { demands } key)', async () => {
   const raw = rawOf(); const db = d1Shim(raw);

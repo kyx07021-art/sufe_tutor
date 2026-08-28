@@ -1,6 +1,6 @@
 /**
- * Q-6-M2：boot 装配 appearance（--g-grid 注入 + .lg-orb 生成，Z-14-F2 复发锁）。
- * Z-14-F2 根因：appearance.js 定义 applyLg/applyOrbs/applyTheme/initAppearance 但 boot 从未装配 →
+ * boot 装配 appearance（--g-grid 注入 + .lg-orb 生成，复发锁）。
+ * 根因：appearance.js 定义 applyLg/applyOrbs/applyTheme/initAppearance 但 boot 从未装配 →
  * 光球零生成 + --g-grid 未注入 → 主页背景元素全没了。此断言锁 boot 后装配真实发生。
  * 独立文件（booted 幂等标志跨测试共享，同文件第二个 boot 会跳过 initAppearance）。
  */

@@ -1,5 +1,5 @@
 /**
- * 地区数据单源（V-2-4c：从 client/constants 提升到 shared，服务端与客户端共用；
+ * 地区数据单源（从 client/constants 提升到 shared，服务端与客户端共用；
  * 客户端经 client/constants/region-data.js re-export 保持分层入口）。
  */
 import { FIVE_FOUR_PROVINCES, SUBJECTS } from './enums.js';
@@ -132,7 +132,7 @@ import { FIVE_FOUR_PROVINCES, SUBJECTS } from './enums.js';
     },
     // 浙江 20 赋分区间起用年：官方通知「2022 年 1 月选考科目考试起」改 20 区间（web 核实，来源见文件头
     // ZJ20_RANGES 注释）。2022 年 1 月选考由 2022 届（2019 级）高三参加 → 2022 届毕业即新制，
-    // 故毕业年 ≥ 2022 用 20 区间、≤ 2021 用 21 档旧制（架构审计 M2 修正：原记 2023 错位一年）
+    // 故毕业年 ≥ 2022 用 20 区间、≤ 2021 用 21 档旧制（架构审计 修正：原记 2023 错位一年）
     zhejiang20Year: 2022,
 
     // 赋分制档位（type=grade 提供等级选项；type=standard 按分数录入并标注标准分）
@@ -345,14 +345,14 @@ import { FIVE_FOUR_PROVINCES, SUBJECTS } from './enums.js';
 
     stageOfGrade(gradeId) {
       if (!gradeId) return null;
-      if (gradeId.startsWith('prep')) return 'middle'; // M3：预备班=初中阶段（上海五四学制六年级属初中；须先于 'p' 前缀判断）
+      if (gradeId.startsWith('prep')) return 'middle'; // 预备班=初中阶段（上海五四学制六年级属初中；须先于 'p' 前缀判断）
       if (gradeId.startsWith('p')) return 'primary';
       if (gradeId.startsWith('junior')) return 'middle';
       if (gradeId.startsWith('senior')) return 'senior';
       return null;
     },
 
-    // M3：学制地区差异——五四学制省份（小学五年+初中四年；六年级=初中预备班，无小学六年级）。
+    // 学制地区差异——五四学制省份（小学五年+初中四年；六年级=初中预备班，无小学六年级）。
     // 单源 FIVE_FOUR_PROVINCES（shared/enums）；默认六三学制。
     isFiveFour(provinceId) {
       return FIVE_FOUR_PROVINCES.includes(provinceId);

@@ -1,23 +1,23 @@
 /**
  * S5 contract domain — standalone-model guard tests (load-bearing lines 1 & 2).
  *
- * The S5 refactor replaces the AI-4a merged signing_contracts table with an independent
+ * The S5 refactor replaces the a merged signing_contracts table with an independent
  * `contracts` table: no signing layer (no stage / signing_status / demand_id / initiator /
  * price), 2-state contract_status ('signing' | 'signed') + a revoked marker, self-contained
  * party tuple, and a nullable conversation_id with NO FK (contracts are independent evidence
  * that survive conversation deletion).
  *
  * Two load-bearing lines, each locked with mutation guards:
- *   1. State machine: draft -> double sign -> revoke (2-state + revoked marker, no demand /
- *      conversation coupling).
- *   2. Evidence chain: ledger idempotency (contract_id + body_hash, time-decoupled) +
- *      verifyChain tamper detection + archived structure-only validation.
+ * 1. State machine: draft -> double sign -> revoke (2-state + revoked marker, no demand /
+ * conversation coupling).
+ * 2. Evidence chain: ledger idempotency (contract_id + body_hash, time-decoupled) +
+ * verifyChain tamper detection + archived structure-only validation.
  *
- * Also carries the Q-2e-F3/F4/F5 acceptance assertions migrated from the deleted
+ * Also carries the //acceptance assertions migrated from the deleted
  * test/contract-revoked-rebuild.test.js:
- *   - Q-2e-F3  draft entry strips the business separator from user fields
- *   - Q-2e-F4  a revoked contract rejects further sign (409) and never backfills the ledger
- *   - Q-2e-F5  cancel re-reads and re-rebuilds the body when the version-CAS race is lost
+ * - draft entry strips the business separator from user fields
+ * - a revoked contract rejects further sign (409) and never backfills the ledger
+ * - cancel re-reads and re-rebuilds the body when the version-CAS race is lost
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -107,7 +107,7 @@ const ledgerCount = (raw, contractId) => raw.prepare('SELECT COUNT(*) c FROM con
 
 // Proxy that forces the sign/cancel rebuild UPDATE (`SET contract_md=... WHERE id=? AND version=?`)
 // to return changes=0 on its Nth call — simulates a concurrent writer that advanced the version
-// between the row read and the rebuild write (the Q-2e-F5 / loser-of-double-sign race).
+// between the row read and the rebuild write (the / loser-of-double-sign race).
 function raceMdUpdateDb(db, failAt) {
   let calls = 0;
   return new Proxy(db, {
@@ -289,7 +289,7 @@ test('S5 ledger mutation: chain-tail CAS removed -> a stale-prev writer is accep
 });
 
 // ============================================================
-// Q-2e-F4 / Q-2e-F5 migrated: revoked gate + cancel re-read-rebuild
+// / migrated: revoked gate + cancel re-read-rebuild
 // ============================================================
 
 test('Q-2e-F4: revoked contract rejects further sign (409) and never backfills the ledger', async () => {
@@ -376,7 +376,7 @@ test('S5 lifecycle: contract survives conversation deletion (no FK cascade); ver
 test('S5 migration: signing_contracts -> contracts (id preserved 1:1, pending->signing, table dropped, rerun no-op)', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, ENV); // fresh DB: contracts table exists, no signing_contracts
-  // Recreate the legacy AI-4a merged table shape + one seeded row.
+  // Recreate the legacy a merged table shape + one seeded row.
   raw.exec(`CREATE TABLE signing_contracts (
     id INTEGER PRIMARY KEY AUTOINCREMENT, student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
     conversation_id INTEGER, stage TEXT NOT NULL DEFAULT 'signing', contract_status TEXT NOT NULL DEFAULT 'pending',
@@ -406,7 +406,7 @@ test('S5 migration: signing_contracts -> contracts (id preserved 1:1, pending->s
 });
 
 // ============================================================
-// Q-2e-F3 migrated: draft entry strips the business separator
+// migrated: draft entry strips the business separator
 // ============================================================
 
 test('Q-2e-F3: draft entry strips the business separator injected in schedule/plan/location', async () => {
@@ -428,7 +428,7 @@ test('Q-2e-F3: draft entry strips the business separator injected in schedule/pl
   assert.ok(!ct.contract_md.includes('恶意尾部<!-- 业务条款结束'), 'injected separator no longer forms a marker');
 });
 
-// PA-1e-F2: a signing-state contract whose body was edited after a partial sign must NOT verify
+// a signing-state contract whose body was edited after a partial sign must NOT verify
 // as invalid. The ledger holds the partial-sign body; handleModifyContract changes the body without
 // touching the ledger, so replaying the current draft body against the stale tail would misreport
 // invalid. The verify gate limits chain validation to the signed terminal state (revoked rows keep

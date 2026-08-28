@@ -8,21 +8,21 @@ import * as actions from './actions.js';
 
 const ACTION_MAP = {
   'teacher.openProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
-  // Z-10-F1: write-review entry (profile panel button, teacherId read from module state — NOT el)
+  // write-review entry (profile panel button, teacherId read from module state — NOT el)
   'teacher.openReview': () => actions.openReviewModal(),
   'teacher.closeReview': actions.closeModalAction,
   'teacher.submitReview': actions.submitReview,
   'teacher.setStars': el => actions.setReviewStars(el),
   'teacher.matchDetail': el => actions.showTeacherMatchDetail(Number(el.dataset.id)),
   'teacher.toggleFilters': actions.toggleFilters,
-  // Z-3-F1 F1d1: tag-pick toggles on the profile form (personality + nonacademic projects)
+  // d1: tag-pick toggles on the profile form (personality + nonacademic projects)
   'teacher.toggleTagPick': el => actions.teacherTagPick(el),
-  // Z-3-F1 F1d2: gaokao editor first-subject / science-arts-track pill switches
+  // d2: gaokao editor first-subject / science-arts-track pill switches
   'teacher.pickGkPill': el => actions.pickGkPill(el),
   'teacher.pickGkTrack': el => actions.pickGkTrack(el),
-  // Z-3-F1 F1d3: profile form save (collect → validate → POST → toast + re-fetch)
+  // d3: profile form save (collect → validate → POST → toast + re-fetch)
   'teacher.saveProfile': actions.saveProfile,
-  // Z-3-F1 F1e: verification block — chsi⇄admission pane toggle + both submit channels
+  // e: verification block — chsi⇄admission pane toggle + both submit channels
   'teacher.showVerifyChsi': actions.showVerifyChsi,
   'teacher.showVerifyAdmission': actions.showVerifyAdmission,
   'teacher.submitVerifyChsi': actions.submitVerifyChsi,
@@ -52,7 +52,7 @@ function onLoad() {
     auth: false,
     enter: () => actions.loadTeachers(),
   });
-  // Z-3-F1: teacher profile page — enter fetches own profile and renders the edit form
+  // teacher profile page — enter fetches own profile and renders the edit form
   registerPage({
     id: 'teacher-profile',
     roles: [ROLES.TEACHER],
@@ -62,17 +62,17 @@ function onLoad() {
     enter: () => actions.enterTeacherProfile(),
   });
   document.addEventListener('click', onActionClick);
-  // Q-4a-M1b/M1c: teacher sort/filter controls change delegation (shell data-change attrs)
+  // /c: teacher sort/filter controls change delegation (shell data-change attrs)
   function onChange(e) {
     const el = e.target;
     if (!el || !el.dataset) return;
     if (el.dataset.change === 'teacher.applyFilters') { actions.applyFilters(); return; }
     if (el.dataset.change === 'teacher.sort') { actions.teacherSortFromSelect(el); }
-    // F1e: admission photo file picker (change, not click — file inputs are skipped in click delegation)
+    // e: admission photo file picker (change, not click — file inputs are skipped in click delegation)
     if (el.dataset.action === 'teacher.stageAdmission') { actions.stageAdmissionFile(el); }
   }
   document.addEventListener('change', onChange);
-  // Z-8-F1: avatar clicks are intercepted by anim.js capture and dispatch profile-panel-open
+  // avatar clicks are intercepted by anim.js capture and dispatch profile-panel-open
   // (core must not depend on features); the profile panel belongs to the teacher domain, so this
   // feature consumes the event (fixes dead avatar clicks across router/chat/student renderers)
   const onProfileOpen = e => { if (e.detail && e.detail.userId) actions.openProfilePanel(Number(e.detail.userId)); };

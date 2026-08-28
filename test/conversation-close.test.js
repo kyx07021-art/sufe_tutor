@@ -1,23 +1,23 @@
 /**
- * AI-1：结束关系接口（POST /api/conversations/:id/close）——会话 active→closed + 级联自动收束。
+ * 结束关系接口（POST /api/conversations/:id/close）——会话 active→closed + 级联自动收束。
  *
  * S3/S5 新模型定案：
  * - S3 单科目：需求状态收敛 open/closed（无 contracted/revoked）；需求不随 close 释放
- *   （dbCloseConversationCascade 无需求释放语句，返回 { closeWon, rejected: [], revoked }）。
+ * （dbCloseConversationCascade 无需求释放语句，返回 { closeWon, rejected: [], revoked }）。
  * - S5 独立合同：contracts 表（无 stage/signing_status/demand_id/initiator）；关闭会话应撤销
- *   进行中（contract_status='signing'）合同、保留已签署（signed）合同存证（A5 终态门禁）；
- *   signing 层（pending 签约 / SIGNING_REJECTED 通知 / 气泡终态覆写）整体删除。
+ * 进行中（contract_status='signing'）合同、保留已签署（signed）合同存证（A5 终态门禁）；
+ * signing 层（pending 签约 / SIGNING_REJECTED 通知 / 气泡终态覆写）整体删除。
  *
  * 当前可跑用例（不依赖级联 SQL）：
- *   1. 鉴权/参与方：无令牌 401；非参与方 close → 404（不泄露会话存在性）；
- *   2. capToken 门禁：无/错 capToken → 403，会话仍 active、级联零发生。
+ * 1. 鉴权/参与方：无令牌 401；非参与方 close → 404（不泄露会话存在性）；
+ * 2. capToken 门禁：无/错 capToken → 403，会话仍 active、级联零发生。
  *
  * 级联用例（主链路/幂等/并发/双方元组/无待收束）已改写至 contracts 表，与 S2 落地的
  * dbCloseConversationCascade（SELECT contracts WHERE contract_status='signing' AND revoked=0 →
  * 逐行 UPDATE revoked=1, revoked_by=0）逐条对齐；响应形状 { ok, closed, contractsRevoked } 按
  * handler 实况断言（无 signingsRejected 字段——signing 层已删除）。
  * 注：原「快照漂移竞态」用例依赖 signing_contracts 专属 driftShim，S5 contracts 表的等价 shim
- * 依赖 S2 落地 SQL 形状——由 S2-B5 落地时重建（锁 UPDATE 守卫承重面）。
+ * 依赖 S2 落地 SQL 形状——由 S2-落地时重建（锁 UPDATE 守卫承重面）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -200,5 +200,5 @@ test('无待收束行：active 会话 close 正常，仅 CONVERSATION_CLOSED + c
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM activity_log WHERE action=\'conversation.close\'').get().c, 1);
 });
 // 注：原「快照漂移竞态」用例依赖 signing_contracts 专属 driftShim（batch 事务内模拟对端并发推进），
-// S5 contracts 表的等价 shim 依赖 S2 落地的级联 SQL 形状，无法预写——由 S2-B5 落地时重建该用例
+// S5 contracts 表的等价 shim 依赖 S2 落地的级联 SQL 形状，无法预写——由 S2-落地时重建该用例
 // （锁 UPDATE 守卫 WHERE contract_status='signing' AND revoked=0 的承重面）。

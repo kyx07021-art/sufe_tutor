@@ -1,22 +1,22 @@
 /**
- * V-4-1c D1 副本演练：迁移幂等实测（发布 2.0.0 前置）。
- *   1. 导出生产 D1（schema+数据）到本地 SQL；
- *   2. 载入全新本地 SQLite（foreign_keys=ON，镜像生产约束）→ 快照各表 行数/列集/内容摘要；
- *   3. 跑真实迁移编排 initDb（src/server/core/db.js，与 2.0.0 部署同源）→ 断言无错 + notifications 补 type/params 列；
- *   4. 幂等：清 schema_meta 强制重跑全量迁移 → 断言第二次运行 行数/列集/内容 全表一致
- *      （唯一已知良性例外 = seedAdmins 对既有 admin 重写 password_hash/salt，见下）；
- *   5. 报告首次迁移的内容增量（预期：schema_meta 版本行 +1；admin 口令列重写 = 已知良性非幂等，逐项列明）。
+ * D1 副本演练：迁移幂等实测（发布 2.0.0 前置）。
+ * 1. 导出生产 D1（schema+数据）到本地 SQL；
+ * 2. 载入全新本地 SQLite（foreign_keys=ON，镜像生产约束）→ 快照各表 行数/列集/内容摘要；
+ * 3. 跑真实迁移编排 initDb（src/server/core/db.js，与 2.0.0 部署同源）→ 断言无错 + notifications 补 type/params 列；
+ * 4. 幂等：清 schema_meta 强制重跑全量迁移 → 断言第二次运行 行数/列集/内容 全表一致
+ * （唯一已知良性例外 = seedAdmins 对既有 admin 重写 password_hash/salt，见下）；
+ * 5. 报告首次迁移的内容增量（预期：schema_meta 版本行 +1；admin 口令列重写 = 已知良性非幂等，逐项列明）。
  *
- * 已知良性非幂等（V-4-1c 独立审计 F1 裁决）：seedAdmins（auth/schema.js:82-97）对已存在的 admin
- *   用户名，每次全量迁移都 hashPassword 新盐 → password_hash/salt 恒变。故 users 表内容摘要拆三份：
- *   digestMain（除口令列外全内容，应恒稳）+ digestNonAdminCred（非 admin 行口令列，应恒稳）+
- *   digestAdminCred（admin 行口令列，seedAdmins 良性可变，仅报告不判败）。其余表全列摘要。
+ * 已知良性非幂等（独立审计 裁决）：seedAdmins（auth/schema.js:82-97）对已存在的 admin
+ * 用户名，每次全量迁移都 hashPassword 新盐 → password_hash/salt 恒变。故 users 表内容摘要拆三份：
+ * digestMain（除口令列外全内容，应恒稳）+ digestNonAdminCred（非 admin 行口令列，应恒稳）+
+ * digestAdminCred（admin 行口令列，seedAdmins 良性可变，仅报告不判败）。其余表全列摘要。
  *
  * 用法：node scripts/d1-migration-drill.mjs [--export <sql路径>]
- *   --export 复用已有导出文件则跳过远程导出；缺省自动导出生产库。
+ * --export 复用已有导出文件则跳过远程导出；缺省自动导出生产库。
  * 注意：迁移读取的 ADMIN_USERNAMES 只走 env（生产用 Worker Secrets；演练不配置则名单为空，
- *   不会 seed 新 admin——fail-open 已清，无仓库明文回落），演练中任何 admin 行删除都会显式
- *   报告，供人工对照生产名单裁决。
+ * 不会 seed 新 admin——fail-open 已清，无仓库明文回落），演练中任何 admin 行删除都会显式
+ * 报告，供人工对照生产名单裁决。
  */
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';

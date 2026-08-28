@@ -1,19 +1,19 @@
 /**
- * S3-3: student_demands 数组模型 → 单科目新模型 迁移脚本实测（node --test）
+ * student_demands 数组模型 → 单科目新模型 迁移脚本实测（node --test）
  *
  * Locks the migration core (scripts/migrate-demands-single-subject.mjs):
- *   1. pure helpers: parseJsonArray / mapStatus / score extraction;
- *   2. computeMigratedRows: array→per-subject split, current_score single-value extraction,
- *      preferred/address/grade field carry-over, empty target_subjects drop;
- *   3. runMigrationOnLocal full drill: old shape → new shape, status mapping, idempotency,
- *      mixed-shape (schema.js ensureColumns path) re-split, --keep-old path;
- *   4. DDL parity with src/server/domains/demand/schema.js (column sets & order);
- *   5. buildApplySql generates SQL that parses and round-trips correctly.
+ * 1. pure helpers: parseJsonArray / mapStatus / score extraction;
+ * 2. computeMigratedRows: array→per-subject split, current_score single-value extraction,
+ * preferred/address/grade field carry-over, empty target_subjects drop;
+ * 3. runMigrationOnLocal full drill: old shape → new shape, status mapping, idempotency,
+ * mixed-shape (schema.js ensureColumns path) re-split, --keep-old path;
+ * 4. DDL parity with src/server/domains/demand/schema.js (column sets & order);
+ * 5. buildApplySql generates SQL that parses and round-trips correctly.
  *
  * Mutation guards (delete the implementation → the assertion turns red):
- *   - mapStatus('contracted') === 'closed' / mapStatus('revoked') === 'open' (delete mapping → red);
- *   - split count after a 2-subject row (drop the loop → red);
- *   - idempotency signal (drop the subject!='' early-exit → re-run splits again → red).
+ * - mapStatus('contracted') === 'closed' / mapStatus('revoked') === 'open' (delete mapping → red);
+ * - split count after a 2-subject row (drop the loop → red);
+ * - idempotency signal (drop the subject!='' early-exit → re-run splits again → red).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -265,7 +265,7 @@ test('runMigrationOnLocal: conversations.demand_id re-pointed to the new table (
   assert.equal(raw.prepare('SELECT subject FROM student_demands WHERE id = 2').get()?.subject, 'chinese',
     'preserved id 2 = legacy demand 2');
 
-  // MUTATION GUARD (G2): conversations.demand_id must NOT be NULL. The DROP fires the
+  // MUTATION GUARD (): conversations.demand_id must NOT be NULL. The DROP fires the
   // ON DELETE SET NULL FK (chat/schema.js); if the snapshot-restore block in runMigrationOnLocal is
   // deleted, demand_id stays NULL (the old id no longer resolves) and this assertion turns red.
   const convs = raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all();
@@ -390,7 +390,7 @@ test('buildApplySql: conversation snapshot-restore SQL preserves demand links (R
   raw.exec(sql);
   const convs = raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all();
   assert.deepEqual(convs.map(c => c.demand_id), [1, 2], 'SQL path re-points conversations to preserved ids');
-  // MUTATION GUARD (G2 · Gap 1): the demand_id [1,2] + zero-dangling assertions above cannot see a
+  // MUTATION GUARD (· Gap 1): the demand_id [1,2] + zero-dangling assertions above cannot see a
   // silent association swap. Without id-preservation the split rows are AUTOINCREMENTed in emit
   // order (math→1, physics→2, chinese→3) and the snapshot-restore re-points conversation 2 to id 2
   // = physics instead of chinese — the ids still resolve, so nothing dangles, but the link is wrong.
@@ -456,7 +456,7 @@ test('buildApplySql: post-apply conversations demand_id count equals the restore
   const expected = expectedRestoredConversationCount(before, preservedIds);
   assert.equal(expected, 2, 'two conversations are restorable, the dropped-demand one is not');
 
-  // MUTATION GUARD (G2 · Gap 2): delete the snapshot-restore (DROP then leaves every demand_id NULL)
+  // MUTATION GUARD (· Gap 2): delete the snapshot-restore (DROP then leaves every demand_id NULL)
   // → restored !== expected → this assertion turns red.
   const sql = buildApplySql(newRows, { keepOld: false });
   raw.exec(sql);

@@ -1,5 +1,5 @@
 /**
- * Z-13-F3：JSON 咽喉反序列化单测——safeJsonObject/safeJsonArray 是路由层零 JSON.parse 契约
+ * JSON 咽喉反序列化单测——safeJsonObject/safeJsonArray 是路由层零 JSON.parse 契约
  * （规则 42）的承重面，complaints/repo.js:74 的 target_snapshot 反序列化等走此咽喉。
  * 覆盖：空值回退 / 对象原样 / 数组拒绝 / 合法字符串解析 / 非法与标量回退 / 自定义 fallback。
  */

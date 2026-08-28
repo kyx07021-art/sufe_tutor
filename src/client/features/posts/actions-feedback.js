@@ -51,7 +51,7 @@ export async function submitFeedback() {
   if (!content) { showToast(TEXT.FEEDBACK_EMPTY, 'error'); return; }
   try {
     await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
-    invalidate('admin'); // AF-8: refresh the admin feedback list immediately (same-session consistency, Q-3b-L2)
+    invalidate('admin'); // AF-8: refresh the admin feedback list immediately (same-session consistency, )
     closeModal();
     showToast(TEXT.FEEDBACK_SENT_TOAST);
   } catch (err) {

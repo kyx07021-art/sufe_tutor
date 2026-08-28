@@ -1,5 +1,5 @@
 /**
- * PA-1f-F3 guard tests: reviews GET endpoints C5 strict query parsing.
+ * guard tests: reviews GET endpoints C5 strict query parsing.
  *
  * GET /api/reviews?teacherUserId= and GET /api/admin/reviews?teacherUserId= accept only
  * /^\d+$/ ids. Dirty input ('5abc', empty string) -> 400 INVALID_PARAMS instead of parseInt
@@ -73,7 +73,7 @@ async function adminToken(db, raw) {
 const req = token => ({ headers: new Headers(token ? { 'X-Auth-Token': token } : {}) });
 const dbOf = () => { const raw = new DatabaseSync(':memory:'); raw.exec('PRAGMA foreign_keys = ON'); return { raw, db: d1Shim(raw) }; };
 
-// Review moderation is a dangerous op (P12) and needs a capToken. Directly seed a danger_caps
+// Review moderation is a dangerous op () and needs a capToken. Directly seed a danger_caps
 // row so the full confirmDangerOtp SQL path runs (session-bound, consume-on-use).
 async function capOf(raw, token) {
   const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(token));

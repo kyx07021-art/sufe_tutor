@@ -1,5 +1,5 @@
 /**
- * #161 · 资料共享帖子可点击浮窗查看全文（B4：直接 import posts ESM）。
+ * #161 · 资料共享帖子可点击浮窗查看全文（直接 import posts ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

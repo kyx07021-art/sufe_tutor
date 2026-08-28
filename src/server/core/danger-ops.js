@@ -63,7 +63,7 @@ export async function issueCapToken(db, req) {
       ON CONFLICT(user_id, session_id) DO UPDATE SET token_hash=excluded.token_hash, expires_at=excluded.expires_at`,
       [userId, sessionId, await tokenDigest(token), exp]);
   } catch {
-    // Z-1-F1：落库失败返回空串 → 调用方（auth handleReAuth）判空返 500 并告警，
+    // 落库失败返回空串 → 调用方（auth handleReAuth）判空返 500 并告警，
     // 绝不返回死 token（曾静默吞错返 token，D1 瞬时异常时 re-auth 假成功、后续危险操作恒 403）
     return '';
   }

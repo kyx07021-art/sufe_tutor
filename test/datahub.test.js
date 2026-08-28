@@ -1,5 +1,5 @@
 /**
- * 会话数据层（core/datahub.js）回归（B4：直接 import ESM）。
+ * 会话数据层（core/datahub.js）回归（直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

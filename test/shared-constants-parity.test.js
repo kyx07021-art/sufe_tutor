@@ -1,5 +1,5 @@
 /**
- * V-1-1 共享常量自洽校验（B4：直接 import shared ESM，不再 vm 加载根 constants）。
+ * 共享常量自洽校验（直接 import shared ESM，不再 vm 加载根 constants）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,7 +56,6 @@ test('服务端静态扫描：error(MSG. 与 8 处动态三元 error 调用已�
       else if (e.name.endsWith('.js')) files.push(p);
     }
   };
-  walk('server');
   walk('src/server');
   files.push('_worker.js');
   const src = files.map(f => readFileSync(f, 'utf8')).join('\n');

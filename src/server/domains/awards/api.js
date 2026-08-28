@@ -1,5 +1,5 @@
 /**
- * awards 域路由（S6-A5 下线态）：awards 在新站不上线（W1 不保留向后兼容），
+ * awards 域路由（S6-A5 下线态）：awards 在新站不上线（不保留向后兼容），
  * 全部 handler（handleCreateAward/handleGetAwards/handleDeleteAward/handleAdminAwards/
  * handleAdminAwardProof/handleAdminAwardAction）与路由随之下线删除。
  *

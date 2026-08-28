@@ -1,15 +1,15 @@
 /**
- * S0-08 session choke mutation guards (in-place reuse of v2 core/session.js).
+ * session choke mutation guards (in-place reuse of v2 core/session.js).
  *
  * Locks the token storage contract (F-04): auth_sessions stores only the SHA-256 digest of the
  * bearer token — never the plaintext and never a reversible form — plus the revoke/list lifecycle.
  * Device-dedup / multi-device behavior is already locked by test/session-device.test.js.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - issueAuthToken stores the raw token instead of tokenDigest(token) -> token_hash === token -> red
- *   - revokeToken drops the WHERE user_id=? (cross-user revoke) -> another user's row is deleted -> red
- *   - revokeToken stops returning whether a row changed -> idempotent second call reports true -> red
- *   - listSessions adds token_hash/token to the SELECT -> digest/plaintext leaks into device list -> red
+ * - issueAuthToken stores the raw token instead of tokenDigest(token) -> token_hash === token -> red
+ * - revokeToken drops the WHERE user_id=? (cross-user revoke) -> another user's row is deleted -> red
+ * - revokeToken stops returning whether a row changed -> idempotent second call reports true -> red
+ * - listSessions adds token_hash/token to the SELECT -> digest/plaintext leaks into device list -> red
  *
  * Uses a real node:sqlite in-memory DB (same d1Shim as session-device.test.js).
  */

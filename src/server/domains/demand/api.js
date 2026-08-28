@@ -1,8 +1,8 @@
 /**
  * 路由模块：学生需求（单科目新模型 CRUD + 广场 + 开放/关闭）。
  *
- * §15 定案：联系方式不存储、teaching_method 三态、target_type 派生、display_id 删除、
- * intents/pushes 归 S2 删、状态收敛 open/closed。接口形状见 interfaces.md §19 I-33..38。
+ * 定案：联系方式不存储、teaching_method 三态、target_type 派生、display_id 删除、
+ * intents/pushes 归 S2 删、状态收敛 open/closed。接口形状见 interfaces.md ..38。
  * 身份一律凭令牌（requireUser）；写操作关口 = 归属校验 → 状态门禁 → 数据层 → logEvent。
  */
 import { json, errorMsg, sanitizeTimeSlots, parseIdParam } from '../../core/util.js';
@@ -14,10 +14,10 @@ import { SUFE_REGIONS } from '../../../shared/region-data.js';
 import {
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
   dbSetDemandStatus,
-} from './repo.js'; // L1：本域直连，不依赖遗留 server/db.js re-export 图（该图随 S1-S6 并行重写易断）
-import { matchDegree, matchCount } from '../teacher/match/index.js'; // PA-1d-F3：S4 匹配度纯函数单源（禁止复制实现）
-import { dbGetTeacherProfile } from '../teacher/repo.js'; // PA-1d-F3：教师档案 = match 上下文（I-34 对应当前教师）
-import { makeComparator } from '../teacher/list.js'; // PA-1d-F3：nulls-last 排序（教师广场 S4-12 同款复用）
+} from './repo.js'; // 本域直连，不依赖遗留 server/db.js re-export 图（该图随 S1-S6 并行重写易断）
+import { matchDegree, matchCount } from '../teacher/match/index.js'; // S4 匹配度纯函数单源（禁止复制实现）
+import { dbGetTeacherProfile } from '../teacher/repo.js'; // 教师档案 = match 上下文（对应当前教师）
+import { makeComparator } from '../teacher/list.js'; // nulls-last 排序（教师广场 同款复用）
 import { logEvent } from '../../core/log.js';
 
 // 单科目白名单（academic ∪ nonacademic）：创建/更新强制命中，否则 INVALID_PARAMS（单值无静默回退）
@@ -34,7 +34,7 @@ const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math
 
 /**
  * 需求输入硬化（单科目）：预算钳制 / 白名单 / 截断。非法单值（科目/年级/方式）一律拒绝
- * （I-35 单科目提交，非 v2 数组静默回退语义）；偏好类静默回退/截断（高频表单不因超额打回整表）。
+ * （单科目提交，非 v2 数组静默回退语义）；偏好类静默回退/截断（高频表单不因超额打回整表）。
  */
 function sanitizeDemand(d) {
   d.budgetMin = clampBudget(d.budgetMin);
@@ -66,7 +66,7 @@ function sanitizeDemand(d) {
     const n = Number(cs);
     d.currentScore = Number.isFinite(n) && cs !== ''
       ? String(Math.min(max, Math.max(0, n)))
-      : cs.slice(0, 4); // 等第制（A/B/C/D 等）非数字串，截断防脏（L4：先 trim 再判定）
+      : cs.slice(0, 4); // 等第制（A/B/C/D 等）非数字串，截断防脏（先 trim 再判定）
   }
 
   return d;
@@ -82,7 +82,7 @@ function validateAddress(d) {
 // ============================================================
 // 创建 / 我的 / 广场 / 详情 / 更新 / 删除 / 状态切换
 // ============================================================
-// I-35 创建需求：单科目提交，body 直传（无 v2 {demand} 包装）
+// 创建需求：单科目提交，body 直传（无 v2 {demand} 包装）
 export async function handleCreateDemand(db, body, req) {
   const d = body || {};
   if (typeof d !== 'object' || Array.isArray(d)) return errorMsg('INVALID_PARAMS');
@@ -109,15 +109,15 @@ export async function handleCreateDemand(db, body, req) {
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
-// I-33 我的需求（学生本人；含已关闭）
+// 我的需求（学生本人；含已关闭）
 export async function handleGetMyDemands(db, req) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
-  // I-33 envelope: { items } — frontend useDemands reads data.items (interfaces.md §19 I-33)
+  // envelope: { items } — frontend useDemands reads data.items (interfaces.md )
   return json({ items: await dbGetDemandsByUser(db, me.id) });
 }
 
-// I-34 需求广场（B1 教师视角）：登录可见；排序 match（PA-1d-F3 接 S4）/price；筛选 subjects[]/gender/price 区间
+// 需求广场（教师视角）：登录可见；排序 match（接 S4）/price；筛选 subjects[]/gender/price 区间
 export async function handleGetDemands(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -127,12 +127,12 @@ export async function handleGetDemands(db, url, req) {
   const fRaw = url.searchParams.get('filters');
   if (fRaw) { try { filters = JSON.parse(fRaw); } catch { filters = null; } }
   const demands = await dbGetDemands(db, { filters, sort, order });
-  // I-34 envelope: { items, total } — frontend demands-service reads json.items + json.total
+  // envelope: { items, total } — frontend demands-service reads json.items + json.total
   let items;
   if (me.role === ROLES.TEACHER) {
-    // PA-1d-F3: 教师视角 matchScore/matchCount = 教师档案 × 需求（复用 S4 match 纯函数单源，
+    // 教师视角 matchScore/matchCount = 教师档案 × 需求（复用 S4 match 纯函数单源，
     // normalizeTeacher 防御式消费 mapTeacherProfileRow 双命名行，无需复制实现）。无档案 → 两者 null
-    // （前端按 null 回落不显示），对齐 teacher/list.js S4-12 口径。
+    // （前端按 null 回落不显示），对齐 teacher/list.js 口径。
     const profile = await dbGetTeacherProfile(db, me.id);
     items = demands.map(d => {
       if (profile) {
@@ -144,17 +144,17 @@ export async function handleGetDemands(db, url, req) {
       }
       return d;
     });
-    // I-34 sort=match：按 matchScore 升降序（null 恒置后）；dbGetDemands 的 match 分支已按
+    // sort=match：按 matchScore 升降序（null 恒置后）；dbGetDemands 的 match 分支已按
     // created_at 排序 → 稳定排序下同分保持时间序（无档案/全部 null → 纯时间序回落）。
     if (sort === 'match') items.sort(makeComparator(x => x.matchScore, order));
   } else {
-    // 非教师视角（学生/管理员浏览）：match 字段无意义 → null（与既有 S3-15 占位语义一致）
+    // 非教师视角（学生/管理员浏览）：match 字段无意义 → null（与既有 占位语义一致）
     items = demands.map(x => ({ ...x, matchScore: null, matchCount: null }));
   }
   return json({ items, total: items.length });
 }
 
-// I-38 需求详情：可见性规则（interfaces §19）——owner（学生本人）任意状态可看；
+// 需求详情：可见性规则（interfaces ）——owner（学生本人）任意状态可看；
 // teacher 角色仅 OPEN 可看（广场浏览）；其他角色/无归属 → 404 DEMAND_NOT_FOUND（不泄漏存在性）。
 export async function handleGetDemandDetail(db, demandId, req) {
   const { user: me, err } = await requireUser(db, req);
@@ -176,7 +176,7 @@ async function loadOwnedDemand(db, demandId, userId) {
   return { existing };
 }
 
-// I-36 更新需求（归属；closed 不可改）
+// 更新需求（归属；closed 不可改）
 export async function handleUpdateDemand(db, demandId, body, req) {
   const d = body || {};
   if (typeof d !== 'object' || Array.isArray(d)) return errorMsg('INVALID_PARAMS');
@@ -184,7 +184,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   if (err) return err;
   const g = await loadOwnedDemand(db, demandId, me.id);
   if (g.err) return g.err;
-  if (g.existing.status === STATUS.CLOSED) return errorMsg('DEMAND_STATE_INVALID', 409); // I-36：closed 不可改
+  if (g.existing.status === STATUS.CLOSED) return errorMsg('DEMAND_STATE_INVALID', 409); // closed 不可改
 
   const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
@@ -197,18 +197,18 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
   d.expectedTime = ts.value;
 
-  // L2/L3：条件 UPDATE（status='open' 守卫）changes 判定——并发关闭/删除下不命中 → 404/409 而非假成功
+  // /条件 UPDATE（status='open' 守卫）changes 判定——并发关闭/删除下不命中 → 404/409 而非假成功
   if (!(await dbUpdateDemand(db, demandId, d))) {
     const cur = await dbGetDemandById(db, demandId);
     if (!cur) return errorMsg('DEMAND_NOT_FOUND', 404);
-    return errorMsg('DEMAND_STATE_INVALID', 409); // closed（并发窗口内被关）→ I-36 不可改
+    return errorMsg('DEMAND_STATE_INVALID', 409); // closed（并发窗口内被关）→ 不可改
   }
   await logEvent(db, { action: 'demand.update', actorUserId: me.id, actorRole: 'student',
     entity: 'demand', entityId: demandId, detail: { province: d.province, method: d.teachingMethod, subject: d.subject }, req });
   return json({ message: MSG.DEMAND_UPDATED });
 }
 
-// I-37 删除需求（归属；无「已签约禁删」门禁——合同不绑定需求）
+// 删除需求（归属；无「已签约禁删」门禁——合同不绑定需求）
 export async function handleDeleteDemand(db, demandId, body, req) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
@@ -220,7 +220,7 @@ export async function handleDeleteDemand(db, demandId, body, req) {
   return json({ message: MSG.DEMAND_DELETED });
 }
 
-// S3-13 开放/关闭切换（归属；条件 UPDATE 赢家模式防并发双切）
+// 开放/关闭切换（归属；条件 UPDATE 赢家模式防并发双切）
 async function toggleStatus(db, demandId, body, req, targetStatus) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
@@ -238,7 +238,7 @@ export const handleCloseDemand = (db, demandId, body, req) => toggleStatus(db, d
 export const handleOpenDemand = (db, demandId, body, req) => toggleStatus(db, demandId, body, req, STATUS.OPEN);
 
 // ============================================================
-// demand 域路由表（S3 新模型：I-33..38 + 开放/关闭；intents/pushes 归 S2 删）
+// demand 域路由表（S3 新模型：..38 + 开放/关闭；intents/pushes 归 S2 删）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

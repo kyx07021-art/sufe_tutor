@@ -1,5 +1,5 @@
 /**
- * 需求六·UI 大小滑块 + 资料卡（B4：直接 import state/settings ESM）。
+ * 需求六·UI 大小滑块 + 资料卡（直接 import state/settings ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

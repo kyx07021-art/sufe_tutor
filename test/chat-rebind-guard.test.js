@@ -1,5 +1,5 @@
 /**
- * Q-3b-F2 守护：chat 缓存重挂（独立文件——需依赖源码 import 时 dhOnDomainRefresh('chat', rebindChatCache)
+ * 守护：chat 缓存重挂（独立文件——需依赖源码 import 时 dhOnDomainRefresh('chat', rebindChatCache)
  * 注册存活；cache-invalidate-guard.test.js 的 _dhResetForTests 会清 dhRebinders，无法在共享文件内测）
  *
  * dhRefreshDomain('chat')（版本探针检测 chat 域 bump 后 forceRefresh 替换缓存）后，chat.list 仍持旧

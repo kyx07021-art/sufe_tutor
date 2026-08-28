@@ -1,5 +1,5 @@
 /**
- * 需求八·item3 背景光球外观三档（B4：直接 import appearance/settings ESM）。
+ * 需求八·item3 背景光球外观三档（直接 import appearance/settings ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +20,7 @@ function makeDom() {
 function teardown() { delete globalThis.document; delete globalThis.window; delete globalThis.localStorage; }
 
 function orbSnapshot(dom) {
-  // V-3-1c1 契约：零 <style> 注入（无 lg-orb-style 元素）；动态参数经 --lg-* 自定义属性
+  // 契约：零 <style> 注入（无 lg-orb-style 元素）；动态参数经 --lg-* 自定义属性
   // 数据通道交给 CSS 呈现层——style 属性只含自定义属性、零样式声明（规则 44 呈现层铁律）
   const orbs = [...dom.window.document.querySelectorAll('.lg-orb')];
   const op = orbs.map(o => parseFloat(o.style.getPropertyValue('--lg-op'))).filter(v => !Number.isNaN(v));

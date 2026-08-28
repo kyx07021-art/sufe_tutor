@@ -1,5 +1,5 @@
 /**
- * 二次身份验证（C5 / I-06）：POST /api/auth/verify —— 已登录用户执行敏感操作前的一次性身份复核。
+ * 二次身份验证（C5 / ）：POST /api/auth/verify —— 已登录用户执行敏感操作前的一次性身份复核。
  * 三选二 UI 由前端呈现（手机验证码 / 邮箱验证码 / 密码），服务端只校验用户提交的 ONE 凭证
  * （OTP 为默认分支：手机号优先、邮箱兜底；无绑通道剔除），通过后签发一次性 capToken。
  * capToken 语义复用 danger-ops.issueCapToken（与 re-auth 同款，D1 持久化跨实例）。
@@ -26,7 +26,7 @@ export async function handleVerifyIdentity(db, body, req) {
   const value = String(credential.value || '').trim();
   if (!value) return errorMsg('VERIFY_FAILED', 403);
 
-  // PA-1a-F2: B1 combined authentication rate limit (8/10min, shared with the re-auth bucket —
+  // combined authentication rate limit (8/10min, shared with the re-auth bucket —
   // verify issues the same one-time capToken as re-auth, so both share a per-IP budget). Placed
   // after the empty-value check so a flood of empty requests cannot drain a legitimate user's
   // budget, and before the credential check so every attempted guess counts. Same batch pattern
@@ -68,7 +68,7 @@ export async function handleVerifyIdentity(db, body, req) {
 
   const capToken = await issueCapToken(db, req);
   // Empty capToken means D1 persist failure: a dead token would make downstream dangerous ops
-  // permanently 403 with no observable signal — 500 + warn instead (Z-1-F1 discipline, mirror re-auth).
+  // permanently 403 with no observable signal — 500 + warn instead (discipline, mirror re-auth).
   if (!capToken) {
     console.warn('handleVerifyIdentity: issueCapToken 返回空（D1 异常），拒绝下发');
     return errorMsg('SERVER_ERROR', 500);

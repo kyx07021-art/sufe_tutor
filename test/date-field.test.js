@@ -1,5 +1,5 @@
 /**
- * 需求四十五 首次上课日期分段输入（B4：直接 import core/ui-form）。
+ * 需求四十五 首次上课日期分段输入（直接 import core/ui-form）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

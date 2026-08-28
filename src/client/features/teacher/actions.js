@@ -9,7 +9,7 @@ import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
-import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
+import { escHtml, loaderHtml } from '../../core/dom.js'; // loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
@@ -95,7 +95,7 @@ registerTeacherDomainRefresh();
 
 export async function openProfilePanel(userId) {
   let t = state.allTeachers.find(x => x.user_id === userId);
-  // Z-10-F1: write-review gate data source — GET /api/teacher/profile carries server-side `signed`
+  // write-review gate data source — GET /api/teacher/profile carries server-side `signed`
   // (student has contracted this teacher; single source of truth); list data lacks it.
   // Only logged-in students request it: guests would get 401 and be bounced to the login view by
   // api()'s dead-token handling (regression caught in re-review); guests/non-students fall through
@@ -130,7 +130,7 @@ async function loadReviews(userId) {
   } catch { /* silent */ }
 }
 
-// Z-10-F1: openReviewModal reads the teacher from the module state set by openProfilePanel;
+// openReviewModal reads the teacher from the module state set by openProfilePanel;
 // a null/undefined arg must NOT clobber it (the button's data-action passes no arg — clobbering
 // would make submitReview post teacherUserId=undefined and fail the contracted-gate 403).
 export function openReviewModal(teacherId) {
@@ -173,7 +173,7 @@ export function teacherSortMode(mode) {
   }
   state.teacherSort = mode; sortTeachers(); return mode;
 }
-export function teacherSortFromSelect(el) { // Q-4a-M1c: sort control change delegation
+export function teacherSortFromSelect(el) { // sort control change delegation
   const v = el ? String(el.value || '') : '';
   state.teacherSort = v || 'match';
   sortTeachers();
@@ -191,7 +191,7 @@ export function sortTeachers(arrOrMode, maybeMode) {
       return bm - am;
     });
   }
-  if (Array.isArray(arrOrMode) || arrOrMode == null) { state.allTeachers = arr; } // Q-4a-M1c: write back on no-arg call too (sort control path was sorting a copy and never persisting)
+  if (Array.isArray(arrOrMode) || arrOrMode == null) { state.allTeachers = arr; } // write back on no-arg call too (sort control path was sorting a copy and never persisting)
   renderTeachers();
 }
 
@@ -200,7 +200,7 @@ export function applyFilters() {
   const method = document.getElementById('filter-method')?.value || '';
   const day = document.getElementById('filter-day')?.value || '';
   const verified = document.getElementById('filter-verified')?.value || '';
-  // Q-4a-M1b audit FAIL fix: filter from the full cached source, NOT the previously-filtered
+  // audit FAIL fix: filter from the full cached source, NOT the previously-filtered
   // display state — clearing a filter must restore the full list (was sticky until reload).
   // Mirrors demand hall applyDemandControls. Falls back to state.allTeachers (first visit / no cache).
   const full = ((dhPeek('/api/teachers') || {}).teachers) || null;
@@ -213,7 +213,7 @@ export function applyFilters() {
   if (state.teacherSort) sortTeachers(); // re-apply sort after filtering (was falling back to server order)
   renderTeachers();
 }
-export function hasDaySlot(timeSlots, day) { // Q-4a-M1a: match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1). T-6-F3: mapper emits parsed arrays (safeJsonArray) — no string form.
+export function hasDaySlot(timeSlots, day) { // match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1). mapper emits parsed arrays (safeJsonArray) — no string form.
   if (!Array.isArray(timeSlots)) return false;
   return timeSlots.some(t => Number(t && (t.dow ?? t.day)) === day);
 }
@@ -237,15 +237,15 @@ export function closeMatchDetail() {
   _matchDetailOpen = false;
 }
 
-// Z-3-F1 F1c: enter the teacher-profile page — GET own profile, render the edit form,
+// c: enter the teacher-profile page — GET own profile, render the edit form,
 // prefill time slots and the Shanghai address picker. Replacements (province→subjects,
-// nonacademic price rows, gaokao editor, save submit) land in F1d1/F1d2/F1d3.
-// F1d3: the Xuexin screenshot lives in teacher_profiles.credential_image (uploaded via the old
+// nonacademic price rows, gaokao editor, save submit) land in d1/d2/d3.
+// d3: the Xuexin screenshot lives in teacher_profiles.credential_image (uploaded via the old
 // profile flow); profile save must echo the current value back or the dbUpsert overwrite clears it
-// (encryptField(profile.credential_image || '')). The v2 verification UI (F1e) writes the separate
+// (encryptField(profile.credential_image || '')). The v2 verification UI (e) writes the separate
 // admission image to teacher_verifications — this echo only preserves the existing credential.
 let _currentCredential = '';
-// F1e: staged admission photo (data URL) read from the file input; cleared after submit.
+// e: staged admission photo (data URL) read from the file input; cleared after submit.
 let _pendingAdmission = '';
 export async function enterTeacherProfile() {
   const el = document.getElementById('teacher-profile-content');
@@ -254,7 +254,7 @@ export async function enterTeacherProfile() {
   try {
     const [data, verify] = await Promise.all([
       api('/api/teacher/profile', { method: 'GET' }),
-      api('/api/teacher/verify-status', { method: 'GET' }).catch(() => null), // F1e: verify block is non-fatal
+      api('/api/teacher/verify-status', { method: 'GET' }).catch(() => null), // e: verify block is non-fatal
     ]);
     if (!el) return; // page switched away while loading
     _currentCredential = data.profile ? (data.profile.credential_image || '') : '';
@@ -266,10 +266,10 @@ export async function enterTeacherProfile() {
   }
 }
 
-// Z-3-F1 F1d3: collect every field from the form, validate the required set (F1c markers:
+// d3: collect every field from the form, validate the required set (c markers:
 // province/grade/gender/subjects/price/teaching method/time slots), POST to /api/teacher/profile,
 // toast success, then re-fetch to echo the saved state. In-flight guard = btnLoading disables the
-// button (F6); the teacher list cache is invalidated so the public card reflects the save (F7).
+// button (); the teacher list cache is invalidated so the public card reflects the save ().
 export async function saveProfile() {
   const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   const province = val('tp-province');
@@ -319,14 +319,14 @@ export async function saveProfile() {
   try {
     if (btn) btnLoading(btn);
     await api('/api/teacher/profile', { method: 'POST', body: payload });
-    invalidate('teachers'); // public card reflects the save (F7)
+    invalidate('teachers'); // public card reflects the save ()
     showToast(TEXT.SUCCESS_PROFILE_SAVED);
     await enterTeacherProfile(); // re-fetch + re-render echoes the saved state
   } catch (err) { showToast(err.message); }
   finally { if (btn) btnDone(btn, TEXT.BTN_SAVE); }
 }
 
-// ── Z-3-F1 F1e: teacher verification block (chsi code / admission upload) ──────────
+// ── e: teacher verification block (chsi code / admission upload) ──────────
 
 // Re-fetch verify-status and re-render only the verify section (keeps the form edits intact).
 async function refreshVerifySection() {
@@ -366,7 +366,7 @@ export async function submitVerifyChsi() {
 }
 
 // Admission photo file change: read the picked file into a data URL (spread-copy the live
-// input.files reference then clear per P13), pre-check size against CONFIG.ADMISSION_IMG_MAX,
+// input.files reference then clear per ), pre-check size against CONFIG.ADMISSION_IMG_MAX,
 // stage it for submit and show a preview. No programmatic .click() — the label for= opens it.
 export function stageAdmissionFile(input) {
   const files = input ? [...input.files] : [];
@@ -404,7 +404,7 @@ export async function submitVerifyAdmission() {
   finally { if (btn) btnDone(btn, TEXT.ADMISSION_SUBMIT); }
 }
 
-// Z-3-F1 F1d1: field interactions on the teacher profile form. Idempotent — form.dataset
+// d1: field interactions on the teacher profile form. Idempotent — form.dataset
 // guards re-entry (page re-enter re-renders innerHTML, so a fresh form gets fresh bindings).
 // Covers: province → address area + method online-lock, tag-picks, nonacademic price rows,
 // graduation-year clamp, time-slot tree, Shanghai address picker.
@@ -417,7 +417,7 @@ export function initTeacherProfileForm(profile) {
   if (ts && profile && profile.time_slots) prefillTimeSlots(ts, profile.time_slots);
   const prov = document.getElementById('tp-province');
   if (prov) prov.addEventListener('change', onTeacherProvinceChange);
-  // F1d2: gaokao editor re-renders when the province/year/subjects it depends on change.
+  // d2: gaokao editor re-renders when the province/year/subjects it depends on change.
   // collectTeacherGaokao() preserves typed values across re-renders (same principle as the
   // nonacademic price rows) so switching province never wipes the teacher's scores/grade tiers. This is a
   // separate listener from onTeacherProvinceChange so the initial seed render is not re-collected
@@ -430,8 +430,8 @@ export function initTeacherProfileForm(profile) {
   const subjects = document.getElementById('tp-subjects');
   if (subjects) subjects.addEventListener('change', refreshGaokaoEditor);
   renderNonacademicPriceRows(profile && profile.nonacademic_prices);
-  // F1d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper) and
-  // renders once — province/subject/year changes re-render later. T-6-F3: dead string branch removed.
+  // d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper) and
+  // renders once — province/subject/year changes re-render later. dead string branch removed.
   const gkExisting = Array.isArray(profile && profile.gaokao_scores) ? profile.gaokao_scores : [];
   refreshGaokaoEditor(gkExisting);
   onTeacherProvinceChange(); // initial run: address area + method lock from saved province
@@ -451,7 +451,7 @@ export function onTeacherProvinceChange() {
   if (method) {
     const onlineOnly = !SUFE_REGIONS.allowsOffline(provId);
     [...method.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
-    // F1d1-1: unconditionally force online outside Shanghai (a saved offline value must not
+    // d1-1: unconditionally force online outside Shanghai (a saved offline value must not
     // survive the switch — server has no province gate on teaching_method, so the frontend is
     // the parity guard; matches student/actions.js toggleAddressField online-lock).
     if (onlineOnly && method.value !== 'online') method.value = 'online';
@@ -459,7 +459,7 @@ export function onTeacherProvinceChange() {
   if (isShanghai) {
     mountShanghaiAddrPicker('tp', addrInput ? addrInput.value : '', { hiddenId: 'tp-address' });
   }
-  // F1d2: gaokao editor re-render on province switch is a SEPARATE listener in
+  // d2: gaokao editor re-render on province switch is a SEPARATE listener in
   // initTeacherProfileForm — keeping it out of here avoids the init double-render that would
   // collect away saved grades the current policy cannot render (and the mismatch warning).
 }
@@ -481,7 +481,7 @@ export function teacherTagPick(el) {
 }
 
 // Nonacademic price rows: one row per selected nonacademic project (project + min/max).
-// F1d1-2 fix: when called without a prices argument (tag re-click), preserve the values the
+// d1-2 fix: when called without a prices argument (tag re-click), preserve the values the
 // user already typed in the live DOM rows instead of wiping them from an empty map.
 export function renderNonacademicPriceRows(prices) {
   const host = document.getElementById('tp-nonacademic-prices');
@@ -509,7 +509,7 @@ export function renderNonacademicPriceRows(prices) {
   }).join('');
 }
 
-// ── Z-3-F1 F1d2: teacher gaokao editor interactions ──────────────────────────
+// ── d2: teacher gaokao editor interactions ──────────────────────────
 
 // First/track pill switch (data-action=teacher.pickGkPill). Single-selection within the group.
 // For the 3+1+2 first-subject group the shared score input follows the pill: park the current

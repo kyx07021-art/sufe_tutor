@@ -1,5 +1,5 @@
 /**
- * v0.26.0 前端组件测试（B4：直接 import core/captcha + core/ui）。
+ * v0.26.0 前端组件测试（直接 import core/captcha + core/ui）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

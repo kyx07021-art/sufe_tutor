@@ -1,5 +1,5 @@
 /**
- * R13 教师卡片头像惰性装饰回归（B4：直接 import core/dom + teacher render）。
+ * R13 教师卡片头像惰性装饰回归（直接 import core/dom + teacher render）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

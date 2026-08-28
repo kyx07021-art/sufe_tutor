@@ -1,13 +1,13 @@
 /**
- * S4-13..20 match-degree server module unit tests (pure functions).
+ * ..20 match-degree server module unit tests (pure functions).
  *
- * Covers: weights single-source (S4-13), C3 input normalization (S4-14), the five
- * dimensions subject/method/region/price/preference (S4-15..19) and the aggregator
- * matchDegree + I-32 matchCount (S4-20).
+ * Covers: weights single-source (), C3 input normalization (), the five
+ * dimensions subject/method/region/price/preference (..19) and the aggregator
+ * matchDegree + matchCount ().
  *
  * Every assertion pins a concrete numeric value, so a mutation in the implementation
  * (a deleted weight, a loosened normalization, a removed clamp, a flipped method-matrix
- * cell, a removed distance clamp) turns the test red — G2 mutation guarding. The
+ * cell, a removed distance clamp) turns the test red — mutation guarding. The
  * fixtures below are chosen so that EACH dimension contributes a distinct partial score.
  *
  * Weights (shared/config MATCH_WEIGHTS): subject 35, region 25, budget 20, method 10,
@@ -51,14 +51,14 @@ const MISS_TEACHER = {
   gender: 'female',
 };
 
-// ---- S4-13: weights single source -----------------------------------------
+// ---- weights single source -----------------------------------------
 test('weights are the new-model values (sum 100, method dimension present)', () => {
   assert.deepEqual(WEIGHTS, { subject: 35, region: 25, budget: 20, method: 10, personality: 5, gender: 5 });
   assert.equal(Object.values(WEIGHTS).reduce((a, b) => a + b, 0), 100, 'weights sum to 100');
   // mutation: if the subject weight regressed to the v2 value (45) the 98 fixture below changes -> red
 });
 
-// ---- S4-14: C3 normalization ----------------------------------------------
+// ---- C3 normalization ----------------------------------------------
 test('normalizeTeacher collapses every missing shape to typed defaults', () => {
   assert.deepEqual(normalizeTeacher({}), {
     subjects: [], nonacademic: [], province: '', address: '', priceMin: null, priceMax: null,
@@ -82,7 +82,7 @@ test('normalizeDemand accepts new single-subject and legacy target_subjects shap
   assert.equal(normalizeDemand({ budgetMin: 'x', preferredTags: 'oops' }).budgetMin, null);
 });
 
-// ---- S4-15: subject dimension ---------------------------------------------
+// ---- subject dimension ---------------------------------------------
 test('subject: hit full / no subject excludes the dim / no teacher subjects excludes', () => {
   assert.equal(matchDegree(FULL_TEACHER, { ...FULL_DEMAND, subject: 'physics' }), 98, 'either teacher subject hits');
   // no demand subject -> dim excluded; remaining weight 65, score 62.5 -> 96
@@ -91,7 +91,7 @@ test('subject: hit full / no subject excludes the dim / no teacher subjects excl
   assert.equal(matchDegree({ ...FULL_TEACHER, subjects: [] }, FULL_DEMAND), 96);
 });
 
-// ---- S4-16: method dimension ----------------------------------------------
+// ---- method dimension ----------------------------------------------
 test('method matrix: online-only teacher vs offline demand lowers score', () => {
   // method 0 -> (35+25+20+2.5+5)/100 = 87.5 -> 88
   assert.equal(matchDegree({ ...FULL_TEACHER, teaching_method: 'online' }, FULL_DEMAND), 88);
@@ -101,7 +101,7 @@ test('method matrix: online-only teacher vs offline demand lowers score', () => 
   assert.equal(matchDegree({ ...FULL_TEACHER, teaching_method: '' }, FULL_DEMAND), 97);
 });
 
-// ---- S4-17: region dimension ----------------------------------------------
+// ---- region dimension ----------------------------------------------
 test('region: same town full / near town partial / >20km zero / online excludes / other province miss', () => {
   assert.equal(matchDegree(FULL_TEACHER, { ...FULL_DEMAND, address: '嘉定区·南翔镇' }), 83, '~11.5km linear decay');
   assert.equal(matchDegree(FULL_TEACHER, { ...FULL_DEMAND, address: '崇明区·城桥镇' }), 73, 'far town region 0');
@@ -120,7 +120,7 @@ test('haversineKm / distanceScore pure functions', () => {
   assert.ok(Math.abs(km - 7.81) < 0.2, `known distance ${km.toFixed(2)}`);
 });
 
-// ---- S4-18: price dimension -----------------------------------------------
+// ---- price dimension -----------------------------------------------
 test('price: full overlap / partial overlap / no overlap / absent sides exclude', () => {
   // full overlap [100,200] x [150,180]
   assert.equal(matchDegree(FULL_TEACHER, FULL_DEMAND), 98);
@@ -134,7 +134,7 @@ test('price: full overlap / partial overlap / no overlap / absent sides exclude'
   assert.equal(matchDegree({ ...FULL_TEACHER, price_min: null, price_max: null }, FULL_DEMAND), 97);
 });
 
-// ---- S4-19: preference dimension ------------------------------------------
+// ---- preference dimension ------------------------------------------
 test('preference: personality hit-ratio / no tags / undisclosed gender / mismatch', () => {
   // personality 1/2 of 5 = 2.5 -> 98 (full-hit fixture)
   assert.equal(matchDegree(FULL_TEACHER, FULL_DEMAND), 98);
@@ -150,7 +150,7 @@ test('preference: personality hit-ratio / no tags / undisclosed gender / mismatc
   assert.equal(matchDegree(FULL_TEACHER, { ...FULL_DEMAND, preferred_teacher_gender: '' }), 97);
 });
 
-// ---- S4-20: aggregator clamp / null semantics -----------------------------
+// ---- aggregator clamp / null semantics -----------------------------
 test('matchDegree: never exceeds 100, never below 0, null when no input', () => {
   assert.equal(matchDegree(FULL_TEACHER, FULL_DEMAND), 98, 'max possible is 100');
   assert.equal(matchDegree(MISS_TEACHER, FULL_DEMAND), 0, 'full miss is 0 (clamp floor)');

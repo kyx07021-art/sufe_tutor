@@ -2,23 +2,23 @@
  * chat feature renderers: conversation list, chat frame, bubbles, attachments,
  * stage box, caption injection. No inline handlers or inline style attributes.
  *
- * Bubble contract (parity with v1 app-chat.js, B4 audit):
+ * Bubble contract (parity with v1 app-chat.js, audit):
  * - outer .chat-msg (side class) > .chat-bubble (data-mid + glass + skin classes).
  * - .chat-bubble carries white-space:pre-wrap (style-chat.css) — the bubble inner
- *   template must be single-line: newline/indent text nodes between child elements
- *   render as visible blank lines (v1 fixed the same bug via .signing-bubble
- *   white-space:normal; structured templates additionally stay single-line here).
+ * template must be single-line: newline/indent text nodes between child elements
+ * render as visible blank lines (v1 fixed the same bug via .signing-bubble
+ * white-space:normal; structured templates additionally stay single-line here).
  * - media bubbles: image/file both get --media (bleed), file also --file (inset).
- *   List messages carry no dataURL body; thumb-only images render inline, files and
- *   thumb-less images render a loading skeleton refilled by chatLazyLoadAttachments.
+ * List messages carry no dataURL body; thumb-only images render inline, files and
+ * thumb-less images render a loading skeleton refilled by chatLazyLoadAttachments.
  * - signing_request: title is sender-perspective (mine = CHAT_SIGNING_MINE_TITLE),
- *   with price/schedule/method rows; recipient pending shows a read-only retired-flow
- *   hint (S5 removed the respond endpoint — no confirm/reject buttons), rejected
- *   done-state, signed tip + draft button, funds note while not signed.
+ * with price/schedule/method rows; recipient pending shows a read-only retired-flow
+ * hint (S5 removed the respond endpoint — no confirm/reject buttons), rejected
+ * done-state, signed tip + draft button, funds note while not signed.
  * - CSS class contract: every class emitted here must exist in style-chat.css
- *   (.chat-msg-time not .chat-bubble-time; .ring-track/.ring-bar inside
- *   .chat-stage-ring; .chat-stage-item/.chat-stage-thumb/.chat-stage-name/
- *   .chat-stage-del — the preview/progress/x names are gone with v1's template).
+ * (.chat-msg-time not .chat-bubble-time; .ring-track/.ring-bar inside
+ * .chat-stage-ring; .chat-stage-item/.chat-stage-thumb/.chat-stage-name/
+ * .chat-stage-del — the preview/progress/x names are gone with v1's template).
  */
 import { STATUS, ROLES } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
@@ -27,7 +27,7 @@ import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, loaderHtml, renderAvatarHtml } from '../../core/dom.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
 import { expectedTimeText } from '../student/display.js';
-import { chatPreviewText, signingMethodText, signingRequestTitle, signingResponseLabel, contractBubbleText, chatFileSize, chatFileExt } from './display.js'; // Z-10-F2: mappings in domain display
+import { chatPreviewText, signingMethodText, signingRequestTitle, signingResponseLabel, contractBubbleText, chatFileSize, chatFileExt } from './display.js'; // mappings in domain display
 
 /** Peer info of a conversation from the viewer's perspective (v1 chatPeerOf parity). */
 export function chatPeerOf(c) {
@@ -126,7 +126,7 @@ export function chatStageRing(p) {
   </svg>`;
 }
 
-// `i` is the v1 stagger slot (--i entrance delay consumed by CSS in V-2-5);
+// `i` is the v1 stagger slot (--i entrance delay consumed by CSS in );
 // deliberately kept in the signature so call sites do not churn at that batch.
 export function renderChatBubble(m, i) {
   const mine = state.user && m.sender_user_id === state.user.id;

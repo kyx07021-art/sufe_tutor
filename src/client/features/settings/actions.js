@@ -7,7 +7,7 @@ import { ROLES } from '../../../shared/enums.js';
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { renderSidebar } from '../../core/router.js'; // Q-4b-M2: refresh sidebar after username/avatar change (state.user sync)
+import { renderSidebar } from '../../core/router.js'; // refresh sidebar after username/avatar change (state.user sync)
 import { openModal, closeModal, showToast, confirm, withCaptcha, btnLoading, btnDone, bindCountdown } from '../../core/ui.js';
 import { setStylePref as applyStylePref, setThemePref as applyThemePref, setOrbPref as applyOrbPref, getStylePref } from '../../core/appearance.js';
 import { escHtml, renderAvatarHtml, loaderHtml } from '../../core/dom.js';
@@ -117,7 +117,7 @@ export async function loadPrivacySettings() {
 export async function setPrivacyField(key, value) {
   try {
     await api('/api/privacy-settings', { method: 'POST', body: { [key]: value ? 1 : 0 } });
-    invalidate('account'); // Q-3b-F4: /api/privacy-settings caches under domain 'account' and the server never bumps it; without invalidate the toggle reverts to the old value after leaving/re-entering settings (the 60s TTL is also masked by dhTouchAll -> stale forever)
+    invalidate('account'); // /api/privacy-settings caches under domain 'account' and the server never bumps it; without invalidate the toggle reverts to the old value after leaving/re-entering settings (the 60s TTL is also masked by dhTouchAll -> stale forever)
     showToast(TEXT.SETTINGS_SAVED);
   } catch (err) { showToast(err.message); }
 }
@@ -134,7 +134,7 @@ export async function submitUsername() {
       withCaptcha(async () => {
         await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
         closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();
-        if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2: sync state.user.username + sidebar (was stale until next login)
+        if (state.user) { state.user.username = username; renderSidebar(); } // sync state.user.username + sidebar (was stale until next login)
       });
     }});
   } catch (err) { showToast(err.message); }
@@ -161,7 +161,7 @@ export function openDeactivateModal() {
 
 export function confirmDeactivateAccount() {
   confirm({ title: TEXT.SETTINGS_DEACTIVATE_TITLE, message: TEXT.SETTINGS_DEACTIVATE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); handleLogout(); } catch (err) { showToast(err.message); } // Q-4b-M1: after deactivate, logout clears local session (server rejects token; stale login UI otherwise persists until next 401)
+    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); handleLogout(); } catch (err) { showToast(err.message); } // after deactivate, logout clears local session (server rejects token; stale login UI otherwise persists until next 401)
   }});
 }
 
@@ -181,7 +181,7 @@ export async function saveAvatar() {
   try {
     await api('/api/user/avatar', { method: 'POST', body: { avatar: window._avatarDataUrl } });
     closeModal(); showToast(TEXT.SETTINGS_AVATAR_SAVED); invalidate('account');
-    if (state.user) { state.user.avatar = window._avatarDataUrl; renderSidebar(); } // Q-4b-M2: sync state.user.avatar + sidebar (was stale until next login)
+    if (state.user) { state.user.avatar = window._avatarDataUrl; renderSidebar(); } // sync state.user.avatar + sidebar (was stale until next login)
   } catch (err) { showToast(err.message); }
 }
 
@@ -203,7 +203,7 @@ export function commitUiScaleFromSlider(el) {
   if (valEl) valEl.textContent = v + '%';
   el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
 }
-let windowUiScaleBound = false; // Q-4b-M3: register window listener once — re-enter rebuilds slider and re-binds; old code leaked one listener per settings visit (stale innerHTML-rebuilt slider)
+let windowUiScaleBound = false; // register window listener once — re-enter rebuilds slider and re-binds; old code leaked one listener per settings visit (stale innerHTML-rebuilt slider)
 export function bindUiScaleSlider() {
   const slider = document.getElementById('ui-scale-slider');
   if (!slider || slider.dataset.pointerBound) return;
@@ -242,7 +242,7 @@ export function bindUiScaleSlider() {
   slider.addEventListener('change', () => commitUiScaleFromSlider(slider));
   if (typeof window !== 'undefined' && !windowUiScaleBound) {
     windowUiScaleBound = true;
-    window.addEventListener('sufe:ui-scale', () => { // Q-4b-M3: look up current slider (not stale closure element); register once
+    window.addEventListener('sufe:ui-scale', () => { // look up current slider (not stale closure element); register once
       const synced = getUiScale();
       const el = document.getElementById('ui-scale-slider');
       if (!el) return;
@@ -253,7 +253,7 @@ export function bindUiScaleSlider() {
     });
   }
 }
-// Dormant (B5 pending): v1 app-pages.js:442-460 implemented the CHSI screenshot
+// Dormant (pending): v1 app-pages.js:442-460 implemented the CHSI screenshot
 // upload control (render control / pick file / view image). v2 migration not yet
 // landed — these stubs keep the interface slots for that feature.
 export function renderProfileCredentialCtl() {}

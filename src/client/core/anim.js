@@ -101,7 +101,7 @@ export function positionFloatCard(btn, card) {
 }
 
 // Regression fix (2026-08-20): the v1 entry-animation gate lived in the v1 shell's inline
-// script and was dropped with the v1 shell (V-4-1h). Without .site-ready, landing hero spans
+// script and was dropped with the v1 shell (). Without .site-ready, landing hero spans
 // and entry buttons stay at their initial opacity 0 (their entrance animations are gated on
 // it) — the homepage rendered blank/transparent. Re-implemented here: add .site-ready once the
 // two hand-mask images are ready, with a 2.5s fallback so a slow asset never wedges the page.

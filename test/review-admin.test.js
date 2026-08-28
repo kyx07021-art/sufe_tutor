@@ -1,5 +1,5 @@
 /**
- * Q-6-M1 覆盖空洞补齐：reviews 域服务端审核 API 零直接测试（Z-5-F1 复发风险——
+ * 覆盖空洞补齐：reviews 域服务端审核 API 零直接测试（复发风险——
  * auth/repo.js dbRecomputeTeacherRating 依赖 dbGetApprovedReviewStats/dbUpdateTeacherRating，
  * 未 import 时 approve/reject/delete 评分重算全 500，此前仅靠 node 复现抓到）。
  * 守护：approve 后 teacher_profiles.rating 按公式重算 + 幂等（二次 approve 不漂移）。
@@ -126,7 +126,7 @@ test('Q-6-M1：admin delete 已通过评价重算评分', async () => {
   assert.ok(Math.abs(row.rating - INITIAL_RATING) < 1e-9, '回落到初始分');
 });
 
-// PA-1f-F1：评价审核是危险操作（P12），无 capToken 必须 403（变异实证：删 handleReviewAction
+// 评价审核是危险操作（），无 capToken 必须 403（变异实证：删 handleReviewAction
 // 的 confirmDangerOtp → 本测试红）。capToken 消费即删，逐次新签发。
 test('PA-1f-F1：review approve 无 capToken → 403 且评价未动', async () => {
   const raw = new DatabaseSync(':memory:');

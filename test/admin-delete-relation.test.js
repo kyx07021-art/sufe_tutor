@@ -1,5 +1,5 @@
 /**
- * AI-8：admin 永删关系 DELETE /api/admin/relations——按双方元组删会话（FK 级联 messages）。
+ * admin 永删关系 DELETE /api/admin/relations——按双方元组删会话（FK 级联 messages）。
  * S3/S5 单科目+独立合同：contracts 无 conversation FK（独立存证，删会话不删 signed/revoked 合同——
  * contracts 行保留）；需求不随删释放（状态收敛 open/closed，无 revoked 语义）。
  * + 评价保留不随删 + capToken 二次认证 + logEvent。
@@ -42,7 +42,7 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-// 种子：admin + s1/t1 + 会话 + 消息 + 合同行 + open 需求 + token（G3：全部 lastInsertRowid）
+// 种子：admin + s1/t1 + 会话 + 消息 + 合同行 + open 需求 + token（全部 lastInsertRowid）
 async function seed(db, raw) {
   await initDb(db, ENV);
   const ins = sql => Number(raw.prepare(sql).run().lastInsertRowid);

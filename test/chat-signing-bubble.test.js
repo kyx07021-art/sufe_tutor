@@ -1,5 +1,5 @@
 /**
- * 会话内签约提醒框回归（B4：直接 import chat render）。
+ * 会话内签约提醒框回归（直接 import chat render）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

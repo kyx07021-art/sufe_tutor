@@ -1,5 +1,5 @@
 /**
- * core/display.diffLines 行级 diff 回归（B4：直接 import ESM）。
+ * core/display.diffLines 行级 diff 回归（直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

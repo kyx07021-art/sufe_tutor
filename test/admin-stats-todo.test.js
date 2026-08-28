@@ -2,7 +2,7 @@
  * v1.0.1 回归（生产 500 事故根因）：handleAdminStats 统计端点含 R3 待办计数（feedbacksOpen/
  * complaintsOpen）——dbGetCountWhere 曾漏 import（ReferenceError → 500，生产统计页
  * 「加载失败: 服务器内部错误（旧文案）」），本测试钉死全链路：清库后状态 + 待办计数非零 + 全字段形状。
- * S6-A3（awards 下线 W1）：teacher_awards 待办计数已删，测试同步去 awards 断言与直插。
+ * S6-A3（awards 下线 ）：teacher_awards 待办计数已删，测试同步去 awards 断言与直插。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -15,7 +15,7 @@ import { tokenDigest } from '../src/server/core/crypto.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { handleRegister } from '../src/server/domains/auth/api.js';
 import { lastOtpCode } from './_otp-stub.js';
-import { recordRequestMetric, flushMetrics } from '../server/telemetry.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
+import { recordRequestMetric, flushMetrics } from '../src/server/core/telemetry.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
@@ -105,7 +105,7 @@ test('v1.5.0 dashboard 端点：聚合指标 + 待办含核验队列 + 非管理
   assert.equal(anon.status, 401, '无令牌拒绝');
 });
 
-// Z-6-F2 回归：verificationsPending 真计数——修复前 COUNT_TABLES 漏 teacher_verifications，
+// 回归：verificationsPending 真计数——修复前 COUNT_TABLES 漏 teacher_verifications，
 // 该计数恒 0；`typeof number` 断言锁不住修复（恒 0 也是 number），补非零断言
 test('Z-6-F2 回归：存在 pending 核验记录时 verificationsPending 非零', async () => {
   const { raw, db } = await setup();

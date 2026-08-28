@@ -20,7 +20,7 @@ const ACTION_MAP = {
   'chat.openImage': (el, e) => actions.chatOpenImage(Number(el.dataset.mid), e.target.closest('img') || null),
   'chat.plusDraft': actions.chatPlusDraft,
   'chat.openProfile': el => actions.chatOpenProfile(Number(el.dataset.id)),
-  'chat.endRelation': el => actions.endRelation(Number(el.dataset.id)), // AI-9: end relation (danger confirm + capToken)
+  'chat.endRelation': el => actions.endRelation(Number(el.dataset.id)), // end relation (danger confirm + capToken)
 };
 
 let installed = false;

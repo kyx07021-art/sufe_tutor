@@ -1,5 +1,5 @@
 /**
- * v0.25.39 四件 UI 修复回归（U1/U2/U3/U4；B4：直接 import theme/display ESM）。
+ * v0.25.39 四件 UI 修复回归（///；直接 import theme/display ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

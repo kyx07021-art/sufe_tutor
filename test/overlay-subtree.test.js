@@ -1,5 +1,5 @@
 /**
- * 浮窗幽灵下拉栏：组件附属树（B4：直接 import core/anim + core/ui-modal）。
+ * 浮窗幽灵下拉栏：组件附属树（直接 import core/anim + core/ui-modal）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

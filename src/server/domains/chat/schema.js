@@ -1,5 +1,5 @@
 /**
- * chat 域 schema（V-1-4b + AI-5）：会话 / 消息 / 附件 DDL、列迁移与存量绑定回填（签约请求表已并 signing_contracts）。
+ * chat 域 schema（+ ）：会话 / 消息 / 附件 DDL、列迁移与存量绑定回填（签约请求表已并 signing_contracts）。
  */
 import { dbGet, dbRun } from '../../core/util.js';
 
@@ -37,7 +37,7 @@ export const createStatements = [CONVERSATIONS_DDL, MESSAGES_DDL, UPLOADS_DDL];
 export const ensureColumns = [
   { table: 'messages', columns: [
     ['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"],
-    ['client_key', 'TEXT'], // Q-2d-F2: chat 批量发送幂等键（服务端按键去重防超时重发落两条；NULL=老协议不带键）
+    ['client_key', 'TEXT'], // chat 批量发送幂等键（服务端按键去重防超时重发落两条；NULL=老协议不带键）
   ] },
   { table: 'uploads', columns: [
     ['thumb', "TEXT NOT NULL DEFAULT ''"],
@@ -50,10 +50,10 @@ export const ensureColumns = [
     // S2-T1: initiator of a temp conversation; retained as wasTemp once formalized.
     ['temp_initiator_user_id', 'INTEGER DEFAULT NULL'],
   ] },
-]; // AI-5: signing_requests 表已删（AI-3 双方元组 ensureColumns 随表清理）
+]; // signing_requests 表已删（双方元组 ensureColumns 随表清理）
 
 // messages.kind CHECK 迁移：约束缺任一合法 kind 即保数据换表（SQLite CHECK 不可 ALTER，只能重建）。
-// Z-4-F1：探测旧表列动态 carry（旧库可能无 name/thumb 或只有部分），终态新表含 name/thumb 列；
+// 探测旧表列动态 carry（旧库可能无 name/thumb 或只有部分），终态新表含 name/thumb 列；
 // 条件显式检查全部 6 个 kind（缺任一即换表）——修复前只查 contract+signing_request，
 // 中间态「有 signing_request 无 signing_response」会漏迁；无谓换表消除 = 终态库短路跳过。
 // 索引 idx_messages_conv 不在此处（曾因放条件分支内致新库短路跳过永不建索引——见 migrate postEnsure）
@@ -92,13 +92,13 @@ export async function migrate(db, ctx) {
   // S2: demand_intents / demand_pushes tables are deleted (S2 intents/pushes removal).
   // The legacy conversation.demand_id backfill from accepted intents/pushes no longer applies.
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_conv_teacher ON conversations(teacher_user_id, student_user_id)');
-  // Z-4-F1：idx_messages_conv 无条件路径（新库与换表库都建）——曾放在 migrateMessagesKind 条件分支内，
+  // idx_messages_conv 无条件路径（新库与换表库都建）——曾放在 migrateMessagesKind 条件分支内，
   // 新库 MESSAGES_DDL 已含终态 CHECK 短路跳过 → 索引永不创建，conversation_id+id 查询回退全表扫描
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)');
-  // Q-2d-F2：幂等键唯一索引（部分索引仅约束非空键）——check-then-insert 之外的 DB 级并发兜底，
+  // 幂等键唯一索引（部分索引仅约束非空键）——check-then-insert 之外的 DB 级并发兜底，
   // 同会话同发送者同键双写（双端并发重发竞态）→ 唯一约束兜底不落重复行
   await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_key
     ON messages(conversation_id, sender_user_id, client_key) WHERE client_key IS NOT NULL`);
-  // AI-5: 旧 signing_requests 表数据已由 AI-4a 迁入 signing_contracts、读写已由 AI-4b 全切——删表（幂等清理）
+  // 旧 signing_requests 表数据已由 a 迁入 signing_contracts、读写已由 b 全切——删表（幂等清理）
   await dbRun(db, 'DROP TABLE IF EXISTS signing_requests');
 }

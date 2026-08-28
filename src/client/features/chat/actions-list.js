@@ -34,7 +34,7 @@ export function chatTeardown() {
 // (prevents cross-account staged residue and orphan uploads on the server)
 registerLogoutReset(chatTeardown);
 
-// Q-3b-F2: chat cache re-bind — after dhRefreshDomain('chat') replaces the cache (version probe
+// chat cache re-bind — after dhRefreshDomain('chat') replaces the cache (version probe
 // detects a chat-domain bump), chat.list still holds the old array reference, so list rows keep
 // stale unread/preview counts while the badge poll (router reads dhGet directly) uses the new
 // cache -> red dot with no matching list row. Mirror the fresh cache back into chat.list.
@@ -102,8 +102,8 @@ export function renderConvList() {
 }
 
 /**
- * AI-9: local sync of a conversation to closed after a close success / 403 correction
- * (F7 immediate — not waiting for the next fetch). chat.list is a module-private array
+ * local sync of a conversation to closed after a close success / 403 correction
+ * (immediate — not waiting for the next fetch). chat.list is a module-private array
  * (invalidate only clears the datahub cache, not it), so it must be mutated in place +
  * re-rendered; when the conversation is currently open, doCloseRelation re-opens the
  * frame afterwards to run the closed branch.
@@ -168,7 +168,7 @@ export async function openConversation(convId) {
         const wasClosed = ex.status === STATUS.CLOSED;
         Object.assign(ex, data.conversation);
         renderConvList();
-        // AI-9: the peer closed the conversation (snapshot status flips active→closed) —
+        // the peer closed the conversation (snapshot status flips active→closed) —
         // input-bar disable / action-entry hiding is carried by the frame re-render (before
         // this the list was updated only, leaving the frame writable until the next 403).
         if (!wasClosed && ex.status === STATUS.CLOSED) {

@@ -1,11 +1,11 @@
 /**
- * S0-05 + Q-2h-L1 guard: getSecret single-source env read + trim semantics + fail-closed zero plaintext fallback + isProductionRuntime detection.
+ * + guard: getSecret single-source env read + trim semantics + fail-closed zero plaintext fallback + isProductionRuntime detection.
  * Mutations: getSecret loses trim -> pure-space returns ' ' (non-empty) -> red; getSecret adds a repo plaintext fallback for a real key -> red;
- *            isProductionRuntime misjudges local/prod -> red. (startup.js re-adds local envSecret -> red is guarded by worker-release-gate.test.js, not this file.)
+ * isProductionRuntime misjudges local/prod -> red. (startup.js re-adds local envSecret -> red is guarded by worker-release-gate.test.js, not this file.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getSecret, isProductionRuntime } from '../server/secrets.js';
+import { getSecret, isProductionRuntime } from '../src/server/core/secrets.js';
 
 test('Q-2h-L1：getSecret trim 语义（纯空格视为未配置）', () => {
   assert.equal(getSecret({ KEY: '   ' }, 'KEY'), '', '纯空格 → 空串（trim 统一；变异：去 trim → 红）');

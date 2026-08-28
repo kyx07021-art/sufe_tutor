@@ -62,7 +62,7 @@ async function setup() {
 
 test('S6-A3: COUNT_TABLES whitelist drops teacher_awards (dbGetCountWhere returns 0)', async () => {
   const { db } = await setup();
-  // teacher_awards is offline (W1) and NOT in COUNT_TABLES -> gate short-circuits to 0 before SQL.
+  // teacher_awards is offline () and NOT in COUNT_TABLES -> gate short-circuits to 0 before SQL.
   // Mutation: re-add 'teacher_awards' to COUNT_TABLES -> SELECT COUNT(*) hits a missing table -> throws -> red.
   assert.equal(await dbGetCountWhere(db, 'teacher_awards', "status='pending'"), 0, 'awards pending count gated to 0');
 });

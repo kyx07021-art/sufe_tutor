@@ -1,10 +1,10 @@
 /**
- * AI-2：合同操作生命周期门禁——关系已关闭（会话 status='closed'）后，4 个写入 handler
+ * 合同操作生命周期门禁——关系已关闭（会话 status='closed'）后，4 个写入 handler
  * （sign/modify/revoke/cancel）一律 403 CONVERSATION_CLOSED；verify（只读存证校验）豁免
- * （AI-1「已 signed/revoked 历史存证保留」的访问入口，AI-2 有意决定注释）。
+ * （「已 signed/revoked 历史存证保留」的访问入口，有意决定注释）。
  * S3/S5：签约层（signing_requests / respond）已删除——门禁只覆盖独立 contracts 表的操作。
  *
- * 本测试直接手工置会话 status='closed'（不经 AI-1 级联——聚焦门禁本身；合同行保留原状态以通过
+ * 本测试直接手工置会话 status='closed'（不经 级联——聚焦门禁本身；合同行保留原状态以通过
  * loadContractFor 白名单走到门禁）。变异守护：删任一 handler 的门禁行 → 403 变非 403（红）。
  */
 import { test } from 'node:test';

@@ -1,5 +1,5 @@
 /**
- * S4-15 subject dimension (pure). Weight 35.
+ * subject dimension (pure). Weight 35.
  * Academic demands match against teacher `subjects`; non-academic demands (music/painting/...)
  * match against teacher `nonacademic_projects`. A demand without a subject or a teacher with no
  * subjects in the relevant domain is NOT applicable (null) — it contributes no weight.

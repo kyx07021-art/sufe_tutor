@@ -1,5 +1,5 @@
 /**
- * B1 收敛回归 —— detail 加密语义（encrypted 标记 / 无密钥回落 / 密钥轮换）：
+ * 收敛回归 —— detail 加密语义（encrypted 标记 / 无密钥回落 / 密钥轮换）：
  * 原语实现已在 server/crypto.js 由 crypto.test.js 全量覆盖，此处只验 log 薄壳语义。
  * 注意 bindLogDb 经 bindCryptoEnv 重置模块级密钥缓存，同进程内测试串行依赖，勿并行用例。
  */

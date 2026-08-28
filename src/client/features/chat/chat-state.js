@@ -15,13 +15,13 @@ export const chat = {
   pendingOpen: null,
   staged: [],
   stageSeq: 0,
-  // Q-2d-F2 idempotency: retries reuse the same batch keys (server dedups by key); retired on success/content change
+  // idempotency: retries reuse the same batch keys (server dedups by key); retired on success/content change
   pendingBatchKey: null,
   pendingBatchFp: '',
 };
 
 /**
- * AI-9: whether the currently open conversation is closed — single source for write-locking
+ * whether the currently open conversation is closed — single source for write-locking
  * and hiding operation entries. Reads chat.convId + the chat.list row status (list rows carry
  * c.status from GET /api/conversations; the detail snapshot is merged back by openConversation —
  * both write the same field, no second data source).

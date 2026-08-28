@@ -1,5 +1,5 @@
 /**
- * 需求八·item4 外观包（B4：直接 import settings/appearance ESM）。
+ * 需求八·item4 外观包（直接 import settings/appearance ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

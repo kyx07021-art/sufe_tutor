@@ -1,5 +1,5 @@
 /**
- * S4-13 match-degree weights (single source).
+ * match-degree weights (single source).
  * The weights live in shared/config.js (MATCH_WEIGHTS, sum=100); this module is the
  * server-side read point so every dimension and the aggregator import one symbol.
  * The v2 client-side CONFIG.MATCH_WEIGHT is intentionally left untouched (legacy).

@@ -1,17 +1,17 @@
 /**
- * S0-11 tool layer (util.js/json.js) single-point locks.
+ * tool layer (util.js/json.js) single-point locks.
  *
  * Covers the util.js/json.js acceptance surface with mutation guards:
- *   - ensureColumns: PRAGMA-probe-then-ALTER idempotency (mutation: unconditional
- *     ALTER TABLE ADD COLUMN on an existing column throws duplicate-column error → red)
- *   - parseBody: streaming 413 hard limit — a chunked body (no usable Content-Length)
- *     larger than LIMITS.BODY_LIMIT must be rejected with status 413 before JSON.parse
- *     (mutation: drop the streaming accumulator check → the over-limit chunked body
- *     resolves instead of throwing 413 → red)
- *   - toDbTime: UTC single-point (mutation: local-time formatting shifts the epoch →
- *     red on any non-UTC host)
- * parseIdParam strictness is already locked by test/parse-id-param.test.js (Q-2a-L2);
- * safeJsonArray/safeJsonObject by test/json-safe.test.js (Z-13-F3).
+ * - ensureColumns: PRAGMA-probe-then-ALTER idempotency (mutation: unconditional
+ * ALTER TABLE ADD COLUMN on an existing column throws duplicate-column error → red)
+ * - parseBody: streaming 413 hard limit — a chunked body (no usable Content-Length)
+ * larger than LIMITS.BODY_LIMIT must be rejected with status 413 before JSON.parse
+ * (mutation: drop the streaming accumulator check → the over-limit chunked body
+ * resolves instead of throwing 413 → red)
+ * - toDbTime: UTC single-point (mutation: local-time formatting shifts the epoch →
+ * red on any non-UTC host)
+ * parseIdParam strictness is already locked by test/parse-id-param.test.js ();
+ * safeJsonArray/safeJsonObject by test/json-safe.test.js ().
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

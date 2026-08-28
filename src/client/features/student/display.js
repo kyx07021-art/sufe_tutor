@@ -36,7 +36,7 @@ export function demandOptionText(d) {
 
 export function expectedTimeText(raw) {
   if (!raw) return '';
-  // T-6-F3: teacher time_slots now arrives parsed (safeJsonArray output); string JSON retained
+  // teacher time_slots now arrives parsed (safeJsonArray output); string JSON retained
   // for demand expected_time.
   let arr = Array.isArray(raw) ? raw : null;
   if (!arr) {

@@ -1,5 +1,5 @@
 /**
- * 侧边栏选中高亮普通组件化（B4：直接 import core/router renderSidebar）。
+ * 侧边栏选中高亮普通组件化（直接 import core/router renderSidebar）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

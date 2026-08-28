@@ -2,13 +2,13 @@
  * R23（v0.25.87）：资料共享区收藏功能
  *
  * 服务端：
- *   - POST /api/posts/:id/favorite 切换收藏（登录；帖子不存在 404）；
- *   - GET /api/posts/favorites/mine 仅本人收藏、按收藏时间倒序、作者名 JOIN；
- *   - 列表接口凭令牌产出 favorited 布尔；注销清理 post_favorites；
- * 前端（B4：直接 import posts feature ESM）：
- *   - 卡片/详情渲染收藏 pill（checkbox checked 随 p.favorited，CSS :has 单源）；
- *   - toggle 调收藏接口、文案随状态切换；
- *   - 我的收藏视图取消收藏就地移除卡；视图切换走 favorites/mine 接口。
+ * - POST /api/posts/:id/favorite 切换收藏（登录；帖子不存在 404）；
+ * - GET /api/posts/favorites/mine 仅本人收藏、按收藏时间倒序、作者名 JOIN；
+ * - 列表接口凭令牌产出 favorited 布尔；注销清理 post_favorites；
+ * 前端（直接 import posts feature ESM）：
+ * - 卡片/详情渲染收藏 pill（checkbox checked 随 p.favorited，CSS :has 单源）；
+ * - toggle 调收藏接口、文案随状态切换；
+ * - 我的收藏视图取消收藏就地移除卡；视图切换走 favorites/mine 接口。
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
@@ -133,7 +133,7 @@ test('R23 列表接口凭令牌产出 favorited；注销清理收藏', async () 
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM post_favorites WHERE user_id=?').get(t1.id).c, 0, '注销清理本人收藏');
 });
 
-// ==================== 前端（B4：直接 import posts feature ESM） ====================
+// ==================== 前端（直接 import posts feature ESM） ====================
 // v2 形态：postsList/postsView 是 actions-list 模块级（postsView 无 setter，用 togglePostsFav 切换）；
 // ensureAuth 是 core/api 单源（setEnsureAuth 接线）；loadPosts 经 core/router loadInto 真渲染。
 
@@ -232,7 +232,7 @@ test('R23 我的收藏视图：取消收藏就地移除卡；视图切换走 fav
   teardown();
 });
 
-// ==================== U10 网络层架构债（收藏/点赞延迟） ====================
+// ==================== 网络层架构债（收藏/点赞延迟） ====================
 
 test('U10 批量读写 helper：读批帖+本人记录一步取回；点赞写批同步计数', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -317,7 +317,7 @@ test('U-3f：handleDeletePost 管理员越权删除须 capToken（作者本人�
   const byOwner = await handleDeletePost(db, pid, {}, reqOf(tea.token));
   assert.equal(byOwner.status, 200, '作者本人删除正常');
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM posts').get().c, 0, '帖子已删');
-  // 管理员越权删除：无 capToken → 403（U-3f 补门禁，P12）
+  // 管理员越权删除：无 capToken → 403（补门禁，）
   raw.prepare("INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', '讲义Y', 'Y')").run(tea.id);
   const pid2 = raw.prepare('SELECT id FROM posts ORDER BY id DESC LIMIT 1').get().id;
   const noCap = await handleDeletePost(db, pid2, {}, reqOf(admin.token));

@@ -1,5 +1,5 @@
 /**
- * 前端启动回归（B4：直接 import src/client/app.js boot）。
+ * 前端启动回归（直接 import src/client/app.js boot）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

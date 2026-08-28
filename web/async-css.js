@@ -1,5 +1,5 @@
 /**
- * Async CSS media activation for web/index.html (V-3-1b).
+ * Async CSS media activation for web/index.html ().
  * Replaces inline `media="print" onload="this.media='all'"` handlers:
  * links marked `data-async-css` load non-blocking (print media) then
  * activate to `all` once loaded. No inline handlers / no fetch / no inline scripts.

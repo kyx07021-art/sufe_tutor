@@ -1,6 +1,6 @@
 /**
  * R26（v0.25.91）：需求大厅「已建立联系→」点击直接切到对应会话页
- * B4：直接 import student feature ESM + chat 域 ESM（chat-conv-lifecycle 同款模式）。
+ * 直接 import student feature ESM + chat 域 ESM（chat-conv-lifecycle 同款模式）。
  *
  * 覆盖：按钮 data-action 委托带学生 id；goChatWithStudent 三分支（在列表且停会话页 → 就地开；
  * 不在会话页 → 设待开目标并切页；找不到会话 → toast 兜底）。

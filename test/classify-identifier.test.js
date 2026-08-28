@@ -1,6 +1,6 @@
 /**
- * v0.26.14 L1 登录页裸手机号验证码登录误拦修复——classifyIdentifier 判型回归。
- * B4：改为直接 import auth feature 的 actions-otp ESM 模块，不再 vm 加载经典脚本。
+ * v0.26.14 登录页裸手机号验证码登录误拦修复——classifyIdentifier 判型回归。
+ * 改为直接 import auth feature 的 actions-otp ESM 模块，不再 vm 加载经典脚本。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

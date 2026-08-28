@@ -10,21 +10,21 @@
  * second confirmation + server timestamp + content hash chain); no CA certificate required.
  *
  * S5 adaptation (2026-08-22): the contract moved to the standalone `contracts` table —
- *   - signing layer dropped (no stage / signing_status / demand_id / price columns; hourly_rate -> rate)
- *   - contract_status is 2-state ('signing' | 'signed') plus a `revoked` marker
- *   - the contract carries its own party tuple; conversation_id is a nullable historical link
- *   - drafting (handleCreateContract) now requires a fresh capToken (dangerous op) and has no demand gate
- *   - revoke / admin remove no longer release a linked demand (S5-13)
+ * - signing layer dropped (no stage / signing_status / demand_id / price columns; hourly_rate -> rate)
+ * - contract_status is 2-state ('signing' | 'signed') plus a `revoked` marker
+ * - the contract carries its own party tuple; conversation_id is a nullable historical link
+ * - drafting (handleCreateContract) now requires a fresh capToken (dangerous op) and has no demand gate
+ * - revoke / admin remove no longer release a linked demand ()
  *
  * Covered (server-side full chain):
- *   - draft: body contains Article 10 signature record, both "待签署", no blank placeholder;
- *     the contracts row is 'signing' / revoked=0 / rate persisted; the conversation is untouched
- *   - single sign: signed_at set + body shows that party "已签署·时间" + one ledger row + still 'signing'
- *   - double sign: status='signed' + body both signed + two ledger rows + verify passes with 2 entryList rows
- *   - modify: confirmed party blocked (409); unconfirmed party edit resets signed_at/confirmed, rebuilds "待签署"
- *   - cancel: my side signed / other not -> roll back to 'signing', contract retained
- *   - revoke: after double sign -> revoked=1, row retained, idempotent rejection
- *   - verify: entryList per-row (seq + created_at)
+ * - draft: body contains Article 10 signature record, both "待签署", no blank placeholder;
+ * the contracts row is 'signing' / revoked=0 / rate persisted; the conversation is untouched
+ * - single sign: signed_at set + body shows that party "已签署·时间" + one ledger row + still 'signing'
+ * - double sign: status='signed' + body both signed + two ledger rows + verify passes with 2 entryList rows
+ * - modify: confirmed party blocked (409); unconfirmed party edit resets signed_at/confirmed, rebuilds "待签署"
+ * - cancel: my side signed / other not -> roll back to 'signing', contract retained
+ * - revoke: after double sign -> revoked=1, row retained, idempotent rejection
+ * - verify: entryList per-row (seq + created_at)
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -67,8 +67,8 @@ const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA for
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
 /** Seed: s1 student + t1 teacher; d1 = s1's demand (S3 single-subject shape; status 'contracted' is
- *  harmless — contracts are decoupled from demands, the row only satisfies the conversation FK and
- *  backs the "admin remove releases no demand" U-3g assertion); C1 = s1-t1 conversation. */
+ * harmless — contracts are decoupled from demands, the row only satisfies the conversation FK and
+ * backs the "admin remove releases no demand" assertion); C1 = s1-t1 conversation. */
 async function seed(db, raw) {
   await initDb(db, ENV);
   await initLedgerTable(db); // worker boot chain: initDb -> initLedgerTable (env.LEDGER_DB || env.DB)
@@ -110,7 +110,7 @@ const capOf = async (raw, name, sessionId, idOf) => {
     .run(idOf(name), sessionId, await tokenDigest(cap), '2099-01-01 00:00:00');
   return cap;
 };
-// S5-06: drafting is a dangerous operation — every draft requires a fresh capToken for the drafter.
+// drafting is a dangerous operation — every draft requires a fresh capToken for the drafter.
 const draftOf = async (raw, name, sessionId, idOf, convId) => ({
   ...contractBody(convId),
   capToken: await capOf(raw, name, sessionId, idOf),
@@ -188,7 +188,7 @@ test('双方签署：status=signed + 正文双方已签署 + 台账两条 + veri
   assert.ok(data.entryList[0].createdAt, '条目含记档时间');
 });
 
-// PA-1e-F1 regression: the signature block renders timestamps by role (甲方=student / 乙方=teacher),
+// regression: the signature block renders timestamps by role (甲方=student / 乙方=teacher),
 // NOT by drafter/other. The drafter may be either party (handleCreateContract), so a teacher-drafted
 // contract must show the teacher's time in 乙方 and the student's time in 甲方 — the old hardcoded
 // drafter->student mapping swapped the two timestamps and mislabeled a student-first partial sign
@@ -293,7 +293,7 @@ test('R7 撤销合同：双方签后撤销 → 置 revoked 标记、合同保留
   assert.equal(cancelRes.status, 409, '双方已签不可取消，须撤销');
 });
 
-// Z-5-F4 regression: ledger write failure -> contract still reaches signed (no deadlock) — returning 500
+// regression: ledger write failure -> contract still reaches signed (no deadlock) — returning 500
 // would strand a both-confirmed contract in 'signing' with no actionable path.
 test('Z-5-F4 回归：台账失败不返 500，合同进 signed 缺口可 verify 暴露', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -309,7 +309,7 @@ test('Z-5-F4 回归：台账失败不返 500，合同进 signed 缺口可 verify
   assert.equal(ct.status, 'signed', '终态 signed（缺口经 verify 面板暴露，非静默）');
 });
 
-// Z-5-F4 (d) recovery-path regression: contract reached signed but the ledger is missing (dropped table)
+// (d) recovery-path regression: contract reached signed but the ledger is missing (dropped table)
 // -> rebuild the ledger table, then re-sign the SIGNED contract -> the gate admits SIGNED -> flag UPDATE
 // changes=0 -> idempotent backfill. Before the fix that path was unreachable (409 CONTRACT_STATE_INVALID).
 test('Z-5-F4 恢复路径：SIGNED 重签幂等补记台账缺口', async () => {
@@ -335,7 +335,7 @@ test('Z-5-F4 恢复路径：SIGNED 重签幂等补记台账缺口', async () => 
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM contract_ledger').get().c, 1, '重复重签仍一条（幂等）');
 });
 
-// Z-5-O2/O3 regression: draft gate strengthened — closed conversation blocks drafting (the old handler
+// /O3 regression: draft gate strengthened — closed conversation blocks drafting (the old handler
 // lacked a conversation-state check) + rate clamped to BUDGET_MAX (previously unbounded).
 test('Z-5-O2/O3 回归：关闭会话禁起草 + 时薪钳制 BUDGET_MAX', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -352,7 +352,7 @@ test('Z-5-O2/O3 回归：关闭会话禁起草 + 时薪钳制 BUDGET_MAX', async
   assert.equal(ct.rate, LIMITS.BUDGET_MAX, '时薪钳制为 BUDGET_MAX（修复前存 999999999）');
 });
 
-// Z-5-F5 regression: after cancel the body's Article 10 reflects the rolled-back sign state
+// regression: after cancel the body's Article 10 reflects the rolled-back sign state
 // (previously only the columns were cleared while the body still showed "已签署" to the other party).
 test('Z-5-F5 回归：取消后正文重拼为回退签署态', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -368,7 +368,7 @@ test('Z-5-F5 回归：取消后正文重拼为回退签署态', async () => {
   assert.equal((ct.contract_md.match(/待签署/g) || []).length, 2, '双方均回退待签署');
 });
 
-// Z-5-F7 regression: prev_business is encrypted at rest (same N-05 material as contract_md); both
+// regression: prev_business is encrypted at rest (same material as contract_md); both
 // dbGetContractById and the list mapper decrypt on the way out.
 test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -390,7 +390,7 @@ test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async (
   assert.ok(String(mineCt.prev_business).includes('家教服务合同'), 'prev_business = 修改前业务部分（diff 基线）');
 });
 
-// U-3g: admin remove = dangerous operation (deletes the row; S5-13: no demand release), P12 requires
+// admin remove = dangerous operation (deletes the row; no demand release), requires
 // capToken second confirmation. Mutation: dropping confirmDangerOtp in handleAdminRemoveContract -> the
 // no-capToken branch returns 200 -> red.
 test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200（S5：无需求联动）', async () => {
@@ -410,7 +410,7 @@ test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200（S5�
   const noCap = await handleAdminRemoveContract(db, cid, {}, reqOf(adminSession.token));
   assert.equal(noCap.status, 403, '管理员无 capToken 拒绝');
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM contracts').get().c, 1, '合同未被删');
-  // admin with capToken -> 200, contract deleted; the linked demand is NOT released (S5-13)
+  // admin with capToken -> 200, contract deleted; the linked demand is NOT released ()
   const cap = await capOf(raw, 'admin_x', adminSession.sessionId, idOf);
   const withCap = await handleAdminRemoveContract(db, cid, { capToken: cap }, reqOf(adminSession.token));
   assert.equal(withCap.status, 200, '管理员带 capToken 移除成功');

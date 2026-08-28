@@ -1,6 +1,6 @@
 /**
  * 需求十一·按钮统一外观组件（R11：需求列表「编辑」/「试课意向」等卡片动作按钮）
- * B4：直接 import student feature ESM；v1 onclick 断言改为 v2 data-action 委托断言。
+ * 直接 import student feature ESM；v1 onclick 断言改为 v2 data-action 委托断言。
  *
  * 覆盖：教师视角意向四态（cta/wait/ok）均 btn-soft；学生可编辑视角编辑/重开 btn-soft；
  * 推送拒收/接收 btn-soft；意图展开按钮 btn-soft；意向行查看/同意/拒绝 btn-soft；

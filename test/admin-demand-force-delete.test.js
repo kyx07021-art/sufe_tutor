@@ -103,7 +103,7 @@ test('管理员删除需求 → 200；需求行删除；合同独立保留；会
   assert.equal(raw.prepare('SELECT demand_id FROM conversations WHERE id=?').get(conv).demand_id, null, '会话 demand_id 经 FK ON DELETE SET NULL 置空');
 });
 
-// PA-1f-F1：管理员删除需求是危险操作（P12），无 capToken 必须 403（变异实证：删
+// 管理员删除需求是危险操作（），无 capToken 必须 403（变异实证：删
 // handleAdminDeleteDemand 的 confirmDangerOtp → 本测试红）。404 先于 capToken 不消费。
 test('PA-1f-F1：admin delete demand 无 capToken → 403 且需求保留', async () => {
   const raw = rawOf(); const db = d1Shim(raw);

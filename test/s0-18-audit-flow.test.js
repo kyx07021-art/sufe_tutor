@@ -1,33 +1,33 @@
 /**
- * S0-18 audit-flow content-write breakpoint (src/server/core/audit-flow.js) — migration
+ * audit-flow content-write breakpoint (src/server/core/audit-flow.js) — migration
  * verification + TEST-ENFORCED route cross-check + mutation-guarded fail-closed tests.
  *
  * auditBeforeWrite is the single breakpoint every content write passes before hitting a
  * handler (invoked from _worker fetch). It maps the request path -> free-text fields
- * (AUDIT_MAP) and sends them through text-audit's L1+L2 throat, fail-closed.
+ * (AUDIT_MAP) and sends them through text-audit's +throat, fail-closed.
  *
- * S0-18 route cross-check (TEST-ENFORCED, not a comment promise):
- *   The test parses the REAL route source files (src/server/domains/<domain>/api.js +
- *   src/server/app.js) with the S('METHOD','/path') declaration regex, then asserts:
- *     1. every CONTENT_WRITE_PREFIXES entry still matches a real registered POST/PUT route
- *        (a dead prefix fails the test),
- *     2. every user free-text write route in the current table is covered by a prefix
- *        (a new free-text route added without registering it fails the test),
- *     3. the only prefixes WITHOUT an AUDIT_MAP rule are the binary/no-free-text whitelist
- *        (/api/uploads, /api/user/avatar) and both are real routes.
- *   Admin-only free-text routes (POST /api/notifications/broadcast,
- *   /api/admin/content/:type/:id/action, /api/admin/verifications/:id/action,
- *   /api/admin/reviews/:id/approve|reject) are intentionally excluded: the gate's contract
- *   is "user-uploaded data" (管理员受信输入，非用户上传内容).
+ * route cross-check (TEST-ENFORCED, not a comment promise):
+ * The test parses the REAL route source files (src/server/domains/<domain>/api.js +
+ * src/server/app.js) with the S('METHOD','/path') declaration regex, then asserts:
+ * 1. every CONTENT_WRITE_PREFIXES entry still matches a real registered POST/PUT route
+ * (a dead prefix fails the test),
+ * 2. every user free-text write route in the current table is covered by a prefix
+ * (a new free-text route added without registering it fails the test),
+ * 3. the only prefixes WITHOUT an AUDIT_MAP rule are the binary/no-free-text whitelist
+ * (/api/uploads, /api/user/avatar) and both are real routes.
+ * Admin-only free-text routes (POST /api/notifications/broadcast,
+ * /api/admin/content/:type/:id/action, /api/admin/verifications/:id/action,
+ * /api/admin/reviews/:id/approve|reject) are intentionally excluded: the gate's contract
+ * is "user-uploaded data" (管理员受信输入，非用户上传内容).
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - delete the AUDIT_MAX_FIELDS budget check -> a 14-field chat batch is audited per-field
- *     and passes -> red.
- *   - change LIMITS.AUDIT_MAX_FIELDS away from MSG_BATCH_MAX -> the alignment lock goes red.
- *   - remove a CONTENT_WRITE_PREFIXES entry whose route still exists -> route cross-check red.
- *   - remove the firstMessage / additionalInfo / settings-username AUDIT_MAP pick -> the
- *     corresponding free-text route is no longer audited -> the breakpoint L1 test goes red.
- *   - auditBeforeWrite returns ok when auditFreeText reports layer:'error' -> red.
+ * - delete the AUDIT_MAX_FIELDS budget check -> a 14-field chat batch is audited per-field
+ * and passes -> red.
+ * - change LIMITS.AUDIT_MAX_FIELDS away from MSG_BATCH_MAX -> the alignment lock goes red.
+ * - remove a CONTENT_WRITE_PREFIXES entry whose route still exists -> route cross-check red.
+ * - remove the firstMessage / additionalInfo / settings-username AUDIT_MAP pick -> the
+ * corresponding free-text route is no longer audited -> the breakpoint test goes red.
+ * - auditBeforeWrite returns ok when auditFreeText reports layer:'error' -> red.
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,7 +68,7 @@ function auditMapPrefixList() {
   return [...sourceBlock('AUDIT_MAP').matchAll(/prefix: '([^']+)'/g)].map(m => m[1]);
 }
 
-/** Parse the REAL registered routes from the route source files (the S0-18 grep cross-check). */
+/** Parse the REAL registered routes from the route source files (the grep cross-check). */
 function parseRegisteredRoutes() {
   const dir = ROOT + 'src/server/domains/';
   const files = readdirSync(dir)
@@ -92,7 +92,7 @@ function parseRegisteredRoutes() {
 }
 
 // ============================================================
-// S0-18 route cross-check (TEST-ENFORCED)
+// route cross-check (TEST-ENFORCED)
 // ============================================================
 
 test('S0-18 route cross-check: every CONTENT_WRITE_PREFIXES matches a real registered POST/PUT route (no dead prefixes)', () => {
@@ -140,7 +140,7 @@ test('S0-18 internal consistency: every AUDIT_MAP prefix is in CONTENT_WRITE_PRE
 });
 
 // ============================================================
-// AUDIT_MAX_FIELDS budget fail-closed (Q-2b-F1 carried over)
+// AUDIT_MAX_FIELDS budget fail-closed (carried over)
 // ============================================================
 
 test('S0-18 AUDIT_MAX_FIELDS budget is aligned with MSG_BATCH_MAX (single-source contract)', () => {
@@ -181,7 +181,7 @@ test('S0-18 fail-closed: no semantic key rejects a normal content write at the b
 });
 
 test('S0-18 L1 through the breakpoint: door number in free text rejected, normal text passes', async () => {
-  // S0-18 rework (FAIL-1/FAIL-2): the demand and temp-conversation free-text fields are the
+  // rework (FAIL-1/FAIL-2): the demand and temp-conversation free-text fields are the
   // exact fields that were silently bypassed before — they must be audited through the breakpoint.
   const demand = await auditBeforeWrite({ path: '/api/demands', method: 'POST', body: { additionalInfo: '家住静安区5号楼303室' } });
   assert.ok(demand.reject, 'demand additionalInfo door number -> rejected (mutation: drop additionalInfo pick -> red)');
@@ -191,7 +191,7 @@ test('S0-18 L1 through the breakpoint: door number in free text rejected, normal
   assert.ok(temp.reject, 'temp-conversation firstMessage door number -> rejected (mutation: drop firstMessage pick -> red)');
   assert.equal(temp.code, 'ADDRESS_TOO_DETAILED');
 
-  // PA-1a-F1: PUT /api/settings {username} bypassed the gate — the username whitelist allows
+  // PUT /api/settings {username} bypassed the gate — the username whitelist allows
   // door-number strings, so the consolidated settings surface must be audited like /api/user/username.
   const settingsName = await auditBeforeWrite({ path: '/api/settings', method: 'PUT', body: { username: '漕溪北路999号' } });
   assert.ok(settingsName.reject, 'settings username door number -> rejected (mutation: drop username pick -> red)');

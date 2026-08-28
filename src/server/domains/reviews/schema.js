@@ -1,5 +1,5 @@
 /**
- * reviews 域 schema（V-1-4b）：评价 DDL、旧表重建（删列类迁移）与一人一评唯一索引。
+ * reviews 域 schema（）：评价 DDL、旧表重建（删列类迁移）与一人一评唯一索引。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 
@@ -48,7 +48,7 @@ export async function migrate(db, ctx) {
     try {
       await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_reviewer_teacher ON reviews(reviewer_user_id, teacher_user_id)');
     } catch { /* 旧重复数据：跳过索引 */ }
-    // PA-3-F2（PA-3d M1）：唯一索引前导列为 reviewer，无法服务 teacher_user_id 前缀查找 →
+    // （）：唯一索引前导列为 reviewer，无法服务 teacher_user_id 前缀查找 →
     // dbGetApprovedReviews / dbGetApprovedReviewStats（评分重算）全表扫随评价量线性劣化。
     // 补 (teacher_user_id, status) 索引精确匹配两查询的 WHERE（幂等，非唯一恒可建）。
     await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_reviews_teacher_status ON reviews(teacher_user_id, status)');

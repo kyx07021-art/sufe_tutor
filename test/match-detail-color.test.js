@@ -1,5 +1,5 @@
 /**
- * R25 匹配度明细红黄绿遮罩配色（B4：直接 import core/match + teacher render）。
+ * R25 匹配度明细红黄绿遮罩配色（直接 import core/match + teacher render）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

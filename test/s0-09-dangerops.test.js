@@ -1,21 +1,21 @@
 /**
- * S0-09 danger-ops capToken choke mutation guards (new-site foundation, in-place reuse of
+ * danger-ops capToken choke mutation guards (new-site foundation, in-place reuse of
  * v2 core/danger-ops.js).
  *
- * Locks the capToken persistence contract (Z-1-F1 / N-02 / S0-09 acceptance): a capToken is
+ * Locks the capToken persistence contract (/ / acceptance): a capToken is
  * D1-persisted as a SHA-256 digest, bound to the issuing session, and consumed by an atomic
- * DELETE (hit-and-delete). The critical guard here is the Z-1-F1 fix — when the danger_caps
+ * DELETE (hit-and-delete). The critical guard here is the fix — when the danger_caps
  * INSERT fails, issueCapToken must return '' (a dead token handed back would let re-auth report
  * success while the follow-up dangerous operation fails 403).
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - issueCapToken drops the try/catch around the INSERT -> a DB failure returns a non-empty
- *     dead token -> assert(cap === '') red
- *   - confirmDangerOtp becomes non-atomic (SELECT the row and return, no DELETE) -> the same
- *     token passes a second time -> one-time assertion red
- *   - confirmDangerOtp drops session binding (WHERE without session_id) -> another device's
- *     session can consume the cap -> red
- *   - clearDangerCaps stops deleting -> confirm after logout still passes -> red
+ * - issueCapToken drops the try/catch around the INSERT -> a DB failure returns a non-empty
+ * dead token -> assert(cap === '') red
+ * - confirmDangerOtp becomes non-atomic (SELECT the row and return, no DELETE) -> the same
+ * token passes a second time -> one-time assertion red
+ * - confirmDangerOtp drops session binding (WHERE without session_id) -> another device's
+ * session can consume the cap -> red
+ * - clearDangerCaps stops deleting -> confirm after logout still passes -> red
  *
  * Uses a real node:sqlite in-memory DB (same d1Shim + initDb as session-device.test.js / s0-08).
  */

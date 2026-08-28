@@ -1,5 +1,5 @@
 /**
- * 需求三十 · 注册须同意用户协议与隐私政策（B4：直接 import auth ESM）。
+ * 需求三十 · 注册须同意用户协议与隐私政策（直接 import auth ESM）。
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';

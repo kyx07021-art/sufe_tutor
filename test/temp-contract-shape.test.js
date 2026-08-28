@@ -4,20 +4,20 @@
  * This is a CONTRACT-LOCK primitive for the S2 temp conversation feature. It does NOT
  * call any handler or repo function — the implementation (chat/api.js, chat/repo.js,
  * chat/schema.js) is owned by other agents writing it in parallel. Instead it freezes
- * the shapes documented in docs/interfaces.md §17/§19 against the shared constants
+ * the shapes documented in docs/interfaces.md /against the shared constants
  * (TEMP_STATUS / LIMITS / MSG / CODES) that the backend must consume, and locks the
  * schema columns (temp_status / temp_initiator_user_id) once the schema agent lands them.
  *
  * The source of truth for the exact field names / error code:
- *   - docs/interfaces.md §17 "S2 临时会话（temp）契约"
- *   - docs/interfaces.md §19 (I-15..25 authoritative shapes) + the S2-T0 lock subsection
+ * - docs/interfaces.md "S2 临时会话（temp）契约"
+ * - docs/interfaces.md (..25 authoritative shapes) + the S2-T0 lock subsection
  *
- * Mutation guards (G2 — reverting the matching source line turns the assertion red):
- *   - Renaming TEMP_STATUS.INIT/SENT or changing their values -> deepEqual goes red.
- *   - Raising LIMITS.TEMP_SEND_QUOTA / TEMP_FIRST_MSG_MAX -> equality goes red.
- *   - Dropping MSG/CODES.TEMP_QUOTA_EXCEEDED -> non-empty assertions go red.
- *   - Removing the field names / error code from docs/interfaces.md -> doc scan goes red.
- *   - Removing the temp columns from chat/schema.js -> schema assertions go red.
+ * Mutation guards (— reverting the matching source line turns the assertion red):
+ * - Renaming TEMP_STATUS.INIT/SENT or changing their values -> deepEqual goes red.
+ * - Raising LIMITS.TEMP_SEND_QUOTA / TEMP_FIRST_MSG_MAX -> equality goes red.
+ * - Dropping MSG/CODES.TEMP_QUOTA_EXCEEDED -> non-empty assertions go red.
+ * - Removing the field names / error code from docs/interfaces.md -> doc scan goes red.
+ * - Removing the temp columns from chat/schema.js -> schema assertions go red.
  *
  * The schema assertions are conditional (t.skip until temp columns land) so this file
  * passes today regardless of the schema agent's progress, then becomes a real lock.

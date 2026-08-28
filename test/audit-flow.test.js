@@ -1,11 +1,11 @@
 /**
- * v0.26.0 高频轻量日常审核通道（E1/E2）+ v0.30.0 S2-1 门牌合规 L1 规则层挂接
+ * v0.26.0 高频轻量日常审核通道（E1/E2）+ v0.30.0 门牌合规 规则层挂接
  *
  * 覆盖：
- *   - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
- *   - auditBeforeWrite：默认放行；语义层未配置拒绝写入；
- *   - L1 规则层（v0.30.0 S2-1）：按路径映射抽取自由文本字段交 auditFreeText——
- *     门牌号内容 → reject（ADDRESS_TOO_DETAILED）；正常文本放行；非内容写路径不过断点。
+ * - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
+ * - auditBeforeWrite：默认放行；语义层未配置拒绝写入；
+ * - 规则层（v0.30.0 ）：按路径映射抽取自由文本字段交 auditFreeText——
+ * 门牌号内容 → reject（ADDRESS_TOO_DETAILED）；正常文本放行；非内容写路径不过断点。
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +36,7 @@ test('isContentWrite：内容域写路径白名单（S0-18 对齐当前路由）
   assert.equal(isContentWrite('/api/conversations/temp', 'POST'), true, '临时会话（I-23 firstMessage）');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'POST'), true, '聊天消息');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'PUT'), true, '聊天消息 PUT 变体');
-  // S2 (intents/pushes removed) + S0-18 (dead prefixes removed): these are no longer content write paths
+  // S2 (intents/pushes removed) + (dead prefixes removed): these are no longer content write paths
   assert.equal(isContentWrite('/api/intents/9/resolve', 'POST'), false, '处理需求意向（已随 S2 删除）');
   assert.equal(isContentWrite('/api/demand-pushes', 'POST'), false, '学生推送需求（已随 S2 删除）');
   assert.equal(isContentWrite('/api/demand-pushes/8/resolve', 'POST'), false, '教师处理推送（已随 S2 删除）');
@@ -111,7 +111,7 @@ test('auditBeforeWrite L1 规则层：需求扁平 additionalInfo / 教师档案
   assert.ok(demEditBad.reject, '需求编辑扁平 additionalInfo 含门牌 → 拒');
   const demOk = await auditBeforeWrite({ path: '/api/demands', method: 'POST', body: { additionalInfo: '希望周末上课' } });
   assert.equal(demOk.ok, true, '需求正常 → 放行');
-  // I-23：临时会话 firstMessage 是真实用户自由文本（落库为聊天消息），必须同守门牌红线
+  // 临时会话 firstMessage 是真实用户自由文本（落库为聊天消息），必须同守门牌红线
   const tempBad = await auditBeforeWrite({ path: '/api/conversations/temp', method: 'POST', body: { targetUserId: 9, firstMessage: '老师您好，我家在8号楼702室' } });
   assert.ok(tempBad.reject, '临时会话 firstMessage 含门牌 → 拒');
   const tempOk = await auditBeforeWrite({ path: '/api/conversations/temp', method: 'POST', body: { targetUserId: 9, firstMessage: '老师您好，想约周六试课' } });
@@ -130,7 +130,7 @@ test('auditBeforeWrite L1 规则层：地铁「号线」不误伤、路名级别
   assert.equal(ok2.ok, true, '纯地点无门牌放行');
 });
 
-// Z-2-F7 回归：合法 JSON 文本 null 无自由文本可审 → 放行（修复前 AUDIT_MAP pick(null) TypeError → 500）
+// 回归：合法 JSON 文本 null 无自由文本可审 → 放行（修复前 AUDIT_MAP pick(null) TypeError → 500）
 test('auditBeforeWrite：JSON null body 放行（Z-2-F7 断线回归）', async () => {
   const r = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: null });
   assert.equal(r.ok, true, 'null body 放行（修复前 pick(null) TypeError → 500）');

@@ -1,5 +1,5 @@
 /**
- * 需求四十六 · 试课薪资「其他」输入框错位（B4：直接 import contract actions-draft）。
+ * 需求四十六 · 试课薪资「其他」输入框错位（直接 import contract actions-draft）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

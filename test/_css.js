@@ -1,9 +1,9 @@
 /**
- * CSS contract test shared reads (post V-2-5b restructure).
+ * CSS contract test shared reads (post restructure).
  * Load order = index.html link order:
- *   STYLE_CSS  = original style.css all bytes (tokens/base/features-per-domain/responsive concatenated in load order)
- *   CHAT_CSS / POSTS_CSS / REGION_CSS = original style-chat/posts/region.css (moved into features/)
- *   GLASS_CSS  = glass.css (glass engine kept whole)
+ * STYLE_CSS = original style.css all bytes (tokens/base/features-per-domain/responsive concatenated in load order)
+ * CHAT_CSS / POSTS_CSS / REGION_CSS = original style-chat/posts/region.css (moved into features/)
+ * GLASS_CSS = glass.css (glass engine kept whole)
  */
 import { readFileSync } from 'node:fs';
 

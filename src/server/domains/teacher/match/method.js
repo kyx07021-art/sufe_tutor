@@ -1,13 +1,13 @@
 /**
- * S4-16 teaching-method dimension (pure). Weight 10.
+ * teaching-method dimension (pure). Weight 10.
  * Compatibility matrix over the 9 combos of demand.method x teacher.method
  * (each side is online | offline | both, plus '' = not declared):
  *
- *   demand \ teacher    online   offline   both     ''
- *   online              1        0         1        null
- *   offline             0        1         1        null
- *   both                1        1         1        null
- *   ''                  null     null      null     null
+ * demand \ teacher online offline both ''
+ * online 1 0 1 null
+ * offline 0 1 1 null
+ * both 1 1 1 null
+ * '' null null null null
  *
  * A student who accepts both modes matches any declared teacher method; a missing method
  * on either side is NOT applicable (null).

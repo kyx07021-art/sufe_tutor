@@ -1,5 +1,5 @@
 /**
- * auth 域 schema（V-1-4b）：用户 / 会话 / 限流 / 邀请码 DDL、列迁移与全部 auth 域迁移。
+ * auth 域 schema（）：用户 / 会话 / 限流 / 邀请码 DDL、列迁移与全部 auth 域迁移。
  * 注意：migrateLegacyRoles 是一次性跨域遗留迁移（users role 扩展 admin + banned），
  * 为保「父先子后 + 引用闭包」整体性，历史上决定它连同其子表闭包一起放在 auth 域。
  */
@@ -43,8 +43,8 @@ export const ensureColumns = [
     ['phone', "TEXT DEFAULT ''"], ['phone_hash', "TEXT DEFAULT ''"],
     ['email', "TEXT DEFAULT ''"], ['email_hash', "TEXT DEFAULT ''"],
     ['username_changed_at', 'DATETIME'],
-    // S1-15..19 (I-08): notification prefs consumed by the consolidated /api/settings surface.
-    // B1 discipline (mirrors core/db.js version gate): ensureColumns runs ONLY inside the version-gated
+    // ..19 (): notification prefs consumed by the consolidated /api/settings surface.
+    // discipline (mirrors core/db.js version gate): ensureColumns runs ONLY inside the version-gated
     // full migration. Adding a column here WITHOUT bumping SCHEMA_VERSION +1 in the same change means the
     // column is never created on live DBs already at the current version (three production incidents).
     ['blockSystemNotifications', 'INTEGER NOT NULL DEFAULT 0'],

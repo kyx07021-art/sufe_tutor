@@ -1,5 +1,5 @@
 /**
- * 标准组件壳回归（B4：直接 import core/ui + core/anim）。
+ * 标准组件壳回归（直接 import core/ui + core/anim）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

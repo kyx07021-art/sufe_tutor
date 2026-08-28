@@ -1,19 +1,19 @@
 /**
- * S2-B1 chat three-table carry-lock (static shape-lock).
+ * S2-chat three-table carry-lock (static shape-lock).
  *
  * Asserts that the three chat tables in src/server/domains/chat/schema.js match
  * the S2 new-site model without needing a D1 shim (pure string shape assertions):
- *   - conversations: two-party tuple (student_user_id/teacher_user_id) + status +
- *     S2-T1 temp columns (temp_status / temp_initiator_user_id).
- *   - messages: kind CHECK text/image/file/contract. The signing kinds
- *     (signing_request / signing_response) are an S5-owned DEFERRAL and must stay.
- *   - uploads: kind CHECK image/file + thumb ensureColumns.
- *   - migrateMessagesKind carry keeps name/thumb (no data loss on rebuild).
+ * - conversations: two-party tuple (student_user_id/teacher_user_id) + status +
+ * S2-T1 temp columns (temp_status / temp_initiator_user_id).
+ * - messages: kind CHECK text/image/file/contract. The signing kinds
+ * (signing_request / signing_response) are an S5-owned DEFERRAL and must stay.
+ * - uploads: kind CHECK image/file + thumb ensureColumns.
+ * - migrateMessagesKind carry keeps name/thumb (no data loss on rebuild).
  *
  * messages.kind DEFERRAL (coordinated with S5 contract-domain rewrite):
  * S5 contract-domain cleanup owns removing signing kinds — do not touch until
- * S5-19 lands. The contract domain is OFF-LIMITS to S2; its in-flight rewrite has
- * not yet committed S5-19, and the committed contract/api.js still writes these
+ * lands. The contract domain is OFF-LIMITS to S2; its in-flight rewrite has
+ * not yet committed , and the committed contract/api.js still writes these
  * message kinds, so dropping them from the CHECK now would break signing flows.
  */
 import { test } from 'node:test';
@@ -75,7 +75,7 @@ test('messages MESSAGES_DDL kind CHECK: base kinds text/image/file/contract', ()
 });
 
 test('messages signing kinds DEFERRED to S5: still present in CHECK (do not touch until S5-19)', () => {
-  // S5 contract-domain cleanup owns removing signing kinds — do not touch until S5-19 lands.
+  // S5 contract-domain cleanup owns removing signing kinds — do not touch until lands.
   // contract/api.js (S5-owned) still writes these message kinds; removing them now would 500 signing flows.
   for (const kind of ["'signing_request'", "'signing_response'"]) {
     assert.ok(MESSAGES_DDL.includes(kind), `signing kind ${kind} must remain in CHECK (S5-owned deferral)`);

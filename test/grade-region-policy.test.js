@@ -1,5 +1,5 @@
 /**
- * M3 需求发布年级-地区政策适配（B4：直接 import ESM）。
+ * 需求发布年级-地区政策适配（直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

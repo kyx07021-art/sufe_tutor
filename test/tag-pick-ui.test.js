@@ -1,5 +1,5 @@
 /**
- * tag-pick 多选 pill 前端回归（B4：直接 import core/ui）。
+ * tag-pick 多选 pill 前端回归（直接 import core/ui）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

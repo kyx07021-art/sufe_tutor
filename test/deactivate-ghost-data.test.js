@@ -31,7 +31,7 @@ import { dbDeactivateUser, dbPurgeUserOwnedData } from '../src/server/domains/au
 import { dbGetContractById } from '../src/server/domains/contract/repo.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { handleCreateContract, handleSignContract, handleVerifyContract } from '../src/server/domains/contract/api.js';
-import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
+import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -214,7 +214,7 @@ test('handleDeactivateSettings 端到端：注销后合同正文逐字不变（�
 });
 
 // ============================================================
-// 前端：display 助手 + 七个渲染点 tag 注入 + CSS（B4：直接 import ESM）
+// 前端：display 助手 + 七个渲染点 tag 注入 + CSS（直接 import ESM）
 // ============================================================
 
 test('前端：isDeactivated / deactivatedTag 识别墓碑并渲染「一方已注销」tag', () => {

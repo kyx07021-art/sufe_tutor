@@ -1,5 +1,5 @@
 /**
- * R16 前端评分显示兜底 4.0 → 4.5（B4：直接 import core/display）。
+ * R16 前端评分显示兜底 4.0 → 4.5（直接 import core/display）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

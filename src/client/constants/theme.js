@@ -1,5 +1,5 @@
 /**
- * 前端主题与外观包 token 单源（V-2-5 从根 constants.js 迁出）。
+ * 前端主题与外观包 token 单源（从根 constants.js 迁出）。
  * 只放 CSS 变量/外观包，文案与数值仍在 shared/constants/text.js。
  */
 export const THEME = {

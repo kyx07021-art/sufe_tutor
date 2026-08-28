@@ -1,5 +1,5 @@
 /**
- * Z-3-F1 F1g：教师档案页生产实机验证（G5 几何断言 + W43 首访心智 + 零 CSP 违规）。
+ * g：教师档案页生产实机验证（几何断言 + 首访心智 + 零 CSP 违规）。
  * 真实生产 https://sufe-tutor.pages.dev，qa_teacher 登录 → teacher-profile 页 →
  * 断言四区表单 + 核验区块渲染在视口内 + 全程零 console/pageerror/CSP 违规。
  * 用法：node test/verify-teacher-profile.mjs（需 playwright；不进 npm test glob）
@@ -31,7 +31,7 @@ async function checkPage(page, label) {
 }
 
 async function login(page) {
-  // 首访 onboarding（closable:true）：点遮罩关闭（W43 负路径 = 用户可能先点页面/遮罩）
+  // 首访 onboarding（closable:true）：点遮罩关闭（负路径 = 用户可能先点页面/遮罩）
   await page.goto(BASE + '/', { waitUntil: 'load' });
   await page.waitForTimeout(2500);
   const mask = page.locator('.modal-overlay').first();
@@ -64,7 +64,7 @@ async function login(page) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const watch = await checkPage(page, 'desktop');
   await login(page);
-  // 侧栏教师档案页项（F1b 注册，教师角色可见）
+  // 侧栏教师档案页项（b 注册，教师角色可见）
   const sideItem = page.locator('#sidebar-nav [data-page="teacher-profile"]');
   if (!(await sideItem.count())) { fail('教师侧栏无 teacher-profile 页项'); await page.screenshot({ path: '$CLAUDE_JOB_DIR'.replace('$CLAUDE_JOB_DIR', process.env.CLAUDE_JOB_DIR || 'tmp') + '/f1g-nosideitem.png' }).catch(() => {}); }
   else await sideItem.click();
@@ -83,7 +83,7 @@ async function login(page) {
   else fail('档案表单未渲染');
   if (!g.verify) fail('核验区块未渲染');
   else {
-    // 核验区块在表单下方（合理布局）：滚动可达 + 进入视口 + 无横向溢出（G5 几何）
+    // 核验区块在表单下方（合理布局）：滚动可达 + 进入视口 + 无横向溢出（几何）
     await page.evaluate(() => document.getElementById('teacher-verify').scrollIntoView({ block: 'center' }));
     await page.waitForTimeout(600);
     const v2 = await page.evaluate(() => {

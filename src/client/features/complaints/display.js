@@ -6,7 +6,7 @@
  */
 import { TEXT } from '../../constants/text.js';
 
-// U-3h M2: single-source bug predicate (L2: admin feedback-card warning edge + kind tag
+// single-source bug predicate (admin feedback-card warning edge + kind tag
 // styling must not duplicate the kind->style mapping; also used internally below).
 export const isFeedbackBug = kind => kind === 'bug';
 

@@ -70,7 +70,7 @@ export async function initLogDb(db) {
 }
 
 // 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段 / 联系方式 / 需求地址信息绝不落明文档
-// （第一道脱敏；detail 加密在 crypto.js。网安 N-16：补 address/additional_info——自由文本可能手填电话/门牌）
+// （第一道脱敏；detail 加密在 crypto.js。网安 补 address/additional_info——自由文本可能手填电话/门牌）
 // identifier/target：登录/OTP 请求 body 的键——手机号/邮箱明文经这两键进留档，若漏配则管理员可解密还原
 // （管理员可调 /api/admin/logs/:id/decrypt）。契约：新增任何可承载联系方式的 body 键名，必须复查本清单。
 const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel|address|info|thumb|identifier|target/i; // thumb：聊天缩略图 dataURL 不进留档
@@ -134,7 +134,7 @@ function detailToJson(detail, maxLen = LIMITS.LOG_DETAIL_MAX) {
   } catch { return null; }
 }
 
-// 请求级留档收集（B4：WeakMap 键 req，避免污染 Request 对象；并发请求天然隔离）
+// 请求级留档收集（WeakMap 键 req，避免污染 Request 对象；并发请求天然隔离）
 const pendingLogs = new WeakMap();
 function collectLog(req, row) {
   let rows = pendingLogs.get(req);
@@ -163,16 +163,16 @@ async function flushPendingLogs(target, req) {
 
 /**
  * 语义事件留档（业务代码调用点）
- * @param db  当前业务库（仅用于回落；绑定 LOG_DB 后实际写入独立库）
- * @param ev  { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, detailMax?, durationMs?, req }
- *   action 命名约定：'<域>.<动作>'，如 auth.login.success / demand.create / admin.ban
- *   detail 为可序列化对象；超 detailMax（缺省 LIMITS.LOG_DETAIL_MAX）自动截断为合法 JSON（恒含截断标记）。
- *   detailMax 供正文大字段场景（如 contract.signed 存合同原文）放宽截断
- * 架构（B4：留档 1 次往返）：带 req 的调用不立即落库，行挂到请求级队列（WeakMap 键 req），
- *   由 logRequest 在响应收尾统一 batch 落库（本请求全部业务留档 + 访问留档一次往返）；
- *   无 req（测试/系统事件）直接落，语义不变。
+ * @param db 当前业务库（仅用于回落；绑定 LOG_DB 后实际写入独立库）
+ * @param ev { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, detailMax?, durationMs?, req }
+ * action 命名约定：'<域>.<动作>'，如 auth.login.success / demand.create / admin.ban
+ * detail 为可序列化对象；超 detailMax（缺省 LIMITS.LOG_DETAIL_MAX）自动截断为合法 JSON（恒含截断标记）。
+ * detailMax 供正文大字段场景（如 contract.signed 存合同原文）放宽截断
+ * 架构（留档 1 次往返）：带 req 的调用不立即落库，行挂到请求级队列（WeakMap 键 req），
+ * 由 logRequest 在响应收尾统一 batch 落库（本请求全部业务留档 + 访问留档一次往返）；
+ * 无 req（测试/系统事件）直接落，语义不变。
  */
-// Q-2b-F3: 留档失败计数——logEvent 吞 encryptDetail/写库失败零可观测性（密钥非法 base64 时全站
+// 留档失败计数——logEvent 吞 encryptDetail/写库失败零可观测性（密钥非法 base64 时全站
 // 审计静默停）。isolate 内累计 + 导出查询（admin 可经 /api/health 或后续 dashboard 观察，跨实例重启
 // 归零可接受——观测数据 best-effort，与 telemetry 同口径）。
 let droppedLogs = 0;
@@ -200,7 +200,7 @@ export async function logEvent(db, ev) {
     if (ev.req && typeof ev.req === 'object') { collectLog(ev.req, row); return; }
     await writeLogRow(getLogDb(db), row);
   } catch (err) {
-    droppedLogs++; // Q-2b-F3: 失败计数（每次吞错 +1，console 带累计暴露量级）
+    droppedLogs++; // 失败计数（每次吞错 +1，console 带累计暴露量级）
     console.error(`logEvent failed (swallowed) #${droppedLogs}:`, err?.message || err);
   }
 }
@@ -215,7 +215,7 @@ export async function decryptLogEntry(db, logId) {
 
 /**
  * 通用请求留档（路由层对每一次 API 往来兜底，保证「全量」；status>=400 失败请求同样留档）
- * B4：本函数是留档收尾点——业务 logEvent（请求级队列）与本条访问留档在此一次 batch 落库。
+ * 本函数是留档收尾点——业务 logEvent（请求级队列）与本条访问留档在此一次 batch 落库。
  * D：detail 与 duration_ms 列记录请求耗时，可 SQL 直查慢请求（活动日志库）。
  */
 export async function logRequest(db, { method, path, body, status, req, durationMs }) {

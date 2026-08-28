@@ -5,14 +5,14 @@
  * 并补 getSessionByToken / revokeToken 两个助手（auth 域三处内联反查收敛于此）。
  *
  * 令牌契约（网安报告 F-04）：
- *   - 登录/注册签发 48 位随机 hex 明文令牌回传请求头，库内只存 SHA-256 摘要（tokenDigest）。
- *   - 多端会话：每次登录写一行 auth_sessions（旧设备不被顶下线，账户设置可逐端退登）。
- *   - session_id 独立随机 id，对外设备管理唯一标识；token 永不进响应体。
- *   - 签发前清该用户过期会话（purgeExpiredSessions），会话表天然不膨胀。
+ * - 登录/注册签发 48 位随机 hex 明文令牌回传请求头，库内只存 SHA-256 摘要（tokenDigest）。
+ * - 多端会话：每次登录写一行 auth_sessions（旧设备不被顶下线，账户设置可逐端退登）。
+ * - session_id 独立随机 id，对外设备管理唯一标识；token 永不进响应体。
+ * - 签发前清该用户过期会话（purgeExpiredSessions），会话表天然不膨胀。
  *
  * 危险操作二次认证（capToken）已迁独立模块 server/danger-ops.js（D1 持久化、会话绑定、
  * 命中即删——跨 Cloudflare 多 isolate 全局一致；原 per-isolate 内存 Map 在分布式下会
- * 间歇性失效，网安审计 N-02）。
+ * 间歇性失效，网安审计 ）。
  */
 import { dbAll, dbGet, dbRun, toDbTime } from './util.js';
 import { bufToHex, tokenDigest } from './crypto.js';
@@ -41,8 +41,8 @@ export async function issueAuthToken(db, userId, label, deviceId) {
   const digest = await tokenDigest(token);
   const dev = typeof deviceId === 'string' && /^[0-9a-f]{32}$/.test(deviceId) ? deviceId : '';
   const stmts = [
-    // Q-2a-L6：全局过期会话清理（不限 user_id）——废弃账户的过期行不再永久留存
-    // （原仅清本人，审计 L6：废弃用户过期行永不清 → D1 膨胀）。表小（活跃用户×设备数），
+    // 全局过期会话清理（不限 user_id）——废弃账户的过期行不再永久留存
+    // （原仅清本人，审计 废弃用户过期行永不清 → D1 膨胀）。表小（活跃用户×设备数），
     // 无索引全表 DELETE 成本可忽略；登录低频，锁竞争可接受。
     db.prepare(`DELETE FROM auth_sessions WHERE expires_at < datetime('now')`),
   ];

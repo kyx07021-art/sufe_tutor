@@ -3,11 +3,11 @@
  *
  * 生产 bug：账户注销后同一手机号/邮箱无法再次注册（409 PHONE_ALREADY_BOUND / EMAIL_ALREADY_BOUND）。
  * 根因：dbDeactivateUser 只清 username/password_hash/salt/avatar，不清 users 表的
- *   phone_hash/email_hash → 唯一索引 idx_users_phone_hash / idx_users_email_hash
- *   （auth/schema.js，WHERE phone_hash != ''）仍占用 → 注册占用查 dbPhoneTaken/dbEmailTaken 命中。
+ * phone_hash/email_hash → 唯一索引 idx_users_phone_hash / idx_users_email_hash
+ * （auth/schema.js，WHERE phone_hash != ''）仍占用 → 注册占用查 dbPhoneTaken/dbEmailTaken 命中。
  * 修复（AE-1）：dbDeactivateUser UPDATE 增清 phone/phone_hash/email/email_hash 四列。
  *
- * 本测试锁定修复行为 + 变异守护（还原 AE-1 不清联系方式 → 断言红，G2）。
+ * 本测试锁定修复行为 + 变异守护（还原 AE-1 不清联系方式 → 断言红，）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +18,7 @@ import { lastOtpCode } from './_otp-stub.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
-import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
+import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
 import { dbCreateUser, dbDeactivateUser } from '../src/server/domains/auth/repo.js';
 import { bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken } from '../src/server/core/credential.js';
 

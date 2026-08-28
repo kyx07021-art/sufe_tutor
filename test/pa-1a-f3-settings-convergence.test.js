@@ -1,17 +1,16 @@
 /**
- * PA-1a-F3（中）v2 与新 settings 双端点重复实现收敛 —— 显式转发 G2 变异守护。
+ * 双端点收敛 —— 显式转发 变异守护。
  *
  * 收敛目标：deactivate / username / avatar / 绑定 / username-status / creds 的实现收敛到
- * auth/settings.js 单源；auth/api.js 旧 v2 端点保留为**显式转发**（PA-1a-F3：新前端只消费
- * GET/PUT /api/settings + POST /api/settings/deactivate，旧端点兼容 audit-flow 前缀与未部署
- * 的 v2 壳，转发即单实现）。
+ * auth/settings.js 单源；auth/api.js 旧端点保留为**显式转发**（消费
+ * GET/PUT /api/settings + POST /api/settings/deactivate，旧端点兼容 audit-flow 前缀，转发即单实现）。
  *
  * 本测试从**路由层**（routeApi）验证旧 v2 端点确实转发到 settings 单源并保留全部门禁：
- *   - POST /api/user/deactivate 无 capToken → 403（capToken 门禁经转发存活）
- *   - POST /api/user/avatar 无 token → 401（requireUser 门禁经转发存活）
- *   - GET /api/user/creds / GET /api/user/username/status → 200（读端点经 GET /api/settings 转发）
+ * - POST /api/user/deactivate 无 capToken → 403（capToken 门禁经转发存活）
+ * - POST /api/user/avatar 无 token → 401（requireUser 门禁经转发存活）
+ * - GET /api/user/creds / GET /api/user/username/status → 200（读端点经 GET /api/settings 转发）
  *
- * 变异守护（G2）：若收敛被回退——把转发器换成裸 `json({ok:true})` / 无门禁内联实现——
+ * 变异守护（）：若收敛被回退——把转发器换成裸 `json({ok:true})` / 无门禁内联实现——
  * 下列断言即红。逐一还原修复（转发到 settings）→ 绿。
  */
 import { test } from 'node:test';
@@ -79,7 +78,7 @@ test('PA-1a-F3 v2 转发：POST /api/user/deactivate 无 capToken → 403（capT
   const u = await registerUser(db, raw, 'conv_deact');
 
   // 无 capToken → 403 REAUTH_FAILED。
-  // G2 变异：转发器被回退为裸 json({ok:true})（无 capToken 门禁）→ 本断言红（应 200）→ 还原转发绿。
+  // 变异：转发器被回退为裸 json({ok:true})（无 capToken 门禁）→ 本断言红（应 200）→ 还原转发绿。
   const noCap = await call(db, 'POST', '/api/user/deactivate', {}, u.token);
   assert.equal(noCap.status, 403, `no capToken must be rejected by the forwarded settings gate, got ${noCap.status}`);
   assert.equal((await noCap.json()).code, 'AUTH_REAUTH_FAILED');
@@ -99,7 +98,7 @@ test('PA-1a-F3 v2 转发：POST /api/user/avatar 无 token → 401；带 token �
   const u = await registerUser(db, raw, 'conv_av');
 
   // 无 token → 401 LOGIN_REQUIRED。
-  // G2 变异：转发器被回退为无 requireUser 的内联实现 → 本断言红（应 200）→ 还原转发绿。
+  // 变异：转发器被回退为无 requireUser 的内联实现 → 本断言红（应 200）→ 还原转发绿。
   const anon = await call(db, 'POST', '/api/user/avatar', { avatar: 'data:image/png;base64,iVBORw0KGgo=' });
   assert.equal(anon.status, 401, `no token must be rejected by the forwarded settings auth gate, got ${anon.status}`);
 

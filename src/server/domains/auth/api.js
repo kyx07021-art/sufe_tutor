@@ -11,7 +11,7 @@ import {
   issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
 } from '../../core/session.js';
-import { issueCapToken, clearDangerCapsForSession } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
+import { issueCapToken, clearDangerCapsForSession } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 ）+ capToken 清理
 import { MSG } from '../../../shared/codes.js';
 import { INVITE_GATE_ENABLED, LIMITS } from '../../../shared/config.js';
 import { DEACTIVATED_USER_PREFIX, OTP_SCENES } from '../../../shared/enums.js';
@@ -20,7 +20,7 @@ import {
   dbGetUserById, dbDeleteUser,
   dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
   dbGetTeacherName,
-} from '../../../../server/db.js';
+} from './repo.js';
 // 凭证域：凭证更新独立环节 + 验证码咽喉 + 登录识别
 import {
   bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
@@ -28,9 +28,8 @@ import {
 } from '../../core/credential.js';
 import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from '../../core/otp.js';
 import { logEvent } from '../../core/log.js';
-// 账户设置单源（PA-1a-F3：deactivate/avatar/username/绑定/creds 旧 v2 端点收敛转发到
-// auth/settings.js —— 新前端只消费 GET/PUT /api/settings + POST /api/settings/deactivate，
-// 旧端点保留为显式转发，兼容 audit-flow 前缀与未部署的 v2 壳）
+// 账户设置单源：deactivate/avatar/username/绑定/creds 端点收敛转发到 auth/settings.js
+// （GET/PUT /api/settings + POST /api/settings/deactivate），旧端点保留为显式转发，兼容 audit-flow 前缀。
 import { handleGetSettings, handleUpdateSettings, handleDeactivateSettings, maskPhone } from './settings.js';
 
 export async function handleRegister(db, body, req) {
@@ -52,7 +51,7 @@ export async function handleRegister(db, body, req) {
   const agreePrivacy = body.agreePrivacy === true || body.agreePrivacy === 1 || body.agreePrivacy === 'true';
   if (!agreeAgreement || !agreePrivacy) return errorMsg('AGREE_REQUIRED', 400);
 
-  // B1：限流（封禁查+写限流+注册限流）与用户名占用查同批一次往返（1 次 D1）；D1 异常由 fetch 层兜 500，不 fail-open
+  // 限流（封禁查+写限流+注册限流）与用户名占用查同批一次往返（1 次 D1）；D1 异常由 fetch 层兜 500，不 fail-open
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
   const gate = authRateBatch(db, ip, 'register', [dbUsernameExistsStmt(db, username)]);
   const results = await db.batch(gate.stmts);
@@ -97,7 +96,7 @@ export async function handleRegister(db, body, req) {
   try {
     userId = await dbCreateUser(db, username, hash, salt, role);
   } catch (e) {
-    // Q-2a-F1: check-then-act 窗口内并发双注册同用户名，INSERT 撞 UNIQUE——分流为
+    // check-then-act 窗口内并发双注册同用户名，INSERT 撞 UNIQUE——分流为
     // 业务冲突 400 USERNAME_TAKEN（errorMsg 默认 400），非冲突（D1 故障）上抛 500，不裸返 SERVER_ERROR。
     if (!isUniqueConflict(e)) throw e;
     return errorMsg('USERNAME_TAKEN');
@@ -109,7 +108,7 @@ export async function handleRegister(db, body, req) {
     if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
     else await bindPhoneCredential(db, userId, contactTarget);
   } catch (e) {
-    // Z-1-F7 + Q-2a-F4（回滚重做修订）：绑定失败一律先回滚刚建用户（无论 UNIQUE 冲突还是
+    // + （回滚重做修订）：绑定失败一律先回滚刚建用户（无论 UNIQUE 冲突还是
     // D1/crypto fail-closed 故障）——否则账户已建凭证未绑 = 孤儿账户。回滚后 UNIQUE（并发占用）
     // 分流 400；非冲突（真实故障）上抛 500 保留故障可见性。
     await dbDeleteUser(db, userId);
@@ -143,7 +142,7 @@ export async function handleLogin(db, body, req) {
   const { kind, target } = normalizeIdentifier(identifier);
   if (!kind || (kind === 'email' && String(target).length > LIMITS.EMAIL_MAX)) return errorMsg('LOGIN_FAILED', 401);
 
-  // B1：限流（封禁查+写限流+登录限流）与取用户同批一次往返（登录 10 次 D1 → 此步 1 次）；D1 异常由 fetch 层兜 500
+  // 限流（封禁查+写限流+登录限流）与取用户同批一次往返（登录 10 次 D1 → 此步 1 次）；D1 异常由 fetch 层兜 500
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
   const userStmt = kind === 'username' ? dbUserLookupStmt(db, target)
     : kind === 'phone' ? dbUserPhoneHashStmt(db, await tokenDigest(target))
@@ -155,7 +154,7 @@ export async function handleLogin(db, body, req) {
   const user = userRow && userRow.results ? userRow.results[0] : null;
 
   if (!user) {
-    await hashPassword(password); // 网安 N-18：哑 PBKDF2 抹平「用户名不存在」与「密码错误」的响应时序差
+    await hashPassword(password); // 网安 哑 PBKDF2 抹平「用户名不存在」与「密码错误」的响应时序差
     await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
       entity: 'user', detail: { kind, identifier: targetMask(target) }, req });
     return errorMsg('LOGIN_FAILED', 401);
@@ -165,12 +164,12 @@ export async function handleLogin(db, body, req) {
       entity: 'user', detail: { kind, identifier: targetMask(target) }, req });
     return errorMsg('LOGIN_FAILED', 401);
   }
-  // Z-1-F3：deactivated 检查提到 banned 之前——dbDeactivateUser 恒同步写 banned=1+deactivated=1，
+  // deactivated 检查提到 banned 之前——dbDeactivateUser 恒同步写 banned=1+deactivated=1，
   // 原顺序致 deactivated 分支不可达（注销用户误收 ACCOUNT_BANNED 与误记 auth.login.banned；
   // 承重面在验证码登录路径——密码路径因 dbDeactivateUser 清空 password_hash 先于 401 失败）
   if (user.deactivated) {
     await logEvent(db, { action: 'auth.login.deactivated', actorUserId: user.id, actorUsername: user.username,
-      actorRole: user.role, entity: 'user', entityId: user.id, req }); // Z-1-F4：补留档（同 banned 口径）
+      actorRole: user.role, entity: 'user', entityId: user.id, req }); // 补留档（同 banned 口径）
     return errorMsg('ACCOUNT_DEACTIVATED', 403);
   }
   if (user.banned) {
@@ -190,7 +189,7 @@ export async function handleLogin(db, body, req) {
 export async function handleCheckUsername(db, url) {
   const identifier = (url.searchParams.get('identifier') || url.searchParams.get('username') || '').trim();
   if (!identifier) return json({ exists: false, kind: null });
-  // Q-2a-F5: 超长 identifier 早退（对齐 handleLogin 的 LOGIN_USERNAME_MAX 钳制，防超大参数直打 D1）
+  // 超长 identifier 早退（对齐 handleLogin 的 LOGIN_USERNAME_MAX 钳制，防超大参数直打 D1）
   if (identifier.length > LIMITS.LOGIN_USERNAME_MAX) return json({ exists: false, kind: null });
   const { kind, target } = normalizeIdentifier(identifier);
   if (!kind) return json({ exists: false, kind: null });
@@ -210,8 +209,8 @@ export async function handleGetUserPublic(db, userId) {
 }
 
 // GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）
-// I-05: adds teacherName ('' when no teacher_profiles row; frontend falls back to username)
-// plus contactMasks {phone, email} — masked values only, never plaintext (P5 hard-mask).
+// adds teacherName ('' when no teacher_profiles row; frontend falls back to username)
+// plus contactMasks {phone, email} — masked values only, never plaintext (hard-mask).
 export async function handleAuthMe(db, req) {
   const me = await authUser(db, req); // authUser 的 SELECT 已含 avatar，无需二次查询
   if (!me) return errorMsg('LOGIN_REQUIRED', 401);
@@ -232,7 +231,7 @@ export async function handleListSessions(db, req) {
   const curRow = await getSessionByToken(db, me.id, req.headers.get('X-Auth-Token'));
   const currentId = curRow?.session_id || '';
   const sessions = await listSessions(db, me.id);
-  // Q-2a-L4：库内 UTC 'YYYY-MM-DD HH:MM:SS' 不自描述时区，客户端裸 new Date() 会按本地解析（早 8 小时）——
+  // 库内 UTC 'YYYY-MM-DD HH:MM:SS' 不自描述时区，客户端裸 new Date() 会按本地解析（早 8 小时）——
   // 出口统一转 ISO-8601 带 Z（any consumer Date.parse/new Date 均为 UTC 瞬间）。created_at/expires_at 同转。
   const toIso = t => (t ? new Date(String(t).replace(' ', 'T') + 'Z').toISOString() : null);
   return json({ sessions: sessions.map(s => ({ session_id: s.session_id, label: s.label, created_at: toIso(s.created_at), expires_at: toIso(s.expires_at), current: s.session_id === currentId })) });
@@ -279,7 +278,7 @@ export async function handleReAuth(db, body, req) {
   const password = String((body && body.password) || '');
   if (!password || password.length > LIMITS.LOGIN_PASSWORD_MAX) return errorMsg('LOGIN_FAILED', 403); // 长度上限早退，防无谓 PBKDF2
 
-  // B1：限流与取用户同批一次往返（原限流 5 次 D1 → 1 次）
+  // 限流与取用户同批一次往返（原限流 5 次 D1 → 1 次）
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
   const gate = authRateBatch(db, ip, 'reauth', [dbUserLookupStmt(db, me.username)]);
   const results = await db.batch(gate.stmts);
@@ -312,7 +311,7 @@ export async function handleOtpRequest(db, body, req) {
   const norm = normalizeIdentifier(String(body.target || '').trim());
   if (channel === 'sms' && norm.kind !== 'phone') return errorMsg('PHONE_INVALID');
   if (channel === 'email' && norm.kind !== 'email') return errorMsg('EMAIL_INVALID');
-  // scene 白名单（邮件模板场景 ≤12 字、不含链接域名，防模板注入）：共享枚举 OTP_SCENES 唯一源（T-6-F1，值不变零迁移）
+  // scene 白名单（邮件模板场景 ≤12 字、不含链接域名，防模板注入）：共享枚举 OTP_SCENES 唯一源（，值不变零迁移）
   const SCENE_WHITELIST = Object.values(OTP_SCENES);
   const sceneRaw = String(body.scene || '').trim().slice(0, 12);
   const scene = SCENE_WHITELIST.includes(sceneRaw) ? sceneRaw : '';
@@ -322,7 +321,7 @@ export async function handleOtpRequest(db, body, req) {
 }
 
 // 旧 v2 账户设置端点（deactivate / avatar / username / username-status / bind / creds）已收敛：
-// 实现在 auth/settings.js 单源，路由表下方向 settings 显式转发（PA-1a-F3）。
+// 实现在 auth/settings.js 单源，路由表下方向 settings 显式转发（）。
 
 // POST /api/auth/login/code { identifier, code } —— 验证码登录（A7：手机验证码/邮箱验证码两种通路）。
 // identifier 仅接受手机号/邮箱（用户名无验证码通道）；命中账户 + verifyOtp 通过 → 签发登录令牌。
@@ -335,14 +334,14 @@ export async function handleLoginWithCode(db, body, req) {
   if (String(target).length > (kind === 'email' ? LIMITS.EMAIL_MAX : LIMITS.PHONE_MAX)) return errorMsg('LOGIN_FAILED', 401);
   const channel = kind === 'email' ? 'email' : 'sms';
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
-  // B1：限流 + 取用户同批（复用 login 桶；hash 定位）
+  // 限流 + 取用户同批（复用 login 桶；hash 定位）
   const gate = authRateBatch(db, ip, 'login',
     [kind === 'phone' ? dbUserPhoneHashStmt(db, await tokenDigest(target)) : dbUserEmailHashStmt(db, await tokenDigest(target))]);
   const results = await db.batch(gate.stmts);
   if (gate.verdict(results)) { await authRateBlock(db, ip); return errorMsg('RATE_LIMITED', 429); }
   const userRow = gate.extra(results)[0];
   const user = userRow && userRow.results ? userRow.results[0] : null;
-  // S2-2 防枚举（限流审计 FAIL-1）：验码先行、账户状态后置——requestOtp 不查存在性（任何目标都发码），
+  // 防枚举（限流审计 FAIL-1）：验码先行、账户状态后置——requestOtp 不查存在性（任何目标都发码），
   // 不存在账户与验证码错误统一返回 OTP_INVALID_OR_EXPIRED（同 400 同文案），无码者四态不可区分
   // （与密码登录 LOGIN_FAILED 抹平姿态一致；banned/deactivated 仅在验码成功后才分支——只有持码者
   // 能触发，不构成存在性探测面）。
@@ -354,7 +353,7 @@ export async function handleLoginWithCode(db, body, req) {
     if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED');
     return errorMsg('OTP_INVALID_OR_EXPIRED', 400);
   }
-  // Z-1-F3/F4：与密码登录同口径——deactivated 先于 banned（dbDeactivateUser 恒同步写两者），
+  // /与密码登录同口径——deactivated 先于 banned（dbDeactivateUser 恒同步写两者），
   // 两分支均补留档（auth.login.deactivated / auth.login.banned，对照 handleLogin 形状）
   if (user.deactivated) {
     await logEvent(db, { action: 'auth.login.deactivated', actorUserId: user.id, actorUsername: user.username,
@@ -383,7 +382,7 @@ export async function handleCheckInvite(db, body) {
 }
 
 // ============================================================
-// auth 域路由表（V-1-4c：app.js 只拼接各域 routes）
+// auth 域路由表（app.js 只拼接各域 routes）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
@@ -393,7 +392,7 @@ export const routes = [
   S('GET', '/api/auth/me', c => handleAuthMe(c.db, c.req)),
   S('POST', '/api/auth/re-auth', c => handleReAuth(c.db, c.body, c.req)),
   S('POST', '/api/auth/otp/request', c => handleOtpRequest(c.db, c.body, c.req)),
-  // ---- 旧 v2 账户设置端点：显式转发到 auth/settings.js 单源（PA-1a-F3）----
+  // ---- 旧 v2 账户设置端点：显式转发到 auth/settings.js 单源（）----
   S('POST', '/api/auth/phone/bind', c => handleUpdateSettings(c.db, { channel: 'phone', target: c.body && c.body.phone, code: c.body && c.body.code }, c.req)),
   S('POST', '/api/auth/email/bind', c => handleUpdateSettings(c.db, { channel: 'email', target: c.body && c.body.email, code: c.body && c.body.code }, c.req)),
   S('POST', '/api/auth/login/code', c => handleLoginWithCode(c.db, c.body, c.req)),

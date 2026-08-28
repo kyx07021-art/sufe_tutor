@@ -1,12 +1,12 @@
 /**
- * S0-10: Release Gate worker wiring integration test (server/startup.js x _worker.js)
+ * Release Gate worker wiring integration test (server/startup.js x _worker.js)
  *
  * In production runtime (CF_PAGES_URL production signal) with required Secrets missing:
- *   - /api/health returns 503 + checks array exposed (per-item locatable, no secret value leak);
- *   - non-health /api/* returns 503 not-ready (mutation: remove the _worker.js gate wiring ->
- *     that path is no longer 503-not-ready -> red; this assertion locks the wiring itself);
- *   - static assets still served (mutation: gate wrongly blocks static path -> red; this
- *     assertion locks the gate's /api-only path scoping).
+ * - /api/health returns 503 + checks array exposed (per-item locatable, no secret value leak);
+ * - non-health /api/* returns 503 not-ready (mutation: remove the _worker.js gate wiring ->
+ * that path is no longer 503-not-ready -> red; this assertion locks the wiring itself);
+ * - static assets still served (mutation: gate wrongly blocks static path -> red; this
+ * assertion locks the gate's /api-only path scoping).
  *
  * Note productionReady is computed once per isolate (env immutable, no self-heal), so this file
  * only exercises the not-ready state; the ready state is locked at unit level by

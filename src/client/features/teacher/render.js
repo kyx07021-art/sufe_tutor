@@ -11,7 +11,7 @@ import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, dea
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from './display.js';
 import { demandOptionText, expectedTimeText } from '../student/display.js';
 import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
-import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
+import { renderPushBtn } from '../student/render.js'; // v1 parity (): student push button on teacher card
 import { checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
 import { renderProvinceSelect, regionResolvePolicy } from '../region/render.js';
@@ -75,7 +75,7 @@ export function renderProfilePanel(p, matched) {
     html += '</div>';
   }
   if (matched) html += `<div class="profile-match">${matched}</div>`;
-  // Z-10-F1: write-review entry gated by server-side `signed` (student has contracted this teacher).
+  // write-review entry gated by server-side `signed` (student has contracted this teacher).
   // The button's data-action passes no arg — openReviewModal keeps the module state set by openProfilePanel.
   if (p.signed) {
     html += `<div class="profile-review-entry"><button type="button" class="btn glass glass--pressable profile-review-btn" data-action="teacher.openReview">${TEXT.BTN_WRITE_REVIEW}</button></div>`;
@@ -126,14 +126,14 @@ export function reviewModalHtml() {
   </div>`;
 }
 
-// Z-3-F1 F1c: teacher profile edit form. Four sections matching the .profile-form
+// c: teacher profile edit form. Four sections matching the .profile-form
 // style system (basic / academic / non-academic / private). Pure HTML — no inline
-// handlers or styles; field ids are the F1d1/d2/d3 binding contract (tp-* prefix).
+// handlers or styles; field ids are the d1/d2/d3 binding contract (tp-* prefix).
 // profile may be null (no saved profile yet) → empty form with defaults. Every
 // profile-derived value is escHtml'd before interpolating into attributes.
 export function renderTeacherProfileForm(profile) {
   const p = profile || {};
-  // F1d3: subjectNames is derived from SUBJECTS (plus region extras like ZJ technology), so the
+  // d3: subjectNames is derived from SUBJECTS (plus region extras like ZJ technology), so the
   // pool must be deduped — otherwise math/english etc. render as duplicate checkboxes and the
   // collected subjects array repeats ids (server dedupes, but the UI shows duplicates).
   const subjPool = [...new Set([...SUBJECTS.map(s => s.id), ...Object.keys(SUFE_REGIONS.subjectNames || {})])];
@@ -245,7 +245,7 @@ export function renderTeacherProfileForm(profile) {
   </form>`;
 }
 
-// Z-3-F1 F1d2: teacher gaokao score editor. Policy-driven (regionResolvePolicy + SUFE_REGIONS):
+// d2: teacher gaokao score editor. Policy-driven (regionResolvePolicy + SUFE_REGIONS):
 // main subjects use raw scores, electives use grade conversion for grade systems,
 // raw scores for standard systems (Hainan 300). The collected shape matches the server contract
 // (server/domains/teacher/api.js sanitize): [{subject, score?} | {subject, grade?}], subject
@@ -394,7 +394,7 @@ export function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) 
   return html;
 }
 
-// Z-3-F1 F1e: teacher verification block (CHSI code / admission letter). Four states from
+// e: teacher verification block (CHSI code / admission letter). Four states from
 // GET /api/teacher/verify-status: none (not submitted) → submission channels; pending → channel-specific
 // waiting copy; approved → gate-open hint; rejected → status tag + re-submission channels.
 // Pure HTML — no inline handlers/styles; toggles/submits use data-action delegation.

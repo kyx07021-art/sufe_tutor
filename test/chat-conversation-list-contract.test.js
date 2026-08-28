@@ -1,17 +1,17 @@
 /**
- * PA-1c-F3: I-17 conversation-list response shape contract (W32 type-3 cross-module shape).
+ * conversation-list response shape contract (type-3 cross-module shape).
  *
- * Locks the GET /api/conversations row shape to interfaces.md §19 I-17 (conversationId /
+ * Locks the GET /api/conversations row shape to interfaces.md (conversationId /
  * otherName / avatar / lastMessage / lastAt / status / unread / tempStatus / tempInitiatorId /
  * quota / quotaRemaining) and the peer-name/avatar resolution by the two-party tuple. The old
  * raw snake_case columns (id / last_body / unread_count / student_name / teacher_name / ...) are
- * intentionally absent — the API surface is the contract (W1, no legacy spread).
+ * intentionally absent — the API surface is the contract (, no legacy spread).
  *
- * Mutation guards (G2 — the corresponding assertion goes red when the source is reverted):
- *  - Reverting handleGetConversations to the old `{ ...c, ... }` shape → every `conversationId` /
- *    `otherName` / `lastMessage` / `unread` / `quotaRemaining` assertion here is undefined → red.
- *  - Removing the teacher display-name JOIN (repo COALESCE(NULLIF(tp.teacher_name,''),ut.username))
- *    → the `otherName === '王老师'` assertion falls back to the username → red.
+ * Mutation guards (— the corresponding assertion goes red when the source is reverted):
+ * - Reverting handleGetConversations to the old `{ ...c, ... }` shape → every `conversationId` /
+ * `otherName` / `lastMessage` / `unread` / `quotaRemaining` assertion here is undefined → red.
+ * - Removing the teacher display-name JOIN (repo COALESCE(NULLIF(tp.teacher_name,''),ut.username))
+ * → the `otherName === '王老师'` assertion falls back to the username → red.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -56,7 +56,7 @@ async function seed(db, raw) {
   const ins = sql => Number(raw.prepare(sql).run().lastInsertRowid);
   const s1 = ins("INSERT INTO users (username,password_hash,salt,role,avatar) VALUES ('s1','h','s','student','s-avatar')");
   const t1 = ins("INSERT INTO users (username,password_hash,salt,role,avatar) VALUES ('t1','h','s','teacher','t-avatar')");
-  // I-17 otherName prefers the teacher display name (teacher_name) over the username.
+  // otherName prefers the teacher display name (teacher_name) over the username.
   raw.prepare('INSERT INTO teacher_profiles (user_id, teacher_name) VALUES (?,?)').run(t1, '王老师');
   const mk = async (name, uid) => {
     const token = `${name}-token`, sessionId = `sess-${name}`;
@@ -93,7 +93,7 @@ test('I-17 list: formal conversation row is camelCase contract shape with peer o
   assert.equal(row.iAmInitiator, false);
   assert.equal(row.quota, null, 'formal conversation has no temp quota');
   assert.equal(row.quotaRemaining, null, 'formal conversation has no temp quota remaining');
-  // W1 contract closure: raw snake_case columns are NOT on the API surface.
+  // contract closure: raw snake_case columns are NOT on the API surface.
   for (const old of ['id', 'last_body', 'last_kind', 'last_sender', 'unread_count', 'student_name', 'teacher_name', 'student_avatar', 'teacher_avatar']) {
     assert.ok(!(old in row), `old raw field ${old} must not leak into the I-17 row`);
   }

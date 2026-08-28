@@ -1,5 +1,5 @@
 /**
- * PA-1e-F3: contract mappers expose the I-44 `contractStatus` alias — the new frontend reads
+ * contract mappers expose the `contractStatus` alias — the new frontend reads
  * `contractStatus` on contract rows; `status` is retained for internal/legacy consumers. The alias
  * is added in all three mappers (detail / my-contracts / admin-all).
  *

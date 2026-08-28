@@ -1,10 +1,10 @@
 /**
  * v1.2.0 教师学信网核验（T2/T3/T6 + v1.5.0 fail-closed 改造）：
- *   - verify-chsi：manual 进管理员队列；未知 provider（mock/thirdparty）→ 503；格式非法 400
- *   - 管理端 approve 结构化录入 + 自动填入；reject/revoke 撤销资格（chsi_verified 清零）
- *   - 接单门禁：未核验教师提交意向 → 403
- *   - 状态机：pending 才能 approve/reject；approved 才能 revoke；非法状态 409
- *   - M1：verify_code 加密落库（库内非明文）
+ * - verify-chsi：manual 进管理员队列；未知 provider（mock/thirdparty）→ 503；格式非法 400
+ * - 管理端 approve 结构化录入 + 自动填入；reject/revoke 撤销资格（chsi_verified 清零）
+ * - 接单门禁：未核验教师提交意向 → 403
+ * - 状态机：pending 才能 approve/reject；approved 才能 revoke；非法状态 409
+ * - verify_code 加密落库（库内非明文）
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
-import { bindChsiEnv } from '../server/chsi.js';
+import { bindChsiEnv } from '../src/server/core/chsi.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../src/server/domains/teacher/api.js';
 import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
@@ -66,7 +66,7 @@ async function adminTokenOf(db) {
   return (await r.json()).authToken;
 }
 
-// U-3e：handleVerificationAction 是危险操作（P12，补 confirmDangerOtp 后）——每次调用前
+// handleVerificationAction 是危险操作（，补 confirmDangerOtp 后）——每次调用前
 // 用 adminToken 签发一次性 capToken 传入 body（confirmDangerOtp 命中即删，须逐次新签发）。
 async function verifAction(db, adminToken, id, body) {
   const capToken = await issueCapToken(db, reqOf(adminToken));
@@ -87,7 +87,7 @@ test('学信网核验全链路（manual）：提交 → pending → 管理员 ap
   const j = await r.json();
   assert.equal(j.status, 'pending', 'manual 进管理员队列');
   assert.equal(j.provider, 'manual');
-  // M1：验证码加密落库（库内非明文）
+  // 验证码加密落库（库内非明文）
   const vRow = db.prepare('SELECT verify_code, status FROM teacher_verifications WHERE user_id=?').first(tid);
   assert.notEqual(vRow.verify_code, 'ABCD1234EFGH', '库内非明文');
   assert.equal(vRow.status, 'pending');
@@ -246,9 +246,9 @@ test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', asy
   assert.equal(r.status, 403, '学生角色拒绝');
 });
 
-// U-3e：P12 危险操作门禁——handleVerificationAction 无 capToken 必须 403
+// 危险操作门禁——handleVerificationAction 无 capToken 必须 403
 // （变异：去掉 confirmDangerOtp → 200 → 红）。独立 test()，不嵌套进 v1.4.16 父测试
-// （U-3e 审计 M-1：嵌套会致父测试前序失败时本测试静默跳过，回归防线丢失）。
+// （审计 嵌套会致父测试前序失败时本测试静默跳过，回归防线丢失）。
 test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作二次认证）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, ENV);

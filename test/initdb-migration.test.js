@@ -2,13 +2,13 @@
  * initDb 全链路 + 遗留迁移回归（node:sqlite 真库，替代既有 fake-D1 的轻量桩）
  *
  * 覆盖（v0.21.4 审计修复批次）：
- *   - 全新库 initDb 完整可跑：管理员播种 + 全表建成 + 子表 FK 正常（重构迁移顺序后的回归）
- *   - 遗留迁移 N-19：旧表经历次 ensureColumns 比迁移 DDL 多/少列 → 列交集拷贝不炸、数据保留
- *   - 遗留迁移 FK 悬空：迁移若在初始建表之后跑，子表 FK 会被改名腾位改写指向 _*_old 后悬空，
- *     全站 INSERT 报 no such table——现迁移先行，子表引用最终表（实证回归）
- *   - 空 ADMIN_USERNAMES：不再拼出 IN () 语法错误
- *   - notify.js 管理删通知（requireAdmin 未导入 → ReferenceError 500 的断点回归）
- *   - 登出清理 danger_caps（孤儿行清理回归）
+ * - 全新库 initDb 完整可跑：管理员播种 + 全表建成 + 子表 FK 正常（重构迁移顺序后的回归）
+ * - 遗留迁移 旧表经历次 ensureColumns 比迁移 DDL 多/少列 → 列交集拷贝不炸、数据保留
+ * - 遗留迁移 FK 悬空：迁移若在初始建表之后跑，子表 FK 会被改名腾位改写指向 _*_old 后悬空，
+ * 全站 INSERT 报 no such table——现迁移先行，子表引用最终表（实证回归）
+ * - 空 ADMIN_USERNAMES：不再拼出 IN () 语法错误
+ * - notify.js 管理删通知（requireAdmin 未导入 → ReferenceError 500 的断点回归）
+ * - 登出清理 danger_caps（孤儿行清理回归）
  *
  * D1 形状：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch([...])
  */
@@ -24,7 +24,7 @@ import { dbRun } from '../src/server/core/util.js';
 import { issueAuthToken, getSessionByToken } from '../src/server/core/session.js';
 import { handleAdminDeleteNotification } from '../src/server/core/notify.js';
 import { handleLogout, handleLogin } from '../src/server/domains/auth/api.js';
-import { RATE_LIMITS } from '../src/shared/config.js'; // PA-2-F8: login limit 动态引用（8→30）
+import { RATE_LIMITS } from '../src/shared/config.js'; // login limit 动态引用（8→30）
 import { logRequest, dbGetTrafficBuckets } from '../src/server/core/log.js';
 import { tokenDigest, encryptField, decryptField } from '../src/server/core/crypto.js';
 
@@ -412,7 +412,7 @@ test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可�
   assert.equal(row.email, 'e@t.com', '管理端应解密看到 email');
 });
 
-// B3（v0.25.103，用户反馈）：默认评分 4.0→4.5 后，存量「有评论」教师评分仍按旧默认加权——
+// （v0.25.103，用户反馈）：默认评分 4.0→4.5 后，存量「有评论」教师评分仍按旧默认加权——
 // 迁移只回填无评论教师，有评论的未重算。本测试验证新迁移按新公式全量重算（幂等）。
 test('B3 迁移：默认评分改 4.5 后，有评论教师评分按新公式重算（幂等）', async () => {
   const raw = rawOf();

@@ -1,5 +1,5 @@
 /**
- * S0-07 security choke mutation guards (in-place reuse of v2 core/security.js).
+ * security choke mutation guards (in-place reuse of v2 core/security.js).
  *
  * Locks the identity/authorization gate contract (authUser/requireUser/requireAdmin/
  * requireAdminOrError) and the security-header posture (SECURITY_HEADERS in shared/config.js).
@@ -8,10 +8,10 @@
  * session rejection, and the header posture that were previously only covered indirectly.
  *
  * Mutations (reverting each fix makes these assertions go red):
- *   - requireUser drops the role branch -> wrong-role request returns { user } instead of 403 -> red
- *   - requireAdminOrError stops checking role === 'admin' -> non-admin passes -> red
- *   - authUser stops checking banned / token expiry -> banned/expired session accepted -> red
- *   - SECURITY_HEADERS CSP re-adds 'unsafe-inline' or loosens style-src-attr -> red
+ * - requireUser drops the role branch -> wrong-role request returns { user } instead of 403 -> red
+ * - requireAdminOrError stops checking role === 'admin' -> non-admin passes -> red
+ * - authUser stops checking banned / token expiry -> banned/expired session accepted -> red
+ * - SECURITY_HEADERS CSP re-adds 'unsafe-inline' or loosens style-src-attr -> red
  *
  * The db stub only serves authUser's single dbGet (first()); req objects are fresh per call so the
  * module-level authMemo WeakMap cannot leak between assertions.

@@ -1,12 +1,12 @@
 /**
- * S4-20 match-degree aggregator (pure) + I-32 matchCount.
+ * match-degree aggregator (pure) + matchCount.
  *
  * matchScore = round(Σ(score_i × weight_i) / Σ(weight_i of applicable dims) × 100),
  * clamped to [0,100]; null when no dimension is applicable (or input missing) — the
  * teacher-list handler then omits match sorting for that row.
  *
  * matchCount = number of screening dimensions (subject / gender / personality / price)
- * that the teacher HITS against the student's demand (I-32). Each counts 0 or 1.
+ * that the teacher HITS against the student's demand (). Each counts 0 or 1.
  *
  * matchDimensions is exposed for unit tests / debugging (one item per dimension key).
  */
@@ -51,7 +51,7 @@ export function matchDegree(teacher, demand) {
   return Math.max(0, Math.min(100, Math.round((score / total) * 100)));
 }
 
-/** I-32 screening hit count: subject / gender / personality / price (each 0|1). */
+/** screening hit count: subject / gender / personality / price (each 0|1). */
 export function matchCount(teacher, demand) {
   if (!teacher || !demand) return 0;
   const t = normalizeTeacher(teacher), d = normalizeDemand(demand);

@@ -1,9 +1,9 @@
 /**
- * V-3-1b CSP 收口：web/index.html 异步 CSS 去内联 onload → 外置 async-css.js media 交换。
+ * CSP 收口：web/index.html 异步 CSS 去内联 onload → 外置 async-css.js media 交换。
  * 锁定：
- *   1. web/index.html 零内联事件/样式属性（onload/onclick/style）——onload 是 V-3-1a 盘点出的
- *      3 处内联，archtest 现有契约不查 onload，此处独立锁定（c3 再进 archtest）。
- *   2. async-css.js 双路径：sheet 已加载立即切 all；未加载注册 load 事件后切 all（时序兜底）。
+ * 1. web/index.html 零内联事件/样式属性（onload/onclick/style）——onload 是 盘点出的
+ * 3 处内联，archtest 现有契约不查 onload，此处独立锁定（c3 再进 archtest）。
+ * 2. async-css.js 双路径：sheet 已加载立即切 all；未加载注册 load 事件后切 all（时序兜底）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

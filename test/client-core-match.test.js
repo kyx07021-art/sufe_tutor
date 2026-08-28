@@ -1,5 +1,5 @@
 /**
- * B1 match core：五维匹配纯函数。无 DOM/网络依赖，直接导入验证。
+ * match core：五维匹配纯函数。无 DOM/网络依赖，直接导入验证。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,12 +1,12 @@
 /**
  * settings 域数据层（S6-S4）：通知屏蔽偏好——users.notifyBroadcastMuted 列读写。
  *
- * privacy（user_settings 访客可见性）随 S6 定案⑥ 删除（W1：新站无访客浏览）。
+ * privacy（user_settings 访客可见性）随 S6 定案⑥ 删除（新站无访客浏览）。
  *
  * 列归属：users.notifyBroadcastMuted 由 auth 域 schema 声明（跨域补列既有机制，
  * auth/schema.js ensureColumns）；本文件只做数据层读写。auth/settings.js（S1 收敛
  * /api/settings 面）当前内联 UPDATE/SELECT 该列——若主会话裁定收敛，可改调本文件
- * 函数（单源，规则 W6）。
+ * 函数（单源，规则 ）。
  */
 import { dbGet, dbRun } from '../../core/util.js';
 

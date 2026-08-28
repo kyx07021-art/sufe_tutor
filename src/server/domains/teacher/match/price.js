@@ -1,10 +1,10 @@
 /**
- * S4-18 price dimension (pure). Weight 20.
+ * price dimension (pure). Weight 20.
  * Interval-overlap scoring between the teacher price range and the student budget range.
  * - Teacher has no price at all -> NOT applicable (null).
  * - Demand has no budget at all -> NOT applicable (null).
  * - Either side collapses to a single point: full score iff the point falls inside the
- *   other range (open-ended bounds are treated as unbounded: min ?? 0, max ?? Infinity).
+ * other range (open-ended bounds are treated as unbounded: min ?? 0, max ?? Infinity).
  * - Otherwise score = overlapLen / min(teacherSpan, demandSpan), clamped to [0,1].
  */
 import { WEIGHTS } from './weights.js';

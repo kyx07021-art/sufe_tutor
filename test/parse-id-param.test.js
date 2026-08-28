@@ -1,5 +1,5 @@
 /**
- * Q-2a-L2 守护：parseIdParam 严格数字路由参数解析（core/util.js）。
+ * 守护：parseIdParam 严格数字路由参数解析（core/util.js）。
  * 变异：parseIdParam 放宽回 parseInt → /api/users/1abc 命中 id=1 → 本测试红。
  */
 import { test } from 'node:test';

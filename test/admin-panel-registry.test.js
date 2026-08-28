@@ -1,6 +1,6 @@
 /**
- * Z-3-F1/U-2：admin 管理面板注册表恢复（B5 admin-panel parity）。
- * 锁真实行为（G2）：admin feature onLoad 注册 12 个管理页 + 每页 enter 进入不炸
+ * /U-2：admin 管理面板注册表恢复（admin-panel parity）。
+ * 锁真实行为（）：admin feature onLoad 注册 12 个管理页 + 每页 enter 进入不炸
  * （空数据 mock → 空态渲染）。删任一 registerPage 该断言必红。
  */
 import { test } from 'node:test';

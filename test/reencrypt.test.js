@@ -1,18 +1,18 @@
 /**
  * v1.5.0 密钥轮换重加密（server/reencrypt.js）
- *   - 旧 FIELD_ENC_KEY 密文 → 新 FIELD_ENC_KEY 重写；
- *   - activity_log.detail 旧 LOG_ENCRYPT_KEY → 新 LOG_ENCRYPT_KEY 重写；
- *   - 无法解密的行只计数、不覆盖。
- *   - A-12 分片：reencryptChunk 单调用 ≤ REENCRYPT_ROW_BUDGET 行，cursor 续跑；
- *     分片汇总总计数 == 全量 reencryptAll；REENCRYPT_ROW_BUDGET ≤ 30 契约锁
- *     （D1 Free 单调用 50 次查询上限，防未来调大导致生产重加密回归 COMMON_SERVER_ERROR）。
+ * - 旧 FIELD_ENC_KEY 密文 → 新 FIELD_ENC_KEY 重写；
+ * - activity_log.detail 旧 LOG_ENCRYPT_KEY → 新 LOG_ENCRYPT_KEY 重写；
+ * - 无法解密的行只计数、不覆盖。
+ * - 分片：reencryptChunk 单调用 ≤ REENCRYPT_ROW_BUDGET 行，cursor 续跑；
+ * 分片汇总总计数 == 全量 reencryptAll；REENCRYPT_ROW_BUDGET ≤ 30 契约锁
+ * （D1 Free 单调用 50 次查询上限，防未来调大导致生产重加密回归 COMMON_SERVER_ERROR）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { bindCryptoEnv, encryptField, decryptField, encryptDetail, decryptDetail } from '../src/server/core/crypto.js';
-import { reencryptAll, reencryptChunk, REENCRYPT_ROW_BUDGET } from '../server/reencrypt.js';
+import { reencryptAll, reencryptChunk, REENCRYPT_ROW_BUDGET } from '../src/server/core/reencrypt.js';
 import { initLogDb } from '../src/server/core/log.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -143,7 +143,7 @@ test('A-12：分片续跑总计数 == 全量 reencryptAll；段内恰满 budget 
   const b = await build();
   let cursor = null, chunked = { fields: 0, attachments: 0, logs: 0 }, calls = 0;
   for (;;) {
-    // Z-2-F4：reencryptChunk 归一扁平形状（fields/attachments/logs/cursor，无 summary 包裹）
+    // reencryptChunk 归一扁平形状（fields/attachments/logs/cursor，无 summary 包裹）
     const { fields, attachments, logs, cursor: next } = await reencryptChunk(b.db, cursor);
     chunked.fields += fields.rewritten;
     chunked.attachments += attachments.rewritten;
@@ -179,7 +179,7 @@ test('A-12：reencryptChunk 游标语义（首调无 cursor 返回续跑游标�
   bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
   for (let i = 0; i < 5; i++) raw.prepare('INSERT INTO activity_log (schema_v, encrypted, action, detail) VALUES (2, 1, ?, ?)').run('a' + i, (await encryptDetail(JSON.stringify({ i }))).text);
   bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG, FIELD_ENC_KEY_OLD: OLD_FIELD });
-  // 首调：字段/附件空，日志 5 行 < budget → 一次完成，cursor=null（Z-2-F4 扁平形状）
+  // 首调：字段/附件空，日志 5 行 < budget → 一次完成，cursor=null（扁平形状）
   const first = await reencryptChunk(db, null);
   assert.equal(first.cursor, null, '日志取尽 → cursor=null（全部完成）');
   assert.equal(first.logs.rewritten, 5, '首调全量日志重写');
@@ -188,7 +188,7 @@ test('A-12：reencryptChunk 游标语义（首调无 cursor 返回续跑游标�
   assert.equal(second.logs.rewritten, 5, '幂等重跑');
 });
 
-// ---------------- Q-2b 复审守护（F5：cursor 白名单校验 fail-closed） ----------------
+// ---------------- 复审守护（cursor 白名单校验 fail-closed） ----------------
 test('Q-2b-F5 守护：畸形游标形状抛错不静默 done（fail-closed 契约封口）', async () => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
@@ -208,7 +208,7 @@ test('Q-2b-F5 守护：畸形游标形状抛错不静默 done（fail-closed 契�
   assert.ok(ok && typeof ok.cursor === 'object', '合法游标正常执行并推进');
 });
 
-// ---------------- Q-2e-F2 守护（reencrypt 漏列 prev_business） ----------------
+// ---------------- 守护（reencrypt 漏列 prev_business） ----------------
 test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（轮换删旧钥后可解）', async () => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
@@ -238,17 +238,17 @@ test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（
   assert.equal(await decryptField(row.prev_business), '每周六晚', 'prev_business 重加密后新钥可解（旧实现漏登记删旧钥即 [undecryptable]）');
 });
 
-// ---------------- S0-20 守护（F1：四表漏登记变异守护——teacher_profiles / teacher_verifications / uploads / messages） ----------------
+// ---------------- 守护（四表漏登记变异守护——teacher_profiles / teacher_verifications / uploads / messages） ----------------
 // Each table previously had zero direct mutation guard: removing its FIELD_TABLES entry (key rotation
 // would then leave the encrypted columns on the old key -> [undecryptable] after *_OLD is deleted)
-// left the suite green. These tests make each table's rotation a first-class guarded behavior (G1/G2).
+// left the suite green. These tests make each table's rotation a first-class guarded behavior (/).
 
 test('S0-20 守护：teacher_profiles 的 wechat/email/real_name/credential_image 随轮换重加密（删登记即 [undecryptable]）', async () => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
   const db = d1Shim(raw);
   await initDb(db, ENV);
-  // seed a teacher_profiles row with old-key ciphertext (real schema shape: G3)
+  // seed a teacher_profiles row with old-key ciphertext (real schema shape: )
   bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
   raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('tp1','h','s','teacher')").run();
   const uid = raw.prepare("SELECT id FROM users WHERE username='tp1'").get().id;

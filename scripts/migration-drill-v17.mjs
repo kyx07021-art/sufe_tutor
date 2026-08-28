@@ -1,20 +1,20 @@
 /**
- * NJ-M1 新站 D1 副本迁移演练（v13 → v17）：合并替换 main 前置闸门。
- *   1. 导出生产 D1（schema+数据，v13 时代：signing_contracts 合并表 / 数组 student_demands / intents+pushes）
- *      → 载入本地 SQLite（foreign_keys=ON 镜像生产约束）；
- *   2. 注入 S3-3 demand 单科目迁移（runMigrationOnLocal，与生产部署前 --apply 同源）→ 快照；
- *   3. 跑真实迁移编排 initDb（src/server/core/db.js 同源）→ 逐域断言（contracts 独立化 / temp 列 /
- *      intents+pushes 删除 / teacher 补列 / feedbacks 匿名模型 / 幂等）；
- *   4. 幂等：清 schema_meta 强制重跑 → 结构/内容零变更（admin 口令列 = seedAdmins 已知良性）；
- *   5. 回滚验证：--rollback 还原初始导出副本 → 断言 v13 形态可恢复。
+ * NJ-新站 D1 副本迁移演练（v13 → v17）：合并替换 main 前置闸门。
+ * 1. 导出生产 D1（schema+数据，v13 时代：signing_contracts 合并表 / 数组 student_demands / intents+pushes）
+ * → 载入本地 SQLite（foreign_keys=ON 镜像生产约束）；
+ * 2. 注入 demand 单科目迁移（runMigrationOnLocal，与生产部署前 --apply 同源）→ 快照；
+ * 3. 跑真实迁移编排 initDb（src/server/core/db.js 同源）→ 逐域断言（contracts 独立化 / temp 列 /
+ * intents+pushes 删除 / teacher 补列 / feedbacks 匿名模型 / 幂等）；
+ * 4. 幂等：清 schema_meta 强制重跑 → 结构/内容零变更（admin 口令列 = seedAdmins 已知良性）；
+ * 5. 回滚验证：--rollback 还原初始导出副本 → 断言 v13 形态可恢复。
  *
  * 依赖调研（2026-08-23 两 agent）：自动迁移覆盖良好（contracts/temp 列/teacher 补列/feedbacks 换表），
- * 三大缺口：①demand 迁移脚本未保 conversations.demand_id（NJ-M2 修复）②旧 drill 假阳性（本脚本集成
- * demand 脚本根治）③signing 层 stage='signing' 行有意丢弃（S5-19）→ 本脚本显式报告丢弃数供用户裁决。
+ * 三大缺口：①demand 迁移脚本未保 conversations.demand_id（NJ-修复）②旧 drill 假阳性（本脚本集成
+ * demand 脚本根治）③signing 层 stage='signing' 行有意丢弃（）→ 本脚本显式报告丢弃数供用户裁决。
  *
  * 用法：node scripts/migration-drill-v17.mjs [--export <sql路径>] [--rollback]
- *   --export   复用已有导出文件（跳过远程导出）；缺省自动导出生产库（私有 0o600）
- *   --rollback 在全部断言后，从初始导出重载副本验证 v13 形态可恢复（回滚演练）
+ * --export 复用已有导出文件（跳过远程导出）；缺省自动导出生产库（私有 0o600）
+ * --rollback 在全部断言后，从初始导出重载副本验证 v13 形态可恢复（回滚演练）
  *
  * 注意：演练不连生产（除前置 d1Export 导出）；ADMIN_USERNAMES 只走 env（不配置则名单为空，不 seed）。
  */
@@ -145,7 +145,7 @@ check('旧表形态就位（signing_contracts / demand_intents / demand_pushes /
   tableExists(raw, 'signing_contracts') && tableExists(raw, 'demand_intents') && tableExists(raw, 'demand_pushes'),
   '三类旧表应在导出中');
 
-// 2. 注入 S3-3 demand 单科目迁移（生产序 = 部署前 --apply）
+// 2. 注入 demand 单科目迁移（生产序 = 部署前 --apply）
 console.log('\n[步骤 A] S3-3 demand 单科目迁移（runMigrationOnLocal，同 --apply）…');
 const demRes = runMigrationOnLocal(raw);
 if (demRes.alreadyMigrated) {
@@ -164,7 +164,7 @@ if (demRes.alreadyMigrated) {
   check('demand status 仅 open/closed', badStatus.every(s => s === 'open' || s === 'closed'), badStatus.join(','));
   const fkCheck = raw.prepare(`PRAGMA foreign_key_check`).all();
   check('demand 迁移后零 FK 违规', fkCheck.length === 0, `${fkCheck.length} 违规`);
-  // R-1（NJ-M2）：conversations.demand_id 关联保全——DROP 旧表 SET NULL 前快照恢复。
+  // R-1（NJ-）：conversations.demand_id 关联保全——DROP 旧表 SET NULL 前快照恢复。
   // 断言：remapped 数 == 迁移前 demand_id 非空基线（全部保全），迁移后非空行数 == 基线，且每个 id 有效。
   if (demRes.stats && typeof demRes.stats.remapped === 'number') {
     check(`R-1 会话关联保全：remapped=${demRes.stats.remapped} == 迁移前基线 ${convDemandBaseline}`,
@@ -209,11 +209,11 @@ const convCols = after1.conversations?.cols ?? [];
 check('conversations temp_status 列就位', convCols.includes('temp_status') && convCols.includes('temp_initiator_user_id'), convCols.join(','));
 const initTemps = Number(raw.prepare(`SELECT COUNT(*) AS n FROM conversations WHERE temp_status='init'`).get().n);
 check('存量会话 temp_status 无 init（旧会话=正式）', initTemps === 0, `${initTemps} init 行`);
-// messages client_key + 唯一索引（Q-2g 回归锚点）
+// messages client_key + 唯一索引（回归锚点）
 const msgCols = after1.messages?.cols ?? [];
 const msgIdx = raw.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_messages_client_key'`).get();
 check('messages client_key 列 + 唯一索引', msgCols.includes('client_key') && !!msgIdx, msgIdx ? '索引在' : '索引缺');
-// teacher 补列（S4-01）
+// teacher 补列（）
 const tpCols = after1.teacher_profiles?.cols ?? [];
 check('teacher_profiles teacher_name/experience_years 列', tpCols.includes('teacher_name') && tpCols.includes('experience_years'), tpCols.join(','));
 // intents/pushes/signing_contracts 删除

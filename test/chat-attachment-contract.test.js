@@ -1,27 +1,27 @@
 /**
- * S2-B4: attachment staging carry — C7 / security contract lock.
+ * S2- attachment staging carry — C7 / security contract lock.
  *
  * Locks the uploads staging invariants carried from v2 into the new-site backend:
- *   1. dataURL blacklist (C7 active-content): svg/html/xml/javascript/ecmascript data URLs
- *      are rejected at the API edge (fileDataBlocked), never reach the uploads table.
- *   2. Blacklist is case-insensitive (mutation guard: removing `.toLowerCase()` makes
- *      mixed-case MIME types slip through → red).
- *   3. Case-variant data: prefixes (DATA:TEXT/HTML, data:Image/SVG+xml) are still rejected —
- *      the API prefix gate is case-sensitive and rejects them earlier with FILE_TOO_LARGE
- *      (defense in depth).
- *   4. filename sanitize (C7): path separators and control chars are stripped; the stored
- *      name is capped at LIMITS.FILE_NAME_MAX.
- *   5. Size gate: body over LIMITS.FILE_MAX_BYTES → FILE_TOO_LARGE.
- *   6. Quota: LIMITS.UPLOAD_STAGING_MAX staging rows per user, enforced both by the API
- *      fast path and by the conditional INSERT (TOCTOU guard) in dbCreateUpload.
- *   7. Encrypted at rest: upload body/thumb are encryptField ciphertext in the table and
- *      decryptField round-trips back to the original data URL.
+ * 1. dataURL blacklist (C7 active-content): svg/html/xml/javascript/ecmascript data URLs
+ * are rejected at the API edge (fileDataBlocked), never reach the uploads table.
+ * 2. Blacklist is case-insensitive (mutation guard: removing `.toLowerCase()` makes
+ * mixed-case MIME types slip through → red).
+ * 3. Case-variant data: prefixes (DATA:TEXT/HTML, data:Image/SVG+xml) are still rejected —
+ * the API prefix gate is case-sensitive and rejects them earlier with FILE_TOO_LARGE
+ * (defense in depth).
+ * 4. filename sanitize (C7): path separators and control chars are stripped; the stored
+ * name is capped at LIMITS.FILE_NAME_MAX.
+ * 5. Size gate: body over LIMITS.FILE_MAX_BYTES → FILE_TOO_LARGE.
+ * 6. Quota: LIMITS.UPLOAD_STAGING_MAX staging rows per user, enforced both by the API
+ * fast path and by the conditional INSERT (TOCTOU guard) in dbCreateUpload.
+ * 7. Encrypted at rest: upload body/thumb are encryptField ciphertext in the table and
+ * decryptField round-trips back to the original data URL.
  *
  * These are DIRECT unit tests (node:test + node:sqlite DatabaseSync + the d1Shim pattern
  * from chat-send-batch.test.js). The two pure helpers (fileDataBlocked / sanitizeFileName)
  * are module-private in api.js, so they are exercised end-to-end via handleCreateUpload and
  * asserted on the stored row — a missing blocklist entry or a weakened sanitizer turns the
- * corresponding assertion red (G2 mutation guard).
+ * corresponding assertion red (mutation guard).
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

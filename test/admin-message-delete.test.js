@@ -1,11 +1,11 @@
 /**
- * PA-1f-F1：管理员删除聊天消息 = 危险操作（P12），须 capToken 二次认证。
+ * 管理员删除聊天消息 = 危险操作（），须 capToken 二次认证。
  * 此前 handleAdminDeleteMessage（DELETE /api/admin/messages/:id）零测试 + 零 capToken——
  * 管理员令牌复用/泄露时越权删消息一击生效。本测试锁定：
- *   - 无 capToken → 403 AUTH_REAUTH_FAILED，消息保留（变异实证：删 handler 的
- *     confirmDangerOtp → 403 断言红）；
- *   - 有 capToken → 200，消息删除；
- *   - 消息不存在 → 404（404 先于 capToken 返回，capToken 不消费）。
+ * - 无 capToken → 403 AUTH_REAUTH_FAILED，消息保留（变异实证：删 handler 的
+ * confirmDangerOtp → 403 断言红）；
+ * - 有 capToken → 200，消息删除；
+ * - 消息不存在 → 404（404 先于 capToken 返回，capToken 不消费）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';

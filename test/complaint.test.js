@@ -1,10 +1,10 @@
 /**
  * #165（v0.25.73）：投诉通道全链路
- *  - 服务端：handleCreateFeedback kind 白名单（bug/complaint/suggestion）+ 投诉对象白名单（非投诉恒空）+ 空正文 400；
- *    handleMyFeedbacks requireUser 守卫 + 用户隔离（只回本人）；handleResolveFeedback 投诉专属回执文案、幂等；
- *    CHECK 迁移放行 complaint 写入。
- *  - 前端（B4：直接 import complaints/posts/about ESM）：关于平台按钮（反馈/投诉/我的反馈）；
- *    投诉浮窗对象行显隐与标题切换；提交带 subject；我的反馈浮窗渲染（类型 tag/对象 tag/状态）与空态。
+ * - 服务端：handleCreateFeedback kind 白名单（bug/complaint/suggestion）+ 投诉对象白名单（非投诉恒空）+ 空正文 400；
+ * handleMyFeedbacks requireUser 守卫 + 用户隔离（只回本人）；handleResolveFeedback 投诉专属回执文案、幂等；
+ * CHECK 迁移放行 complaint 写入。
+ * - 前端（直接 import complaints/posts/about ESM）：关于平台按钮（反馈/投诉/我的反馈）；
+ * 投诉浮窗对象行显隐与标题切换；提交带 subject；我的反馈浮窗渲染（类型 tag/对象 tag/状态）与空态。
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
@@ -161,7 +161,7 @@ test('CHECK 迁移放行 report 写入；dbGetFeedbacksByUser 逆序', async () 
   assert.equal(mine[1].subject, 'student');
 });
 
-// ==================== U11 投诉附件（服务端） ====================
+// ==================== 投诉附件（服务端） ====================
 
 test('U11 投诉附件：凭 uploadId 从暂存复制入投诉并删暂存（密文原样搬移）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -219,7 +219,7 @@ test('U11 投诉附件懒加载：本人/管理员可取密文出门解密；他
   assert.equal(l.attachments[0].thumb, 'data:image/jpeg;base64,TT', '列表含解密缩略图');
 });
 
-// ==================== 前端（B4：直接 import complaints/posts/about ESM） ====================
+// ==================== 前端（直接 import complaints/posts/about ESM） ====================
 // v2 形态：complaints/actions.js 全实现（浮窗/picker/搜索/附件暂存管线）；_cpStaged 为模块级私有，
 // jsdom 无 FileReader，暂存测试经 _cpStagedForTest/_cpStagedSnapshotForTest hook 直接驱动状态。
 // ensureAuth 是 core/api 单源（setEnsureAuth 接线）；pickComplaintTarget(type,id,name) 新签名。
@@ -267,7 +267,7 @@ function setup({ mineRows = [], myComplaints = [], recentByType = {}, searchRows
     if (u.startsWith('/api/complaints/candidates')) {
       return { ok: true, status: 200, json: async () => ({ candidates: searchRows }) };
     }
-    if (u.includes('/api/complaints/') && u.includes('/attachment?')) { // U11：附件懒加载
+    if (u.includes('/api/complaints/') && u.includes('/attachment?')) { // 附件懒加载
       return { ok: true, status: 200, json: async () => ({ kind: attachKind, name: 'x.png', body: attachBody }) };
     }
     return { ok: true, status: 200, json: async () => ({}) };
@@ -327,7 +327,7 @@ test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由下拉栏；反馈�
   assert.ok(!doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 默认可见');
   assert.ok(doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 初始隐藏');
   assert.ok(doc.getElementById('cmp-pane-post').classList.contains('hidden'), '帖子 pane 初始隐藏');
-  // M8：投诉理由从切换式改下拉栏——select 选项 = 占位 + 白名单理由
+  // 投诉理由从切换式改下拉栏——select 选项 = 占位 + 白名单理由
   const reasonSel = doc.getElementById('complaint-reason');
   assert.ok(reasonSel, '投诉理由下拉栏存在');
   assert.equal(reasonSel.tagName.toLowerCase(), 'select', '是下拉栏（非切换式）');
@@ -338,7 +338,7 @@ test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由下拉栏；反馈�
   switchComplaintTab('student');
   assert.ok(!doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 显示');
   assert.ok(doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 隐藏');
-  // 反馈浮窗不再含投诉档（组件隔离）；M11 三选后 kind 即固定——无内层切换 tab（A1 审计连根删）
+  // 反馈浮窗不再含投诉档（组件隔离）；三选后 kind 即固定——无内层切换 tab（A1 审计连根删）
   openFeedbackModal('bug');
   assert.equal(doc.querySelectorAll('.feedback-kind-row').length, 0, '反馈浮窗无内层分段切换（chooser 三选即专线固定）');
   assert.equal(doc.getElementById('feedback-modal-title'), null, '无标题切换逻辑（titleId 已随 switchFeedbackKind 移除）');
@@ -413,7 +413,7 @@ test('M12 我的投诉与反馈（合并）：投诉卡渲染对象/理由/状�
     { id: 1, target_type: 'teacher', target_snapshot: { name: '李老师' }, reason: '虚假信息或欺诈', detail: '多次迟到', status: 'open', created_at: '2026-08-09 10:00:00' },
   ] });
   const doc = dom.window.document;
-  await openMyFeedback(); // M12：合并入口统一走 openMyFeedback
+  await openMyFeedback(); // 合并入口统一走 openMyFeedback
   await tick();
   const cards = doc.querySelectorAll('.my-feedback-list .complaint-card');
   assert.equal(cards.length, 1, '一条投诉（并入合并浮窗）');
@@ -461,7 +461,7 @@ test('我的反馈浮窗：渲染类型/对象/状态 tag + Markdown 正文；�
   teardown();
 });
 
-// ==================== U11 投诉附件（前端） ====================
+// ==================== 投诉附件（前端） ====================
 
 test('U11 投诉浮窗：附件上传区（添加按钮 + 多选文件输入 + 复用 .chat-stage 暂存容器）', async () => {
   const { dom } = setup();

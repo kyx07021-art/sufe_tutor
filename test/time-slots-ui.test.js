@@ -1,5 +1,5 @@
 /**
- * 结构化时间组件前端回归（B4：直接 import core/ui-form）。
+ * 结构化时间组件前端回归（直接 import core/ui-form）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,7 +61,7 @@ test('时间组件：回填与上限', () => {
     { type:'week', dow:7, start:'09:00', end:'11:00' },
   ]));
   assert.equal(container.querySelectorAll('.time-slot').length, 2);
-  // T-6-F3: parsed-array form (teacher profile mapper output) — array branch direct coverage (G1)
+  // parsed-array form (teacher profile mapper output) — array branch direct coverage ()
   prefillTimeSlots(container, [{ type: 'week', dow: 1, start: '10:00', end: '12:00' }]);
   assert.equal(container.querySelectorAll('.time-slot').length, 3, '数组形态追加一行');
   delete globalThis.document;

@@ -1,11 +1,11 @@
 /**
  * S4 close-out tests:
- *  - I-30 public teacher detail NEVER returns wechat/email/real_name/credential_image (S4-06).
- *    Mutation guard: if the private-field stripping is removed from handleGetTeacherPublic,
- *    the response gains those keys -> this test goes red.
- *  - I-29 teacher list items NEVER carry those private fields either (S4-06 list contract).
- *  - I-40 profile save persists teacher_name + experience_years (S4-01/S4-08). Mutation guard:
- *    if dbUpsertTeacherProfile stops persisting them, the row read-back loses the values -> red.
+ * - public teacher detail NEVER returns wechat/email/real_name/credential_image ().
+ * Mutation guard: if the private-field stripping is removed from handleGetTeacherPublic,
+ * the response gains those keys -> this test goes red.
+ * - teacher list items NEVER carry those private fields either (list contract).
+ * - profile save persists teacher_name + experience_years (/). Mutation guard:
+ * if dbUpsertTeacherProfile stops persisting them, the row read-back loses the values -> red.
  *
  * Uses the same D1 shim pattern as test/teacher-profile-guard.test.js.
  */
@@ -91,7 +91,7 @@ test('I-30 public detail: wechat/email/real_name/credential_image never returned
   assert.equal(p.name, '王老师');
   assert.equal(p.experience_years, 5);
   assert.ok(Array.isArray(p.subjects) && p.subjects.some(s => s && s.subject === 'math'));
-  // PA-1d-F5 变异守护：subjects 必须为 I-29 对象数组 {subject,score,full,awards[]}——
+  // 变异守护：subjects 必须为 对象数组 {subject,score,full,awards[]}——
   // mapper 退回字符串 id 数组时 find(s=>s.subject) 取不到条目、断言红。
   const mathSubject = p.subjects.find(s => s && s.subject === 'math');
   assert.ok(mathSubject, 'subjects 含 math 对象条目');
@@ -113,7 +113,7 @@ test('I-29 list: items never carry wechat/email/real_name/credential_image; matc
   for (const k of ['wechat', 'email', 'real_name', 'credential_image']) {
     assert.ok(!(k in row), `${k} must NOT be present in the list item`);
   }
-  // no open demand for this student -> matchScore/matchCount null (S4-12)
+  // no open demand for this student -> matchScore/matchCount null ()
   assert.equal(row.matchScore, null);
   assert.equal(row.matchCount, null);
   assert.equal(row.teacherId, tea);

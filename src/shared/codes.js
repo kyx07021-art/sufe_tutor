@@ -1,5 +1,5 @@
-/** 服务端错误码/文案与结构化通知类型（V-1-1 过渡形态：仍回中文 msg）。
- * Z-16-F13：限额数字模板化引用 shared/config 单源（改限额即改文案，杜绝失配）。 */
+/** 服务端错误码/文案与结构化通知类型（过渡形态：仍回中文 msg）。
+ * 限额数字模板化引用 shared/config 单源（改限额即改文案，杜绝失配）。 */
 import { LIMITS, CONFIG } from "./config.js";
 export const MSG = {
   USERNAME_LENGTH: `用户名长度需在 ${LIMITS.USERNAME_MIN}-${LIMITS.USERNAME_MAX} 个字符之间`,
@@ -87,7 +87,7 @@ export const MSG = {
   PHONE_INVALID: "手机号格式不正确",
   EMAIL_INVALID: "邮箱格式不正确",
   OTP_RESEND_LIMIT: `发送过于频繁，请 ${CONFIG.OTP_RESEND_SEC} 秒后再试`,
-  OTP_DAILY_LIMIT: "验证码发送次数已达上限，请在 24 小时后重试", // Q-2b-F8：实现为滚动 24h 窗口（reset_at=now+1day），文案称「今日/明天」误导——23:00 触顶锁到次日 23:00 非「明天」
+  OTP_DAILY_LIMIT: "验证码发送次数已达上限，请在 24 小时后重试", // 实现为滚动 24h 窗口（reset_at=now+1day），文案称「今日/明天」误导——23:00 触顶锁到次日 23:00 非「明天」
   OTP_INVALID_OR_EXPIRED: "验证码错误或已过期",
   OTP_EXHAUSTED: "验证码错误次数过多，已失效，请重新获取",
   OTP_REQUIRED: "请输入验证码",
@@ -108,7 +108,7 @@ export const MSG = {
   PAYLOAD_TOO_LARGE: "请求体过大",
   RATE_LIMITED: "操作太频繁了，请稍等片刻再试；如果持续出现，请联系管理员。",
   LOG_NOT_FOUND: "留档记录不存在",
-  // Q-2i-M5：admin 内容审核 TYPE_LABEL/CONTENT_MAPPER 显示文案单源（原内联中文）
+  // admin 内容审核 TYPE_LABEL/CONTENT_MAPPER 显示文案单源（原内联中文）
   CONTENT_LABEL_POST: "帖子",
   CONTENT_LABEL_DEMAND: "需求",
   CONTENT_LABEL_TEACHER: "教师档案",
@@ -302,7 +302,7 @@ export const NOTIFY_TYPES = {
   }
 };
 
-/** 服务端仍需要拼装的用户可见文案（V-2-4 迁 client/text.js 后删除） */
+/** 服务端仍需要拼装的用户可见文案（迁 client/text.js 后删除） */
 export const SERVER_TEXT = {
   CONTRACT_DRAFT_SENT_TOAST: "合同草案已发送，等待对方确认",
   CONTRACT_EMPTY: "合同内容不能为空",

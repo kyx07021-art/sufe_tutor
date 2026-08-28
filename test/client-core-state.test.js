@@ -1,5 +1,5 @@
 /**
- * B0 state core：会话持久化、偏好读写、缓存失效与登出重置注册表。
+ * state core：会话持久化、偏好读写、缓存失效与登出重置注册表。
  * 直接 ESM 导入 src/client/core/state.js，用 jsdom 提供 storage。
  */
 import { test } from 'node:test';

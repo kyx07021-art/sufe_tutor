@@ -1,13 +1,13 @@
 /**
- * AI-7：统一关系清单接口 GET /api/my-relations——按双方元组聚合（会话状态/最后消息 +
+ * 统一关系清单接口 GET /api/my-relations——按双方元组聚合（会话状态/最后消息 +
  * 最新合同状态 + 对端信息），供连线图/关系管理。仅读零写入。
  *
  * S5 独立合同：contracts 表替代 signing_contracts（无 stage/signing_status）。关系清单的
  * 「signing」聚合字段改由 contracts 派生（按双方元组 MAX(id) 取最新合同行：
- * { id, contractStatus, revoked }）。interfaces I-15 保留 signing 字段下发（M4 合同灰掉判断）。
+ * { id, contractStatus, revoked }）。interfaces 保留 signing 字段下发（合同灰掉判断）。
  *
  * 当前可跑用例：全部（S2 已落地 dbGetMyRelations LEFT JOIN contracts + handler 映射
- * signing:{ id, contractStatus, revoked }，interfaces I-15）。
+ * signing:{ id, contractStatus, revoked }，interfaces ）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -43,7 +43,7 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-// 种子：s1/t1/t2 + 会话（c1: s1-t1、c2: s1-t2）+ t1 发的消息 + token（G3：全部 lastInsertRowid，禁硬编码 uid——initDb seedAdmins 占 id=1）
+// 种子：s1/t1/t2 + 会话（c1: s1-t1、c2: s1-t2）+ t1 发的消息 + token（全部 lastInsertRowid，禁硬编码 uid——initDb seedAdmins 占 id=1）
 async function seed(db, raw) {
   await initDb(db, ENV);
   const ins = sql => Number(raw.prepare(sql).run().lastInsertRowid);

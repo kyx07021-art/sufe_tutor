@@ -1,17 +1,17 @@
 /**
- * 网安审计 N-02 —— capToken D1 持久化回归（server/danger-ops.js）
+ * 网安审计 —— capToken D1 持久化回归（server/danger-ops.js）
  *
  * 背景：capToken 曾存 per-isolate 内存 Map，Cloudflare 多 isolate 分发下 re-auth 签发与
  * 危险操作请求落到不同 isolate → 校验间歇性失败。本测试用「共享 D1 模拟内存」模拟两个
  * 独立 isolate（各自调用 danger-ops 接口），验证 D1 持久化后状态跨实例一致。
  *
  * 断言面：
- *   - 跨实例：isolate A 签发 → isolate B 校验通过（原内存版必失败）
- *   - 一次性：校验命中即删（同 capToken 二次校验失败）
- *   - 会话绑定：异会话复用同一 capToken 失败（原版仅绑 userId 可复用）
- *   - 摘要存储：danger_caps 只存 SHA-256，明文 token 永不入库
- *   - 过期失效：expires 已过的 capToken 校验失败
- *   - 明文 token 仅签发时回传一次
+ * - 跨实例：isolate A 签发 → isolate B 校验通过（原内存版必失败）
+ * - 一次性：校验命中即删（同 capToken 二次校验失败）
+ * - 会话绑定：异会话复用同一 capToken 失败（原版仅绑 userId 可复用）
+ * - 摘要存储：danger_caps 只存 SHA-256，明文 token 永不入库
+ * - 过期失效：expires 已过的 capToken 校验失败
+ * - 明文 token 仅签发时回传一次
  *
  * fake D1：内存表模拟 prepare().bind().all()/run()/first()，跨两次「isolate 调用」共享
  * 同一表（模拟 D1 全局存储），而 danger-ops 的模块级状态被隔离（无模块级状态可隔离——

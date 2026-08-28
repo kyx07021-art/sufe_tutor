@@ -1,18 +1,18 @@
 /**
- * V-0-4 架构 v2 契约测试（先落红：当前 v1 结构不满足，迁移过程中逐条转绿）
+ * 架构 v2 契约测试（先落红：当前 v1 结构不满足，迁移过程中逐条转绿）
  *
  * 契约：
- *   1. 部署对象只有 dist/，构建脚本存在；
- *   2. 后端域自持：src/server/domains/<域>/{schema.js,repo.js,api.js}；
- *   3. 声明式路由：src/server/app.js 导出 routes，_worker.js 不再有 if 路由；
- *   4. SQL 只在 repo：src/server/domains/各域 api.js 与 _worker.js 无 db.prepare/batch；
- *   5. 前端模块自持：src/client/core + src/client/features；
- *   6. fetch 只在 api.js；前端无内联 onclick/onload/style/中文文案；
- *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）；
- *   8. V-3-1d3 CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）；
- *   9. V-3-2a0：region-data 单源（SUFE_REGIONS 唯一定义于 shared，client re-export）；
- *  10. V-3-2a0：CSS 分层加载序（tokens→base→features→responsive→glass）；
- *  11. V-3-2c：文档↔契约互检（architecture.md 契约清单与 archtest 双向对应，防文档漂移）。
+ * 1. 部署对象只有 dist/，构建脚本存在；
+ * 2. 后端域自持：src/server/domains/<域>/{schema.js,repo.js,api.js}；
+ * 3. 声明式路由：src/server/app.js 导出 routes，_worker.js 不再有 if 路由；
+ * 4. SQL 只在 repo：src/server/domains/各域 api.js 与 _worker.js 无 db.prepare/batch；
+ * 5. 前端模块自持：src/client/core + src/client/features；
+ * 6. fetch 只在 api.js；前端无内联 onclick/onload/style/中文文案；
+ * 7. CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）；
+ * 8. CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）；
+ * 9. region-data 单源（SUFE_REGIONS 唯一定义于 shared，client re-export）；
+ * 10. CSS 分层加载序（tokens→base→features→responsive→glass）；
+ * 11. 文档↔契约互检（architecture.md 契约清单与 archtest 双向对应，防文档漂移）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +43,7 @@ test('后端域自持：src/server/domains/<域>/ 存在 schema/repo/api 三件'
 
 test('声明式路由：routeApi 只装配，不再有 if 路由', () => {
   const worker = read('_worker.js');
-  const block = worker.slice(worker.indexOf('export async function routeApi'), worker.indexOf('// B6 公开列表边缘缓存'));
+  const block = worker.slice(worker.indexOf('export async function routeApi'), worker.indexOf('// 公开列表边缘缓存'));
   assert.ok(!block.includes("p === '/api/"), 'routeApi 内没有手写 if 路由');
   const app = read('src/server/app.js');
   assert.ok(app.includes('export const routes'), '路由声明表存在');
@@ -53,7 +53,7 @@ test('SQL 边界：业务路由/编排层无 db.prepare（保活 ping 除外）'
   const worker = read('_worker.js');
   const keep = worker.slice(worker.indexOf('function keepD1Warm'), worker.indexOf('export default'));
   assert.ok(!worker.replace(keep, '').includes('db.prepare'), '_worker.js 除保活外不直接写 SQL');
-  // Z-15-F1：server 下 routes-* 死 shim 已删，契约扫描目标改为 src/server/domains 各域 api.js（业务 SQL 仍只在 repo.js）
+  // server 下 routes-* 死 shim 已删，契约扫描目标改为 src/server/domains 各域 api.js（业务 SQL 仍只在 repo.js）
   const apiFiles = readdirSync(join(root, 'src/server/domains'), { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => join('src/server/domains', d.name, 'api.js'));
@@ -76,7 +76,7 @@ test('前端边界：fetch 只在 api.js；core/features 零源码内联事件/�
     e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
   const coreFiles = existsSync(join(root, 'src/client/core')) ? walk(join(root, 'src/client/core')) : [];
   const featureFiles = existsSync(join(root, 'src/client/features')) ? walk(join(root, 'src/client/features')) : [];
-  // Q-1-F2 复审计修复: 扫描范围扩到 src/client/constants——text.js 是中文哨兵实际落点（CONTRACT_BIZ_END），
+  // 复审计修复: 扫描范围扩到 src/client/constants——text.js 是中文哨兵实际落点（CONTRACT_BIZ_END），
   // 不在扫描内会让「防 fromCharCode 回退」断言对哨兵所在模块零约束（变异验证: text.js 改回 fromCharCode 不红）。
   const constantFiles = existsSync(join(root, 'src/client/constants')) ? walk(join(root, 'src/client/constants')) : [];
   assert.ok(coreFiles.length > 0 && featureFiles.length > 0, 'core/features 文件非空');
@@ -85,16 +85,16 @@ test('前端边界：fetch 只在 api.js；core/features 零源码内联事件/�
     const s = readFileSync(f, 'utf8');
     const rel = f.replaceAll('\\', '/');
     if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
-    // V-3-1c3 CSP 收口契约：动态样式只能走 CSS 自定义属性数据通道（el.style.setProperty），
-    // 零 <style> 元素注入（style-src-elem 'self' 硬约束）+ 零源码内联事件/样式字面量（onload 曾漏查，V-3-1a 补；
-    // Q-1-F4 措辞：style= 检查是源码字面量 grep，CSSOM 数据通道（setProperty/cssText）不受 style-src-attr 管辖，
+    // CSP 收口契约：动态样式只能走 CSS 自定义属性数据通道（el.style.setProperty），
+    // 零 <style> 元素注入（style-src-elem 'self' 硬约束）+ 零源码内联事件/样式字面量（onload 曾漏查，补；
+    // 措辞：style= 检查是源码字面量 grep，CSSOM 数据通道（setProperty/cssText）不受 style-src-attr 管辖，
     // 运行时写 style 属性是 h5a-g6 豁免非违规，不在此契约范围）
     assert.ok(!/createElement\(["']style["']\)/.test(s), `${rel} 零 <style> 元素注入`);
     assert.ok(!/onload=/.test(s), `${rel} 无内联 onload`);
     assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
     assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
     // 中文仅允许 constants/ 数据单源模块（text.js 文案 / region-data.js 省份 / theme.js 主题值）；
-    // core/features 禁中文（契约 6）；constants 中文字面量 OK 但 fromCharCode 全禁。
+    // core/features 禁中文（）；constants 中文字面量 OK 但 fromCharCode 全禁。
     const isTextModule = rel.endsWith('/text.js') || rel.includes('/src/client/constants/');
     assert.ok(isTextModule || !/[一-鿿]/.test(s), `${rel} 无中文文案`);
     // Chinese may only live in text.js literal form; fromCharCode banned in every module (text.js included).
@@ -109,9 +109,9 @@ test('web/index.html 是干净 ESM 壳：无内联脚本/事件/样式', () => {
   assert.ok(!/onclick=/.test(html) && !/onload=/.test(html) && !/style=/.test(html), '无内联事件/样式属性');
 });
 
-// V-3-1d3 + V-4-1h h5a-g6 CSP 收口契约（架构层）：v2 页严格 meta CSP——script-src/style-src-elem/
+// + h5a-g6 CSP 收口契约（架构层）：v2 页严格 meta CSP——script-src/style-src-elem/
 // style-src-attr 均无 unsafe-inline（style-src-attr 'none'，h5a-g6 实测定案：CSSOM cssText/setProperty 不受
-// 该指令管辖，app 零内联 style 属性），锁严格策略不退化（文档化来源，V-3-2a0）。
+// 该指令管辖，app 零内联 style 属性），锁严格策略不退化（文档化来源，）。
 // 最小化声明无 default-src（交集不收紧 data:/blob:）。
 test('web/index.html 严格 meta CSP：script-src/style-src-elem/style-src-attr 均无 unsafe-inline；style-src-attr 为 none', () => {
   const html = read('web/index.html');
@@ -127,7 +127,7 @@ test('web/index.html 严格 meta CSP：script-src/style-src-elem/style-src-attr 
   assert.equal(new Set(dirs).size, dirs.length, '无重复指令（审计 O1：防分号后追加同指令等效放宽）');
 });
 
-// V-3-2a0：region-data 单源——SUFE_REGIONS 唯一定义在 src/shared/region-data.js（服务端亦复用），
+// region-data 单源——SUFE_REGIONS 唯一定义在 src/shared/region-data.js（服务端亦复用），
 // client 侧经 constants/region-data.js re-export 保持分层入口，v2 侧零重定义。
 test('region-data 单源：SUFE_REGIONS 唯一定义于 shared/region-data.js，client 侧零重定义', () => {
   const shared = read('src/shared/region-data.js');
@@ -143,7 +143,7 @@ test('region-data 单源：SUFE_REGIONS 唯一定义于 shared/region-data.js，
   assert.equal(defs[0], join(root, 'src/shared', 'region-data.js'), '定义落位 shared 层');
 });
 
-// V-3-2a0：CSS 分层加载序——web/index.html stylesheet 依 tokens→base→features→responsive→glass 层叠
+// CSS 分层加载序——web/index.html stylesheet 依 tokens→base→features→responsive→glass 层叠
 test('CSS 分层加载序：web/index.html stylesheet 依 tokens→base→features→responsive→glass 层叠', () => {
   const html = read('web/index.html');
   const links = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g)].map(m => m[1]);
@@ -165,7 +165,7 @@ test('CSS 分层加载序：web/index.html stylesheet 依 tokens→base→featur
   }
 });
 
-// V-3-2c 文档↔契约互检：docs/architecture.md 契约清单与 archtest 双向对应（防文档漂移）。
+// 文档↔契约互检：docs/architecture.md 契约清单与 archtest 双向对应（防文档漂移）。
 // 文档新增/删除契约而测试不同步 → 本测试红。关键词 = 文档章节标题与 archtest 测试标题的共同子串。
 test('文档↔契约互检：architecture.md 契约清单与 archtest 双向对应（防文档漂移）', () => {
   const doc = read('docs/architecture.md');

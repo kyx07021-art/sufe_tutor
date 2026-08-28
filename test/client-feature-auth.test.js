@@ -133,8 +133,8 @@ function seedDevice(storage) {
 }
 
 test('text parity: auth render output carries the single-source text verbatim', () => {
-  // Z-11-F1 迁移后 TEXT 与 feature text.js 已同源（原双源漂移检测循环变恒真自比较，删除）；
-  // V-4-1h：v1 静态壳已删，登录/注册文案单源 = features/auth/render.js 渲染输出（V-2-4a 服务端文案同源）
+  // 迁移后 TEXT 与 feature text.js 已同源（原双源漂移检测循环变恒真自比较，删除）；
+  // v1 静态壳已删，登录/注册文案单源 = features/auth/render.js 渲染输出（服务端文案同源）
   const shellHtml = render.loginViewHtml() + render.registerViewHtml();
   for (const v of [TEXT.LOGIN_IDENTIFIER_LABEL, TEXT.LOGIN_PASSWORD_LABEL, TEXT.LOGIN_REMEMBER,
     TEXT.LOGIN_CODE_HINT, TEXT.BTN_BACK, TEXT.BTN_GO_REGISTER, TEXT.REGISTER_TITLE, TEXT.REGISTER_SUB,
@@ -432,7 +432,7 @@ test('withCaptcha gates login/register/bind before any sensitive request', async
 });
 
 // Request-body contract cases (v1-parity kept as direct ESM assertions — the vm
-// classic-script side is gone with B4). The OTP +86 normalization / scene body is
+// classic-script side is gone with ). The OTP +86 normalization / scene body is
 // covered by the "OTP: classify/cooldown..." test above; these two add the login
 // deviceId and the register email-channel bodies.
 

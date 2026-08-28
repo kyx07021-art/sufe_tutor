@@ -1,5 +1,5 @@
 /**
- * S3-3: student_demands 数组模型 → 单科目新模型 存量迁移（S3 §15）
+ * student_demands 数组模型 → 单科目新模型 存量迁移（S3 ）
  *
  * Migrates the legacy v2 array-shaped `student_demands` table
  * (target_subjects JSON array / current_scores JSON array / status open|contracted|revoked)
@@ -9,45 +9,45 @@
  * test locks the column sets together).
  *
  * Migration rules:
- *   - Each legacy row is split into N rows, one per target_subjects element; the other fields
- *     are copied verbatim: grade=student_grade, province, teaching_method, address_area=address,
- *     expected_time, preferred_tags=preferred_personality_tags, preferred_gender=preferred_teacher_gender,
- *     budget_min/max, additional_info, created_at.
- *   - current_score = score of that subject from the current_scores array (fall back to the
- *     grade letter when score is empty, else '').
- *   - status mapping: open→open; contracted→closed (already transacted, no longer accepting
- *     intents); revoked→open (revocation returns the demand to the open pool).
- *   - A row whose target_subjects is empty/invalid is dropped with a warning (no dirty rows).
- *   - Idempotent: re-running is a no-op once every row carries a non-empty `subject` (the
- *     "already migrated" signal). Mixed-shape tables (schema.js ensureColumns path, where the
- *     new columns were added but old rows still have subject='') are re-split correctly.
- *   - Table shape: default rebuilds in place — DROP the old table, rename the new table into
- *     `student_demands`; `--keep-old` preserves the old table as `student_demands_legacy`.
+ * - Each legacy row is split into N rows, one per target_subjects element; the other fields
+ * are copied verbatim: grade=student_grade, province, teaching_method, address_area=address,
+ * expected_time, preferred_tags=preferred_personality_tags, preferred_gender=preferred_teacher_gender,
+ * budget_min/max, additional_info, created_at.
+ * - current_score = score of that subject from the current_scores array (fall back to the
+ * grade letter when score is empty, else '').
+ * - status mapping: open→open; contracted→closed (already transacted, no longer accepting
+ * intents); revoked→open (revocation returns the demand to the open pool).
+ * - A row whose target_subjects is empty/invalid is dropped with a warning (no dirty rows).
+ * - Idempotent: re-running is a no-op once every row carries a non-empty `subject` (the
+ * "already migrated" signal). Mixed-shape tables (schema.js ensureColumns path, where the
+ * new columns were added but old rows still have subject='') are re-split correctly.
+ * - Table shape: default rebuilds in place — DROP the old table, rename the new table into
+ * `student_demands`; `--keep-old` preserves the old table as `student_demands_legacy`.
  *
  * NOTE (FK cascade): dropping the old parent table with foreign_keys=ON implicitly runs
  * ON DELETE CASCADE against demand_intents / demand_pushes, wiping their rows. Those two
- * sub-systems are in S2's deletion scope (§15⑤), so this is intentional; it is surfaced in
+ * sub-systems are in S2's deletion scope (⑤), so this is intentional; it is surfaced in
  * the --apply output.
  *
  * NOTE (R-1 · conversations preservation): chat/schema.js declares
- *   conversations.demand_id REFERENCES student_demands(id) ON DELETE SET NULL,
+ * conversations.demand_id REFERENCES student_demands(id) ON DELETE SET NULL,
  * so dropping the legacy table would NULL out every conversation's demand link. This migration
  * preserves the link with two co-operating mechanisms:
- *   1. id preservation — each legacy row's FIRST split row keeps the legacy id (AUTOINCREMENT
- *      continues past the largest preserved id), so the old demand_id value resolves to a valid
- *      row in the new table after the swap. This alone would be enough if the DROP did not fire
- *      FK actions, but it does.
- *   2. snapshot-restore — because D1 enforces foreign keys always-on and cannot toggle
- *      `PRAGMA foreign_keys`, the ON DELETE SET NULL from the DROP cannot be prevented. So the
- *      old id → conversation mapping is snapshotted before the DROP and re-applied after the
- *      swap (the preserved ids are valid in the new table). The local path mirrors the SQL path.
+ * 1. id preservation — each legacy row's FIRST split row keeps the legacy id (AUTOINCREMENT
+ * continues past the largest preserved id), so the old demand_id value resolves to a valid
+ * row in the new table after the swap. This alone would be enough if the DROP did not fire
+ * FK actions, but it does.
+ * 2. snapshot-restore — because D1 enforces foreign keys always-on and cannot toggle
+ * `PRAGMA foreign_keys`, the ON DELETE SET NULL from the DROP cannot be prevented. So the
+ * old id → conversation mapping is snapshotted before the DROP and re-applied after the
+ * swap (the preserved ids are valid in the new table). The local path mirrors the SQL path.
  *
  * Modes:
- *   node scripts/migrate-demands-single-subject.mjs --dry-run    # read-only statistics
- *   node scripts/migrate-demands-single-subject.mjs --apply      # execute the migration
- *   node scripts/migrate-demands-single-subject.mjs --drill      # in-memory self-check
- *   node scripts/migrate-demands-single-subject.mjs --help
- *   (add --keep-old to preserve the old table instead of dropping it)
+ * node scripts/migrate-demands-single-subject.mjs --dry-run # read-only statistics
+ * node scripts/migrate-demands-single-subject.mjs --apply # execute the migration
+ * node scripts/migrate-demands-single-subject.mjs --drill # in-memory self-check
+ * node scripts/migrate-demands-single-subject.mjs --help
+ * (add --keep-old to preserve the old table instead of dropping it)
  *
  * Reads go through the d1ReadQuery semantic read-only gate (changed_db=false asserted);
  * writes execute one transactional SQL file via `wrangler d1 execute --file`.
@@ -59,7 +59,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
-// New-shape DDL (S3 §15; single source of truth = src/server/domains/demand/schema.js).
+// New-shape DDL (S3 ; single source of truth = src/server/domains/demand/schema.js).
 // The `student_demands_new` name is swapped to `student_demands` by the migration.
 // ---------------------------------------------------------------------------
 export const STUDENT_DEMANDS_NEW_DDL = `CREATE TABLE IF NOT EXISTS student_demands_new (
@@ -99,7 +99,7 @@ export function parseJsonArray(str, fallback) {
   }
 }
 
-/** Status convergence (§15⑥): open stays open; contracted is closed; revoked is open again. */
+/** Status convergence (⑥): open stays open; contracted is closed; revoked is open again. */
 export function mapStatus(status) {
   switch (String(status ?? '')) {
     case 'contracted': return 'closed';

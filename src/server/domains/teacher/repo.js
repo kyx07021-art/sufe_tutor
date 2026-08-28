@@ -1,12 +1,12 @@
 /**
- * 教师域数据层（V-1-4 从 server/db.js 提取）：teacher_profiles / 教师列表 / 学信网核验。
+ * 教师域数据层（从 server/db.js 提取）：teacher_profiles / 教师列表 / 学信网核验。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
-import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
-import { LIMITS } from '../../../shared/config.js'; // Z-3-F3：INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
-import { SUFE_REGIONS } from '../../../shared/region-data.js'; // S4-02：provinceName 单源（教师展示地区）
-import { mapDemandRow } from '../demand/repo.js'; // S4-02 W32：单科目新模型 canonical 需求映射（match 归一器消费 camelCase）
+import { safeJsonArray } from '../../core/json.js'; // safeJsonObject 零引用删除
+import { LIMITS } from '../../../shared/config.js'; // INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // provinceName 单源（教师展示地区）
+import { mapDemandRow } from '../demand/repo.js'; // 单科目新模型 canonical 需求映射（match 归一器消费 camelCase）
 
 // 教师档案
 // ============================================================
@@ -69,10 +69,10 @@ async function prepareProfileValue(profile, column) {
 
 // 写路径（handleSaveProfile 调用）：`provided` = Set of DB columns the client explicitly supplied.
 //   - existing row  → merge UPDATE: only provided columns are written; omitted columns keep their
-//     stored value (I-40 partial save = keep old). `price` mirrors `price_min` when the latter is written.
+// stored value (partial save = keep old). `price` mirrors `price_min` when the latter is written.
 //   - fresh row     → INSERT every writable column; absent fields fall back to empty/null defaults
 //     (JSON arrays '[]', time_slots/teaching_method '', prices null) — matches the legacy full-write shape.
-// 网安 F-06/N-05：wechat/email/real_name/credential_image 加密落库（D1 泄露/备份不暴露教师私密信息）。
+// 网安 F-06/wechat/email/real_name/credential_image 加密落库（D1 泄露/备份不暴露教师私密信息）。
 export async function dbUpsertTeacherProfile(db, userId, profile, provided) {
   const existing = await dbGet(db, 'SELECT id FROM teacher_profiles WHERE user_id=?', [userId]);
   const has = k => !provided || provided.has(k);
@@ -98,7 +98,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile, provided) {
   }
 }
 
-// I-29 subject rows: { subject, score, full, awards[] } per teacher subject id.
+// subject rows: { subject, score, full, awards[] } per teacher subject id.
 // `subject` is the academic subject id; `score` is the teacher's recorded gaokao score
 // for that subject (gaokao_scores row) when present, else null; `full` is the gaokao
 // full score for the subject; `awards` stays an empty placeholder (no award data yet).
@@ -108,7 +108,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile, provided) {
 export const GAOKAO_FULL_STAGE_GRADE = 'senior3';
 function teacherSubjectRows(p, gaokaoScores) {
   const raw = safeJsonArray(p.subjects);
-  // PA-1d-F4 (I-40): subjects stored as the object-array shape the mapper emits —
+  // (): subjects stored as the object-array shape the mapper emits —
   // [{subject, score, full, awards}] — read the rows back directly (the write path normalizes
   // score to a number and derives `full` from region/grade, so a stored row is already canonical).
   if (Array.isArray(raw) && raw.length && raw.every(x => x && typeof x === 'object' && !Array.isArray(x))) {
@@ -142,9 +142,9 @@ function teacherSubjectRows(p, gaokaoScores) {
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
-// 网安 N-05：credential_image 同款加密列，出门解密
+// 网安 credential_image 同款加密列，出门解密
 // 数据最小化：private:false 时私密字段不解密、置空——广场列表一律裁剪（无论 viewer 是否匹配），
-// 服务端硬把关；私密字段仅经 /api/teacher/profile 定点门控取回（S4-02：matched 标记已从列表移除）
+// 服务端硬把关；私密字段仅经 /api/teacher/profile 定点门控取回（matched 标记已从列表移除）
 export async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
   const [wechat, email, realName, credentialImage] = includePrivate
     ? await Promise.all([
@@ -164,14 +164,14 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     price_max: p.price_max != null ? p.price_max : null,
     price: p.price != null ? p.price : null,
     // R2-1/R2-2/R2-3/R2-4：教师档案扩展字段
-    // T-6-F3：time_slots 走 safeJsonArray（与 subjects/gaokao 同批 JSON 列对齐，服务端单点反序列化零例外）
+    // time_slots 走 safeJsonArray（与 subjects/gaokao 同批 JSON 列对齐，服务端单点反序列化零例外）
     time_slots: safeJsonArray(p.time_slots),
     teaching_method: p.teaching_method || '',
     personality_tags: safeJsonArray(p.personality_tags),
     nonacademic_projects: safeJsonArray(p.nonacademic_projects),
     nonacademic_prices: safeJsonArray(p.nonacademic_prices),
     // R2-12 毕业年份（null = 未填，前端按最新政策渲染赋分组件）。
-    // 网安审计 M1 决策：公开模式不裁剪——毕业年份仅能粗推成人教师年龄（远弱于联系方式/门牌），
+    // 网安审计 决策：公开模式不裁剪——毕业年份仅能粗推成人教师年龄（远弱于联系方式/门牌），
     // 且是学生判断「该教师高考分按哪套政策」的必读信息（2c 需求），刻意公开；不仿 real_name 门控。
     graduation_year: p.graduation_year != null ? p.graduation_year : null,
     // v1.2.0 T1：学信网核验自动填入字段（只读，禁手动改；chsi_verified=1 才开放接单资格）
@@ -180,7 +180,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     chsi_verified: p.chsi_verified ? true : false,
     wechat, email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count,
-    // S4-02 新模型公开字段（I-29 列表 / I-39 档案）：驼峰命名，供新前端消费；v2 蛇形字段保留不动。
+    // 公开字段（列表 / 档案）：驼峰命名，供前端消费；蛇形字段保留兼容旧渲染。
     // 缺列兜底用 != null / || '' —— teacher_name/experience_years 由并行 schema 基元落库，落库前 undefined 不炸。
     teacher_name: p.teacher_name || '',
     name: (p.teacher_name && p.teacher_name.trim()) || p.username || '',
@@ -200,7 +200,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
   };
 }
 
-// PA-1d-F6b: build the public-plaza WHERE / ORDER BY from the I-29 filter conditions and
+// build the public-plaza WHERE / ORDER BY from the filter conditions and
 // SQL-expressible sorts. Everything is applied BEFORE the PUBLIC_LIST_MAX LIMIT (the caller
 // appends it), so global sort/filter semantics survive a table larger than the cap — the
 // old in-handler JS sort/filter ran over the truncated "most recent PUBLIC_LIST_MAX" set,
@@ -209,7 +209,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
 // - filters: subjects / gender / personalities (JSON-array columns, matched exactly via
 //   json_each — the parse-then-compare equivalent of safeJsonArray, NOT substring LIKE)
 //   and price range overlap (teacher [price_min, price_max], null = unbounded). A teacher
-//   with no price at all is excluded when a price filter is active (I-29 contract).
+// with no price at all is excluded when a price filter is active (contract).
 // - sort: price (midpoint, single-side uses the present side, both-null LAST), rating,
 //   experience. All three use a null-last flag so missing keys sort to the end regardless
 //   of asc/desc — the same semantics as list.js makeComparator. sort='match' is NOT
@@ -259,9 +259,9 @@ function buildTeacherPublicQuery(filters, sort, order) {
 
 // 教师列表统一出口（合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
 // 广场视图（默认）：viewerId 有值（登录态）时跳过 allow_guest_profile 访客过滤（已登录用户可看全部可见教师）；
-//   S4-02：matched EXISTS 子查询已移除（列表不再下发双向匹配标记，仅匹配可见字段改经 /api/teacher/profile 定点门控）；
+// matched EXISTS 子查询已移除（列表不再下发双向匹配标记，仅匹配可见字段改经 /api/teacher/profile 定点门控）；
 // adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at。
-// 公开分支接收 I-29 filters / sort / order 并在 SQL 层应用（PA-1d-F6b）——sort='match' 由调用方以 null 传入。
+// 公开分支接收 filters / sort / order 并在 SQL 层应用（）——sort='match' 由调用方以 null 传入。
 export async function dbGetTeachers(db, { adminView = false, viewerId = null, filters = null, sort = '', order = 'desc' } = {}) {
   if (adminView) {
     const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
@@ -276,14 +276,14 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null, fi
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);
     return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
   }
-  // S4-02：访客可见性（allow_guest_profile / user_settings JOIN）已删——S6 §17「无访客浏览」，
+  // 访客可见性（allow_guest_profile / user_settings JOIN）已删——S6 「无访客浏览」，
   // user_settings 表随之移除，保留访客过滤会让本查询依赖已删表；matched EXISTS 亦已删除。
-  // award_count 子查询（teacher_awards）同步移除（S6 §17 awards 不上线），mapper 对缺列兜底 0。
+  // award_count 子查询（teacher_awards）同步移除（S6 awards 不上线），mapper 对缺列兜底 0。
   // viewerId 参数保留（调用方仍传），此处不再消费。
-  // PA-1d-F6 DoS guard: the public plaza list is capped at the same PUBLIC_LIST_MAX
+  // DoS guard: the public plaza list is capped at the same PUBLIC_LIST_MAX
   // as the demand square (demand/repo.js) so a growing teacher_profiles table cannot
   // force every request to load the whole table + per-row match computation.
-  // PA-1d-F6b: filters + SQL-expressible sorts are pushed into the SELECT (buildTeacherPublicQuery)
+  // filters + SQL-expressible sorts are pushed into the SELECT (buildTeacherPublicQuery)
   // and applied before the LIMIT — the truncation never breaks global sort/filter semantics.
   const { where, params, orderBy } = buildTeacherPublicQuery(filters, sort, order);
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
@@ -299,7 +299,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null, fi
   return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));
 }
 
-// S4-02：最接近的一个 OPEN 需求（I-32 匹配上下文；D1 契约）。
+// 最接近的一个 OPEN 需求（匹配上下文；D1 契约）。
 // 经 demand 域 canonical mapper 映射（S3 单科目新模型 camelCase：subject/addressArea/
 // preferredTags/preferredGender/budgetMin/budgetMax）——匹配归一器直接消费；无开放需求返回 null。
 export async function dbGetStudentOpenDemand(db, userId) {
@@ -330,10 +330,10 @@ export async function dbGetTeacherVerification(db, userId) {
 }
 
 /** 插入/更新核验记录（一人一条，UNIQUE(user_id)；approved/rejected 覆写旧状态）。
- *  安全审计 M1：verify_code 加密落库（学信网报告访问凭证，同 wechat/email 口径）——库泄露不暴露明文。 */
+ * 安全审计 verify_code 加密落库（学信网报告访问凭证，同 wechat/email 口径）——库泄露不暴露明文。 */
 export async function dbUpsertTeacherVerification(db, v) {
   const verifyCode = await encryptField(String(v.verifyCode || ''));
-  // Q-2c-F1：入参 v.admissionImage 语义 = 明文（调用方已 decryptField——approve/reject/revoke 三处对称）。
+  // 入参 v.admissionImage 语义 = 明文（调用方已 decryptField——approve/reject/revoke 三处对称）。
   // 原实现直接再 encryptField → 调用方透传库中密文 enc1 二次加密 enc2，每次 admin 动作叠层（审核链数据腐坏）。
   const admissionImage = v.admissionImage ? await encryptField(String(v.admissionImage)) : '';
   await dbRun(db, `INSERT INTO teacher_verifications
@@ -378,7 +378,7 @@ export async function dbListTeacherVerifications(db, status) {
   const args = status && status !== 'all' ? [status] : [];
   const rows = await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
       JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
-  // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
+  // 安全审计 verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
   // v1.4.16：admission_image（录取通知书）同样加密，管理端列表解密供预览。
   // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
   return Promise.all(rows.map(async r => ({

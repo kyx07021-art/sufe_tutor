@@ -1,15 +1,15 @@
 /**
- * PA-1f-F2 guard tests: review list response contract key reviewerName (I-31).
+ * guard tests: review list response contract key reviewerName.
  *
  * The teacher-detail featured review and the admin review list both map the reviewer
- * username through SQL aliases. Contract I-31 (docs/interfaces.md) fixes the public
- * list shape as { reviews: [{ ..., reviewerName, ... }], mine }, and the new-frontend
- * DetailMiddle.vue signature renders featured.reviewerName. The mapper must emit the
- * camelCase key (reviewer_name is retained for the v2 legacy render paths).
+ * username through SQL aliases. Contract (docs/interfaces.md) fixes the public
+ * list shape as { reviews: [{ ..., reviewerName, ... }], mine }, and the frontend
+ * renders featured.reviewerName. The mapper must emit the camelCase key
+ * (reviewer_name is retained for the legacy render paths).
  *
  * Approved reviews are seeded directly via SQL (no capToken dependency) so the guard
  * is self-contained: removing the `as reviewerName` alias in reviews/repo.js turns the
- * assertions below red (G2 mutation).
+ * assertions below red (mutation).
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -75,13 +75,13 @@ test('PA-1f-F2：GET /api/reviews 列表响应含 reviewerName（I-31 契约键�
   const db = d1Shim(raw);
   const { teaId } = await seed(db, raw);
 
-  // 数据层直接断言（G1 关键路径）
+  // 数据层直接断言（关键路径）
   const rows = await dbGetApprovedReviews(db, teaId);
   assert.equal(rows.length, 1, '1 条已通过评价');
   assert.equal(rows[0].reviewerName, 'stu', 'repo mapper 补 reviewerName 别名');
   assert.equal(rows[0].reviewer_name, 'stu', 'reviewer_name 旧键保留（v2 旧前端渲染路径）');
 
-  // API 层响应形状断言（契约 I-31 端点）
+  // API 层响应形状断言（契约 端点）
   const res = await handleGetReviews(db, new URL(`http://x/api/reviews?teacherUserId=${teaId}`), req({}));
   assert.equal(res.status, 200, '公开列表 200');
   const data = await res.json();

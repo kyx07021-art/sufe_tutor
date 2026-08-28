@@ -2,18 +2,18 @@
  * v2 tour engine (ESM port of v1 app-onboard.js step layer).
  *
  * Design: multi-step interactive layer over the client shell.
- *   - Target shapes: { page } sidebar tab / { sel } any selector / { closeModal }
- *     current modal (onAdvance closes) / { self } sidebar user bar.
- *   - Unmounted targets (page async load): rAF poll until present and not under a
- *     .hidden ancestor (display:none), then skip after CONFIG.TOUR_TARGET_TIMEOUT_MS.
- *   - Hole follows: window resize / scroll (capture + passive) repositions.
- *   - Z-order: .tour-overlay above modal / sidebar backdrop; the dim is drawn by the
- *     hole box-shadow (true aperture, target stays clickable). The bubble is a
- *     backdrop-filter subtree: entry uses a pure-transform animation (no transition —
- *     Chromium 983252 freezes the first frame).
- *   - Class prefix .tour-: never hit by scoped descendant selectors of forms/modals.
- *   - No inline handlers (archtest): the global skip button gets a direct listener
- *     (the overlay click handler stopPropagation would swallow document delegation).
+ * - Target shapes: { page } sidebar tab / { sel } any selector / { closeModal }
+ * current modal (onAdvance closes) / { self } sidebar user bar.
+ * - Unmounted targets (page async load): rAF poll until present and not under a
+ * .hidden ancestor (display:none), then skip after CONFIG.TOUR_TARGET_TIMEOUT_MS.
+ * - Hole follows: window resize / scroll (capture + passive) repositions.
+ * - .tour-overlay above modal / sidebar backdrop; the dim is drawn by the
+ * hole box-shadow (true aperture, target stays clickable). The bubble is a
+ * backdrop-filter subtree: entry uses a pure-transform animation (no transition —
+ * Chromium 983252 freezes the first frame).
+ * - Class prefix .tour-: never hit by scoped descendant selectors of forms/modals.
+ * - No inline handlers (archtest): the global skip button gets a direct listener
+ * (the overlay click handler stopPropagation would swallow document delegation).
  * Demo chat/contract: tours inject a demo conversation / contract card while the
  * tour is active so fresh accounts can be walked through the components; both are
  * removed by _tourCleanup. The demo conversation does NOT set chat.convId (avoids

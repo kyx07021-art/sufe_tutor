@@ -1,25 +1,25 @@
 /**
- * S2-T8: temp conversation API layer (I-23/I-24/I-16/I-17/I-18/I-15) — handler-level tests.
+ * S2-T8: temp conversation API layer (/////) — handler-level tests.
  *
  * Covers the temp state machine driven through the chat api handlers:
- *   1. I-23 create: student→teacher with firstMessage → init→sent in the same batch, message lands, quota 0.
- *   2. I-23 reuse: second call for the same tuple returns the same conversationId (no duplicate row).
- *   3. I-23 formal reuse: a pre-existing formal (active) conversation is returned as-is (tempStatus null).
- *   4. I-23 reopen: a pre-existing formal CLOSED conversation is reopened to active and reused.
- *   5. I-24 init→sent: create init (no firstMessage), initiator sends → tempStatus 'sent', tempQuota 0.
- *   6. I-24 over-quota: initiator sends again on a 'sent' temp → 409 TEMP_QUOTA_EXCEEDED.
- *   7. I-24 receiver formalizes: receiver replies on a 'sent' temp → temp_status NULL, convStatus 'active'.
- *   8. I-18 init gate: non-initiator GET messages on an 'init' conv → 404; on a 'sent' conv → 200.
- *   9. I-17 list visibility: initiator sees the init conv in the list, non-initiator does NOT;
- *      once sent, both participants see it.
- *  10. I-16 temp close: capToken required, deletes the row + messages (FK cascade), zero notification.
- *  11. I-15 my-relations: tempStatus / tempInitiatorId are exposed on the relation object.
+ * 1. create: student→teacher with firstMessage → init→sent in the same batch, message lands, quota 0.
+ * 2. reuse: second call for the same tuple returns the same conversationId (no duplicate row).
+ * 3. formal reuse: a pre-existing formal (active) conversation is returned as-is (tempStatus null).
+ * 4. reopen: a pre-existing formal CLOSED conversation is reopened to active and reused.
+ * 5. init→sent: create init (no firstMessage), initiator sends → tempStatus 'sent', tempQuota 0.
+ * 6. over-quota: initiator sends again on a 'sent' temp → 409 TEMP_QUOTA_EXCEEDED.
+ * 7. receiver formalizes: receiver replies on a 'sent' temp → temp_status NULL, convStatus 'active'.
+ * 8. init gate: non-initiator GET messages on an 'init' conv → 404; on a 'sent' conv → 200.
+ * 9. list visibility: initiator sees the init conv in the list, non-initiator does NOT;
+ * once sent, both participants see it.
+ * 10. temp close: capToken required, deletes the row + messages (FK cascade), zero notification.
+ * 11. my-relations: tempStatus / tempInitiatorId are exposed on the relation object.
  *
- * Mutation guards (G2 — reverting the corresponding source line turns the matching test red):
- *   - Removing the init-404 gate in loadConversationFor → test 8 (non-initiator on init) fails.
- *   - Removing tempStatus/tempInitiatorId from the list mapping → test 9 asserts red.
- *   - Removing the TEMP_QUOTA_EXCEEDED 409 in handleSendBatch → test 6 asserts red.
- *   - Removing the temp-close branch in handleCloseConversation → test 10 asserts red.
+ * Mutation guards (— reverting the corresponding source line turns the matching test red):
+ * - Removing the init-404 gate in loadConversationFor → test 8 (non-initiator on init) fails.
+ * - Removing tempStatus/tempInitiatorId from the list mapping → test 9 asserts red.
+ * - Removing the TEMP_QUOTA_EXCEEDED 409 in handleSendBatch → test 6 asserts red.
+ * - Removing the temp-close branch in handleCloseConversation → test 10 asserts red.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -293,7 +293,7 @@ test('I-15 my-relations includes tempStatus / tempInitiatorId', async () => {
   // S5 in-flight: the shared chat/repo.js dbGetMyRelations still LEFT JOINs signing_contracts while the
   // contract schema now creates the standalone `contracts` table. Seed the legacy signing_contracts shape
   // (empty, no rows) so the join resolves — this isolates verification of the api.js temp-field mapping
-  // (I-15) from the parallel S5 migration of the repo query.
+  // () from the parallel S5 migration of the repo query.
   raw.exec(`CREATE TABLE IF NOT EXISTS signing_contracts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_user_id INTEGER, teacher_user_id INTEGER, conversation_id INTEGER,
@@ -325,7 +325,7 @@ test('NJ-S1 security: non-initiator POST temp on a peer-init init conv → 404 (
 test('NJ-S2 security: my-relations hides peer-init init temp from non-initiator (I-24 list gate)', async () => {
   // s1 creates an init temp toward t1 (stays init). t1's relation list must NOT include the conv;
   // s1's own list must include it. After s1 advances to sent, both see it (same visibility rule
-  // as I-17 list test, asserted here through dbGetMyRelations).
+  // as list test, asserted here through dbGetMyRelations).
   const raw = rawOf(); const db = d1Shim(raw);
   const { t1, s1, s1a, t1a } = await seed(db, raw);
   const created = await handleCreateTempConversation(db, { targetUserId: t1 }, reqOf(s1a.token));

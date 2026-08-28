@@ -1,10 +1,10 @@
 /**
- * V-4-1f 一键回滚演练（发布 2.0.0 前置）：
- *   1. 导出生产 D1 → 本地 SQLite → 跑当前 initDb（schema_meta=8，模拟 2.0.0 迁移后状态）→ VACUUM INTO 备份文件；
- *   2. git worktree 取出回滚目标代码（main = v1.5.0 时代，SCHEMA_VERSION=7，notifications 无 type/params 支持）；
- *   3. 旧代码树内跑旧 initDb 对 v8 库 → 断言版本门控短路（不迁移、不降级、无崩溃）；
- *   4. 断言旧代码数据通路兼容：v8 新增列保留（迁移成果不丢）、旧读全量行、旧写 pattern（text-only → type/params NULL，v2 客户端 text 兜底渲染）；
- *   5. 断言旧 /api/health 门控（productionReady）按 env 判定、不受 schema 影响 → 服务可恢复。
+ * 一键回滚演练（发布 2.0.0 前置）：
+ * 1. 导出生产 D1 → 本地 SQLite → 跑当前 initDb（schema_meta=8，模拟 2.0.0 迁移后状态）→ VACUUM INTO 备份文件；
+ * 2. git worktree 取出回滚目标代码（main = v1.5.0 时代，SCHEMA_VERSION=7，notifications 无 type/params 支持）；
+ * 3. 旧代码树内跑旧 initDb 对 v8 库 → 断言版本门控短路（不迁移、不降级、无崩溃）；
+ * 4. 断言旧代码数据通路兼容：v8 新增列保留（迁移成果不丢）、旧读全量行、旧写 pattern（text-only → type/params NULL，v2 客户端 text 兜底渲染）；
+ * 5. 断言旧 /api/health 门控（productionReady）按 env 判定、不受 schema 影响 → 服务可恢复。
  * 用法：node scripts/rollback-drill.mjs（需 wrangler 已认证 + git worktree 权限）。
  */
 import { DatabaseSync } from 'node:sqlite';
@@ -62,7 +62,7 @@ function makeShim(raw) {
 // 旧代码树内执行的验收 harness（随演练生成进 worktree，非提交物）
 const OLD_HARNESS = `import { DatabaseSync } from 'node:sqlite';
 import { initDb, SCHEMA_VERSION as OLD_VER } from './src/server/core/db.js';
-import { productionReady } from './server/startup.js';
+import { productionReady } from './src/server/core/startup.js';
 const dbPath = process.argv[2];
 let fail = 0;
 const check = (n, c, d = '') => { if (c) console.log('✔ ' + n); else { console.error('✖ ' + n + (d ? '（' + d + '）' : '')); fail++; } };

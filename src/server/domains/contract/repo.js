@@ -1,6 +1,6 @@
 /**
- * 合同域数据层（V-1-4 从 server/db.js 提取）：独立 contracts 表读取/创建/删除（状态机在 contract/api.js）。
- * S5-03：signing_contracts → 独立 contracts 表——零签约字段、两态 contract_status('signing'|'signed')、
+ * 合同域数据层（从 server/db.js 提取）：独立 contracts 表读取/创建/删除（状态机在 contract/api.js）。
+ * signing_contracts → 独立 contracts 表——零签约字段、两态 contract_status('signing'|'signed')、
  * 双方元组自持、conversation_id 可空历史关联（独立存证，删会话不删 signed/revoked 合同）。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
@@ -8,10 +8,10 @@ import { decryptField } from '../../core/crypto.js';
 
 // 合同（纯数据层取行；状态机关口在 contract/api.js）
 // ============================================================
-// 网安 N-05：contract_md / prev_business 加密列，出门即解密（写点加密在 contract/api.js；老明文行经 decryptField 原样放行）
+// 网安 contract_md / prev_business 加密列，出门即解密（写点加密在 contract/api.js；老明文行经 decryptField 原样放行）
 export async function dbGetContractById(db, id) {
-  // contract_status AS status 别名供 handler 零改动读 ct.status；contractStatus 对齐 I-44 契约
-  // （新前端读 contractStatus，status 保留供内部/旧消费）；无 stage 过滤（独立表两态直读）
+  // contract_status AS status / AS contractStatus 双别名：handler 零改动读 ct.status，
+  // 前端读 contractStatus；无 stage 过滤（独立表两态直读）
   const row = await dbGet(db, "SELECT c.*, c.contract_status AS status, c.contract_status AS contractStatus FROM contracts c WHERE id=?", [id]);
   if (row) row.contract_md = await decryptField(row.contract_md);
   if (row && row.prev_business) row.prev_business = await decryptField(row.prev_business);
@@ -29,7 +29,7 @@ export async function dbGetMyContracts(db, userId) {
     WHERE c.student_user_id = ? OR c.teacher_user_id = ?
     ORDER BY c.updated_at DESC`, [userId, userId]);
   for (const r of rows) {
-    r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+    r.contract_md = await decryptField(r.contract_md); // 合同正文加密列出门解密
     if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // 留痕 diff 基线
   }
   return rows;
@@ -46,7 +46,7 @@ export async function dbGetAllContractsAdmin(db) {
     JOIN users du ON du.id = c.drafter_user_id
     ORDER BY c.updated_at DESC`);
   for (const r of rows) {
-    r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+    r.contract_md = await decryptField(r.contract_md); // 合同正文加密列出门解密
     if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // 与 dbGetMyContracts 同口径，管理员改动对比可用
   }
   return rows;
@@ -58,7 +58,7 @@ export async function dbDeleteContract(db, contractId) {
   return dbRun(db, "DELETE FROM contracts WHERE id=?", [contractId]);
 }
 
-// 创建合同行（S5-06 起草：全字段自填 INSERT，无需求门禁/无 stage 推进/不驱动会话）。
+// 创建合同行（起草：全字段自填 INSERT，无需求门禁/无 stage 推进/不驱动会话）。
 // 返回新行 id；调用方凭 meta.changes 判定写入成功。
 export async function dbCreateContract(db, fields) {
   const {
@@ -80,7 +80,7 @@ export async function dbCreateContract(db, fields) {
   return Number(res.meta.last_row_id);
 }
 
-// 写入含签名块的合同正文（S5-07 签署后用）：覆盖 contract_md + 刷新 updated_at。
+// 写入含签名块的合同正文（签署后用）：覆盖 contract_md + 刷新 updated_at。
 // 返回原生 result（调用方凭 meta.changes 判定写入成功）。
 export async function dbSetContractMd(db, contractId, contractMdEnc) {
   return dbRun(db, "UPDATE contracts SET contract_md=?, updated_at=datetime('now') WHERE id=?", [contractMdEnc, contractId]);

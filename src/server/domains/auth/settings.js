@@ -1,6 +1,6 @@
 /**
- * Consolidated settings surface (new-site M5) — single `/api/settings` endpoint.
- * Interfaced per docs/interfaces.md I-08..I-14 / docs/module-plans/S1.md S1-15..19.
+ * Consolidated settings surface (new-site ) — single `/api/settings` endpoint.
+ * Interfaced per docs/interfaces.md ../ docs/module-plans/S1.md ..19.
  *
  * This is the NEW consolidated surface the new frontend calls. The v2 auth handlers
  * in auth/api.js remain untouched (v2-ready). Devices are intentionally NOT re-implemented
@@ -28,7 +28,7 @@ import { MSG } from '../../../shared/codes.js';
 import { dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbFindUserByUsername } from './repo.js';
 
 /**
- * Single-source maskPhone (PA-1a-F3: v2 settings surface convergence). auth/api.js imports
+ * Single-source maskPhone (v2 settings surface convergence). auth/api.js imports
  * this export for handleAuthMe so there is exactly ONE implementation across both surfaces.
  * Masked display only, never a security boundary.
  */
@@ -52,7 +52,7 @@ function normalizePref(v) {
 }
 
 // GET /api/settings —— full settings snapshot for the new frontend settings page.
-// Exact response shape per interfaces.md I-08.
+// Exact response shape per interfaces.md .
 export async function handleGetSettings(db, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -95,7 +95,7 @@ export async function handleGetSettings(db, req) {
   });
 }
 
-// PUT /api/settings —— partial update dispatched by field branch (interfaces.md I-09).
+// PUT /api/settings —— partial update dispatched by field branch (interfaces.md ).
 export async function handleUpdateSettings(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -119,7 +119,7 @@ export async function handleUpdateSettings(db, body, req) {
       const t = Date.parse(String(changedAt).replace(' ', 'T') + 'Z');
       if (isFinite(t) && Date.now() - t < LIMITS.USERNAME_COOLDOWN_MS) return errorMsg('USERNAME_COOLDOWN');
     }
-    if (await dbFindUserByUsername(db, newName)) return errorMsg('USERNAME_TAKEN', 409); // I-10: occupied → 409
+    if (await dbFindUserByUsername(db, newName)) return errorMsg('USERNAME_TAKEN', 409); // occupied → 409
     await updateUsernameCredential(db, me.id, newName);
     await logEvent(db, { action: 'user.username.change', actorUserId: me.id, actorUsername: me.username,
       actorRole: me.role, entity: 'user', entityId: me.id, detail: { from: me.username, to: newName }, req });
@@ -137,7 +137,7 @@ export async function handleUpdateSettings(db, body, req) {
     return json({ ok: true });
   }
 
-  // Branch 3: bind phone / email (verify-code FIRST, then occupied check — matches I-12
+  // Branch 3: bind phone / email (verify-code FIRST, then occupied check — matches 
   // 验码先行 anti-enumeration; only a code holder can trigger the 409 occupied probe).
   if (b.channel !== undefined) {
     const isEmail = b.channel === 'email';

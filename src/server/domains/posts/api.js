@@ -8,14 +8,15 @@
  */
 import { json, error, errorMsg, parseIdParam } from '../../core/util.js';
 import { authUser, requireUser, requireAdminOrError } from '../../core/security.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js'; // P12：管理员越权删除帖子须 capToken（U-3f）
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // 管理员越权删除帖子须 capToken（）
 import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
-  dbListPosts, dbCreatePost, dbGetPostById, dbDeletePost, dbGetUserById, dbListMyFavoritePosts,
+  dbListPosts, dbCreatePost, dbGetPostById, dbDeletePost, dbListMyFavoritePosts,
   dbCreatePostFavorite, dbDeletePostFavorite,
-  dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike, // U10：批量读写 helper
-} from '../../../../server/db.js';
+  dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike,
+} from './repo.js';
+import { dbGetUserById } from '../auth/repo.js';
 import { logEvent } from '../../core/log.js';
 
 // 文案单源：帖子业务文案全部读 SERVER_TEXT（过渡单源，与前端同义），
@@ -73,12 +74,12 @@ export async function handleToggleLike(db, postId, body, req) {
   if (err) return err;
   const userId = user.id;
 
-  // U10（网络层架构债）：帖 + 本人点赞记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
+  // （网络层架构债）：帖 + 本人点赞记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
   const { post, like } = await dbGetPostLikeToggleRead(db, postId, userId);
   if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
 
   const liked = !like;
-  // U10：写入 + 计数同步 + 计数回读同一 batch（原 3 次串行 → 1 次；点赞 6 次往返 → 3 次）
+  // 写入 + 计数同步 + 计数回读同一 batch（原 3 次串行 → 1 次；点赞 6 次往返 → 3 次）
   const { likeCount } = await dbTogglePostLike(db, postId, userId, like ? like.id : null);
 
   await logEvent(db, {
@@ -106,7 +107,7 @@ export async function handleMyFavorites(db, req) {
 export async function handleToggleFavorite(db, postId, body, req) {
   const { user, err } = await requireUser(db, req);
   if (err) return err;
-  // U10（网络层架构债）：帖 + 本人收藏记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
+  // （网络层架构债）：帖 + 本人收藏记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
   const { post, fav } = await dbGetPostFavoriteToggleRead(db, postId, user.id);
   if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
 
@@ -138,7 +139,7 @@ export async function handleDeletePost(db, postId, body, req) {
   if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
   const isAdmin = requireAdminOrError(user) === null; // 管理员判定单点
   if (user.id !== Number(post.user_id) && !isAdmin) return error(UI().POST_DELETE_FORBIDDEN, 403, 'POST_DELETE_FORBIDDEN'); // 非作者且非管理员 → 拒
-  // P12：管理员越权删除帖子 = 危险操作，须 capToken 二次认证（作者本人删除为日常操作不触发；U-3f）
+  // 管理员越权删除帖子 = 危险操作，须 capToken 二次认证（作者本人删除为日常操作不触发；）
   if (isAdmin && !(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   await dbDeletePost(db, postId);
@@ -151,7 +152,7 @@ export async function handleDeletePost(db, postId, body, req) {
 }
 
 // ============================================================
-// posts 域路由表（V-1-4c）
+// posts 域路由表（）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [

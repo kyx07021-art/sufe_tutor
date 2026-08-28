@@ -1,5 +1,5 @@
 /**
- * 需求八（2026-08-08）·注销后资料未及时更新（B4：直接 import teacher/datahub ESM）。
+ * 需求八（2026-08-08）·注销后资料未及时更新（直接 import teacher/datahub ESM）。
  *
  * 残留点在「另一已打开的教师列表视图」：dhRefreshDomain 只刷缓存不碰 DOM，teachers 域重挂
  * 只换 state.allTeachers、不重渲染旧卡——注销后旧卡一直挂着直到切 tab。
@@ -8,9 +8,9 @@
  * 控件重渲染（attachStudentMatch 异步先算匹配徽章，applyFilters 读当前控件值）。
  *
  * 本测试覆盖：
- *   - 探针版本 bump（teachers 4→5）后，已打开的教师列表 DOM 移除已注销教师卡；
- *   - 列表未打开（state.page 非 browse-teachers）时探针刷新不触碰教师列表 DOM（防过度重渲染）；
- *   - 刷新重渲染保留用户当前筛选状态（控件值驱动，非全量直出）。
+ * - 探针版本 bump（teachers 4→5）后，已打开的教师列表 DOM 移除已注销教师卡；
+ * - 列表未打开（state.page 非 browse-teachers）时探针刷新不触碰教师列表 DOM（防过度重渲染）；
+ * - 刷新重渲染保留用户当前筛选状态（控件值驱动，非全量直出）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

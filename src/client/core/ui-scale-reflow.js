@@ -217,7 +217,7 @@ function renderAt(scalePct) {
       } else
         u.sx = u.base.w > 0 && u._ancSx ? target.w / (u.base.w * u._ancSx) : 1, u.sy = u.base.h > 0 && u._ancSy ? target.h / (u.base.h * u._ancSy) : 1;
     }
-    // V-3-1c2: per-unit transform via --ui-rf-transform custom-property data channel
+    // per-unit transform via --ui-rf-transform custom-property data channel
     // (CSP style-src-elem 'self'); identity units get 'none' (no stacking context,
     // same semantics as v1 rule-skip). Visual declarations live statically in base.css.
     for (var k = 0; k < units.length; k++) {

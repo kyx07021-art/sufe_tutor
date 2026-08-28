@@ -1,6 +1,6 @@
 /**
  * notif render: item row + broadcast content split (title/body) +
- * V-2-4 structured notification rendering (type + params -> text).
+ * structured notification rendering (type + params -> text).
  * No inline handlers (archtest): unread items carry data-action="notif.markRead"
  * and are keyboard-reachable via role=button + tabindex=0; delegation lives in index.js.
  *

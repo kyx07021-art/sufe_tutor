@@ -1,5 +1,5 @@
 /**
- * B0 api core：唯一网络出口。覆盖请求封装、401 死令牌处理、GET 重试、
+ * api core：唯一网络出口。覆盖请求封装、401 死令牌处理、GET 重试、
  * 批量读与 XHR 上传通道。
  */
 import { test } from 'node:test';
