@@ -363,6 +363,7 @@ export const TEXT = {
   "VERIF_PENDING": "待核验",
   "VERIF_APPROVED": "已通过",
   "VERIF_REJECTED": "已拒绝",
+  "VERIF_REJECT_REASON": "驳回理由：",
   "VERIF_BANNER": "请先完成学信网认证，通过后你的档案才会展示在教师广场",
   "VERIFY_INTENT_REQUIRED": "请先完成学信网认证，通过后才能提交试课意向",
   "CHSI_VERIFY_REQUIRED": "请先完成学信网认证，通过后才能完善资料并展示在教师广场",

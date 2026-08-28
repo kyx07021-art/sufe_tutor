@@ -298,6 +298,7 @@
    ============================================================ */
 .verify-block { margin-top: 18px; padding: 20px 24px; }
 .verify-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.verify-reject-reason { color: var(--danger); font-weight: 600; margin-bottom: 14px; } /* ZC-1: rejected 态内联显示驳回理由（红字，对齐红色提醒心智） */
 .verify-pane { display: flex; flex-direction: column; gap: 14px; padding-top: 2px; }
 .verify-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .verify-steps li { font-size: .86rem; color: var(--ink-2); line-height: 1.5; }

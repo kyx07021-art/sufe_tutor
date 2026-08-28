@@ -447,8 +447,12 @@ export function renderTeacherVerifySection(vs) {
     html += `<p class="text-sm text-muted">${escHtml(TEXT.CHSI_GATE_HINT)}</p>`;
   } else if (st === 'pending') {
     html += `<p class="text-sm text-muted">${escHtml(vs && vs.verify_type === 'admission' ? TEXT.ADMISSION_GATE_PENDING : TEXT.CHSI_GATE_PENDING)}</p>`;
+  } else if (st === 'rejected') {
+    // ZC-1: rejected 单独分流——驳回理由内联显示（reason 空则只显示状态 tag + 提交通道）
+    if (vs && vs.reason) html += `<p class="verify-reject-reason text-sm">${escHtml(TEXT.VERIF_REJECT_REASON)}${escHtml(vs.reason)}</p>`;
+    html += verifyChsiPaneHtml() + verifyAdmissionPaneHtml();
   } else {
-    // none / rejected: both submission channels (chsi default, admission via switch link)
+    // none: both submission channels (chsi default, admission via switch link)
     html += verifyChsiPaneHtml() + verifyAdmissionPaneHtml();
   }
   return html + '</section>';
