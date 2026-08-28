@@ -68,8 +68,8 @@ function resetRuntime() {
   if (typeof document !== 'undefined') stopBadgePoll();
   Object.assign(state, {
     user: null, authToken: null, view: 'landing', page: null,
-    allTeachers: [], adminTeachers: [], intentTeachers: [],
-    myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
+    allTeachers: [],
+    myDemands: [], editingDemandId: null, myContracts: [],
     validatedInviteCode: null,
     guestRole: null, guestAuthMode: false,
   });
@@ -313,7 +313,6 @@ test('logout cleanup: api logout, reset registry, state/arrays/session cleared, 
   state.authToken = 'tok-logout';
   state.allTeachers = [1];
   state.myDemands = [2];
-  state.adminContracts = [3];
   localStorage.setItem('sufe_session_student', JSON.stringify({ authToken: 'tok-logout' }));
   sessionStorage.setItem('sufe_session_student', JSON.stringify({ authToken: 'tok-logout' }));
 
@@ -325,7 +324,6 @@ test('logout cleanup: api logout, reset registry, state/arrays/session cleared, 
   assert.equal(state.authToken, null);
   assert.deepEqual(state.allTeachers, []);
   assert.deepEqual(state.myDemands, []);
-  assert.deepEqual(state.adminContracts, []);
   assert.equal(state.view, 'landing');
   assert.equal(localStorage.getItem('sufe_session_student'), null);
   assert.equal(sessionStorage.getItem('sufe_session_student'), null);

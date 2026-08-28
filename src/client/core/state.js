@@ -9,8 +9,8 @@ import { uiScaleReflow } from './ui-scale-reflow.js';
 
 export const state = {
   user: null, authToken: null, view: 'landing', page: null,
-  allTeachers: [], adminTeachers: [], intentTeachers: [],
-  myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
+  allTeachers: [],
+  myDemands: [], editingDemandId: null, myContracts: [],
   validatedInviteCode: null, // read/written only by logout reset
   guestRole: null, guestAuthMode: false,
 };
@@ -19,9 +19,11 @@ export const loadSeqs = {};
 
 // Role source of truth is shared/enums ROLES (local array removed, consumers iterate Object.values)
 const sessionKey = role => `sufe_session_${role || ''}`;
-const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers', posts: 'adminPosts' };
+// State arrays are the render projection, datahub the network layer; invalidate clears both.
+// CACHE_KEYS only for domains that also mirror into a state array (dead mirrors removed).
+const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands' };
 const CACHE_DOMAINS = {
-  teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers',
+  teachers: 'teachers', contracts: 'contracts', demands: 'demands',
   posts: 'posts', notifications: 'notifications', admin: 'admin', chat: 'chat', account: 'account',
 };
 

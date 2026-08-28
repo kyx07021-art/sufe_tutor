@@ -7,7 +7,7 @@ import { CONFIG } from '../../../shared/config.js';
 import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
-import { dhGet, dhPeek, invalidate } from '../../core/datahub.js';
+import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
@@ -19,6 +19,10 @@ import { mountShanghaiAddrPicker } from '../region/actions.js';
 
 let profilePanelUserId = null;
 let _matchDetailOpen = false;
+// Pristine full teacher list (server order). state.allTeachers is the display projection
+// (sorted/filtered in place); applyFilters re-derives from here so clearing a filter restores
+// every row instead of the sticky previously-filtered state.
+let _teachersFull = [];
 
 // fill sort/filter controls (shell provides the empty containers)
 function fillTeacherFilters() {
@@ -44,6 +48,7 @@ export function loadTeachers() {
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   return dhGet('/api/teachers', { domain: 'teachers' }).then(async data => {
     state.allTeachers = data.teachers || [];
+    _teachersFull = state.allTeachers;
     await attachStudentMatch(state.allTeachers);
     renderTeachers();
   }).catch(err => {
@@ -183,10 +188,10 @@ export function applyFilters() {
   const method = document.getElementById('filter-method')?.value || '';
   const day = document.getElementById('filter-day')?.value || '';
   const verified = document.getElementById('filter-verified')?.value || '';
-  // audit FAIL fix: filter from the full cached source, NOT the previously-filtered
-  // display state — clearing a filter must restore the full list (was sticky until reload).
-  // Mirrors demand hall applyDemandControls. Falls back to state.allTeachers (first visit / no cache).
-  const full = ((dhPeek('/api/teachers') || {}).teachers) || null;
+  // Filter from the pristine full list, NOT the previously-filtered display state — clearing
+  // a filter must restore every row (was sticky until reload). Mirrors demand hall
+  // applyDemandControls. Falls back to state.allTeachers (first visit / no load yet).
+  const full = _teachersFull.length ? _teachersFull : null;
   let list = [...((full && full.length ? full : state.allTeachers) || [])];
   if (method) list = list.filter(t => (t.teaching_method || '') === method);
   if (day) list = list.filter(t => hasDaySlot(t.time_slots, Number(day)));

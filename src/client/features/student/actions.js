@@ -661,10 +661,6 @@ export async function refreshIntentsBox(demandId) {
   try {
     const data = await api(`/api/demands/${demandId}/intents`);
     const ts = data.teachers || [];
-    ts.forEach(t => {
-      state.intentTeachers = state.intentTeachers.filter(x => x.user_id !== t.user_id);
-      state.intentTeachers.push(t);
-    });
     const content = `<div class="section-title">${TEXT.INTENTS_TITLE} (${ts.length})</div>` +
       (ts.length ? ts.map(t => renderIntentTeacherRow(t, demandId)).join('')
                 : `<p class="text-sm text-muted">${TEXT.EMPTY_NO_INTENTS}</p>`);

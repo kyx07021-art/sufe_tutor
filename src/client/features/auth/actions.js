@@ -180,12 +180,8 @@ export function handleLogout() {
   setAuthReturnPage(null);
   closeProfilePanel();
   state.allTeachers = [];
-  state.adminTeachers = [];
-  state.intentTeachers = [];
   state.myDemands = [];
   state.editingDemandId = null;
-  state.adminPosts = [];
-  state.adminContracts = [];
   state.myContracts = [];
   state.validatedInviteCode = null;
   clearSession(role);
