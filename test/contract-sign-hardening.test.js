@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { signContract, updateSignBtnState } from '../src/client/features/contract/actions-sign.js';
+import { signContract, updateSignBtnState, _signingSetForTests } from '../src/client/features/contract/actions-sign.js';
 import { state } from '../src/client/core/state.js';
 import { CONFIG } from '../src/shared/config.js';
 import { TEXT } from '../src/client/constants/text.js';
@@ -53,8 +53,7 @@ test('updateSignBtnState：计时中按钮显示倒计时且 disabled，就绪�
   updateSignBtnState(12);
   assert.ok(btn.textContent.includes('12秒后可确认签约'));
   assert.ok(btn.disabled);
-  globalThis.window._signingElapsed = true;
-  globalThis.window._signingScrolled = true;
+  _signingSetForTests({ elapsed: true, scrolled: true });
   updateSignBtnState();
   assert.equal(btn.disabled, false);
   await new Promise(r => setTimeout(r, 20));

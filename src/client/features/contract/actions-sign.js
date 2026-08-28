@@ -12,15 +12,35 @@ import { openModal, closeModal, showToast, confirm, withCaptcha, initCustomSelec
 import { renderContractDiff, splitContractBiz, stripContractMarker, verifyPanelHtml } from './render.js';
 import { loadMyContracts } from './actions-list.js';
 
+// Signing-gate state (contract must be read + scrolled before confirm) and the optimistic
+// modify-version guard. Module scope, not window: per-session transient state owned by this
+// module. Tests drive it via _signingSetForTests.
+let _signingContractId = null;
+let _signingElapsed = false;
+let _signingScrolled = false;
+let _signingOpenedAt = 0;
+let _signingTimer = null;
+let _contractModifyVersion = 0;
+
+export function _signingSetForTests({ contractId, elapsed, scrolled, timer, modifyVersion } = {}) {
+  if (contractId !== undefined) _signingContractId = contractId;
+  if (elapsed !== undefined) _signingElapsed = elapsed;
+  if (scrolled !== undefined) _signingScrolled = scrolled;
+  if (timer !== undefined) _signingTimer = timer;
+  if (modifyVersion !== undefined) _contractModifyVersion = modifyVersion;
+}
+export function _signingStateForTests() {
+  return { contractId: _signingContractId, elapsed: _signingElapsed, scrolled: _signingScrolled, timer: _signingTimer, modifyVersion: _contractModifyVersion };
+}
 
 export function signReadHint() { return TEXT.SIGN_READ_HINT; }
 
 export function signContract(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  window._signingContractId = contractId;
-  window._signingElapsed = false;
-  window._signingScrolled = false;
+  _signingContractId = contractId;
+  _signingElapsed = false;
+  _signingScrolled = false;
   openModal({
     title: TEXT.SIGN_MODAL_TITLE,
     closable: false,
@@ -32,12 +52,12 @@ export function signContract(contractId) {
       <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled data-action="contract.confirmSign">${TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS))}</button>`,
   });
   clearSigningTimer(); // idempotent — reopening must not stack intervals
-  window._signingOpenedAt = Date.now();
-  window._signingTimer = setInterval(() => {
-    const remain = Math.max(0, CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000 - (Date.now() - window._signingOpenedAt));
+  _signingOpenedAt = Date.now();
+  _signingTimer = setInterval(() => {
+    const remain = Math.max(0, CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000 - (Date.now() - _signingOpenedAt));
     if (remain <= 0) {
-      clearInterval(window._signingTimer);
-      window._signingElapsed = true;
+      clearInterval(_signingTimer);
+      _signingElapsed = true;
       updateSignBtnState();
     } else {
       updateSignBtnState(Math.ceil(remain / 1000));
@@ -50,7 +70,7 @@ export function onContractSignScroll() {
   const el = document.getElementById('contract-sign-scroll');
   if (!el) return;
   const overflow = el.scrollHeight - el.clientHeight;
-  window._signingScrolled = overflow <= CONFIG.CONTRACT_SIGN_SCROLL_EPS
+  _signingScrolled = overflow <= CONFIG.CONTRACT_SIGN_SCROLL_EPS
     || (el.scrollHeight - el.scrollTop - el.clientHeight) <= CONFIG.CONTRACT_SIGN_SCROLL_EPS;
   updateSignBtnState(null, true);
 }
@@ -58,7 +78,7 @@ export function onContractSignScroll() {
 export function updateSignBtnState(remainSec, preserveText = false) {
   const btn = document.getElementById('contract-sign-btn');
   if (!btn) return;
-  const ready = window._signingElapsed && window._signingScrolled;
+  const ready = _signingElapsed && _signingScrolled;
   btn.disabled = !ready;
   if (ready) btn.textContent = TEXT.SIGN_READ_DONE_BTN;
   else if (remainSec != null) btn.textContent = TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec));
@@ -69,7 +89,7 @@ export function updateSignBtnState(remainSec, preserveText = false) {
 }
 
 export function confirmSignContract() {
-  const id = window._signingContractId;
+  const id = _signingContractId;
   clearSigningTimer();
   confirm({ message: TEXT.CONFIRM_SIGN_TWICE, onConfirm: () => {
     confirm({ message: TEXT.CONFIRM_SIGN_FINAL, needReAuth: true, onConfirm: async capToken => {
@@ -106,7 +126,7 @@ export function viewContract(contractId) {
 export function openContractModifyModal(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  window._contractModifyVersion = c.version != null ? c.version : 0;
+  _contractModifyVersion = c.version != null ? c.version : 0;
   openModal({
     title: TEXT.MODIFY_CONTRACT_TITLE,
     closable: false,
@@ -170,7 +190,7 @@ export async function submitContractModify(contractId) {
   const md = (document.getElementById('post-body').value || '').trim();
   if (!md) { showToast(TEXT.CONTRACT_EMPTY, 'error'); return; }
   try {
-    const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
+    const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: _contractModifyVersion } });
     closeModal();
     if (!(data && data.unchanged)) showToast(TEXT.CONTRACT_MODIFIED_TOAST);
     invalidate('contracts');
@@ -180,7 +200,7 @@ export async function submitContractModify(contractId) {
       try {
         const fresh = await dhGet('/api/contracts/my', { domain: 'contracts', forceRefresh: true });
         const c = (fresh.contracts || []).find(x => x.id === contractId);
-        if (c && c.version != null) window._contractModifyVersion = c.version;
+        if (c && c.version != null) _contractModifyVersion = c.version;
       } catch { /* silent */ }
     }
     showToast(err.message, 'error');
@@ -253,7 +273,7 @@ export function preview() {
 // clearSigningTimer single point — modal close (contract.closeModal), sign-confirm,
 // and logout (registerLogoutReset) all release the interval so it never keeps ticking detached
 export function clearSigningTimer() {
-  if (window._signingTimer) { clearInterval(window._signingTimer); window._signingTimer = null; }
+  if (_signingTimer) { clearInterval(_signingTimer); _signingTimer = null; }
 }
 
 export function closeModalAction() {

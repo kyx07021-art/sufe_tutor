@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { renderContractCard } from '../src/client/features/contract/render.js';
-import { signContract, verifyContractLedgerUi, clearSigningTimer, closeModalAction, updateSignBtnState } from '../src/client/features/contract/actions-sign.js';
+import { signContract, verifyContractLedgerUi, clearSigningTimer, closeModalAction, updateSignBtnState, _signingSetForTests, _signingStateForTests } from '../src/client/features/contract/actions-sign.js';
 import { state } from '../src/client/core/state.js';
 import { TEXT } from '../src/client/constants/text.js';
 
@@ -57,15 +57,15 @@ test('Z-10-F4: clearSigningTimer releases the interval and closeModalAction call
   let cleared = 0;
   const origClear = globalThis.clearInterval;
   globalThis.clearInterval = () => { cleared++; };
-  globalThis.window._signingTimer = 42; // 模拟合同签署倒计时（actions-sign.js signContract）启动的 interval
+  _signingSetForTests({ timer: 42 }); // 模拟合同签署倒计时（actions-sign.js signContract）启动的 interval
   clearSigningTimer();
   assert.equal(cleared, 1, 'clearInterval 被调用');
-  assert.equal(globalThis.window._signingTimer, null, '模块态清空（防重复清/泄漏）');
+  assert.equal(_signingStateForTests().timer, null, '模块态清空（防重复清/泄漏）');
   cleared = 0;
-  globalThis.window._signingTimer = 99;
+  _signingSetForTests({ timer: 99 });
   closeModalAction(); // contract.closeModal 取消按钮路径
   assert.equal(cleared, 1, '关闭弹窗即释放 countdown timer');
-  assert.equal(globalThis.window._signingTimer, null);
+  assert.equal(_signingStateForTests().timer, null);
   closeModalAction(); // 无 timer 时幂等
   assert.equal(cleared, 1, '空 timer 幂等不清第二遍');
   globalThis.clearInterval = origClear;
@@ -95,12 +95,12 @@ test('Q-4a-L1：倒计时结束未滚动时按钮显示滚动提示（非误导�
   const holder = dom.window.document.createElement('div');
   holder.innerHTML = '<button type="button" id="contract-sign-btn" disabled></button><span id="contract-sign-hint"></span>';
   dom.window.document.body.appendChild(holder);
-  dom.window._signingElapsed = true; dom.window._signingScrolled = false;
+  _signingSetForTests({ elapsed: true, scrolled: false });
   updateSignBtnState();
   const btn = dom.window.document.getElementById('contract-sign-btn');
   assert.equal(btn.disabled, true, '未滚动禁用');
   assert.equal(btn.textContent, TEXT.SIGN_READ_HINT, '未滚动显示滚动提示（原误显确认文案）');
-  dom.window._signingScrolled = true;
+  _signingSetForTests({ scrolled: true });
   updateSignBtnState();
   assert.equal(btn.textContent, TEXT.SIGN_READ_DONE_BTN, '已滚动显示确认文案');
   delete globalThis.document;
