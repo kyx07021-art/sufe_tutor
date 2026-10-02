@@ -150,7 +150,7 @@ async function list(ctx) {
       demand ? args : [...args, (page - 1) * 24],
     )
   )
-    .map(ctx.url.searchParams.has("stored_fields") ? (row)=>row : profile)
+    .map(profile)
     .map((t) => ({ ...t, match: matchScore(t, demand) }));
   if (demand)
     teachers = teachers
