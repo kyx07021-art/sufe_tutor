@@ -1,0 +1,14 @@
+{
+  "name": "jingtu-banxue",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npm run build && wrangler pages dev ../dist --d1 DB"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "wrangler": "4.113.0"
+  }
+}
