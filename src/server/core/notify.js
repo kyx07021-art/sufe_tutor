@@ -1,0 +1,176 @@
+/**
+ * 通知推送模块（独立维护「通知信息」侧边栏模块的全部后端逻辑）
+ *
+ * 设计：本模块自持建表 + 推送咽喉 + 数据层 + 路由 handler，外部只通过
+ * initNotifyTable(db) 建表（由 db.js 的 initDb 调一次）
+ * notifyUser(db, userId, type, params) 推送一条结构化通知（type=NOTIFY_TYPES
+ * 键 + params 数据，文案渲染移交客户端 constants/text.js 单源；text 列新行留空，
+ * 旧行保留渲染串作历史兜底）
+ * handleGetNotifications / handleMarkNotificationRead 路由（#151：单条已读取代批量全读）
+ * 依赖方向：util（db 薄封装 + 响应构造）/ security（authUser/requireAdmin）/ log（留档）。
+ * 不依赖 db.js，避免循环。
+ *
+ * 广播批删（管理员）：广播一次为全体用户各插一行，同批共享 batch_id；
+ * 删除按 batch_id 整批删（同秒两批同文案也不会连带误删）。
+ * 历史行 / 单点推送无 batch_id，按 id 单删。
+ */
+import { dbAll, dbGet, dbRun, json, errorMsg, genCode, ensureColumns } from './util.js';
+import { authUser, requireAdmin } from './security.js';
+import { MSG, NOTIFY_TYPES } from '../../shared/codes.js';
+import { LIMITS } from '../../shared/config.js';
+import { logEvent } from './log.js';
+import { safeJsonObject } from './json.js'; // JSON column deserialization single-point
+import { renderNotification } from './notif-render.js'; // title/content/avatar_src 渲染单源
+
+// 建表（幂等；batch_id 为广播批标识，type/params 为 结构化通知，旧表经 ensureColumns 补列）
+export async function initNotifyTable(db) {
+  await dbRun(db, `CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
+  // （）：原 (user_id, is_read) 不覆盖 dbGetNotifications 的 ORDER BY id DESC → 每用户
+  // 通知按 id 内存排序。改 (user_id, id DESC)（is_read 过滤为低频残余——markAllRead/markRead 的
+  // is_read=0 谓词经 user_id 前缀命中索引后过滤，可接受）。SQLite 不能 ALTER INDEX：DROP 旧 + CREATE 新，
+  // 两者均 IF EXISTS 幂等（全量迁移 Stage 5 内执行，存量库一并重建）。
+  await dbRun(db, 'DROP INDEX IF EXISTS idx_notify_user');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id, id DESC)');
+  await ensureColumns(db, 'notifications', [
+    ['batch_id', 'TEXT DEFAULT NULL'],
+    ['type', 'TEXT DEFAULT NULL'],    // NOTIFY_TYPES 键（客户端渲染单源）
+    ['params', 'TEXT DEFAULT NULL'],  // type 对应参数的 JSON
+  ]);
+}
+
+/** 推送咽喉：任何通知失败都不应影响主业务。type 为 NOTIFY_TYPES 键，params 为
+ * 渲染所需数据（客户端负责文案）；text 列新行写空、旧行保留历史渲染串兜底。
+ * /失败留档暴露缺口（不再静默吞）+ type/params 形状契约校验（fail-closed——
+ * 错 type/多余键拒绝写入，前端渲染空通知的数据腐坏不可见）。 */
+export async function notifyUser(db, userId, type, params = {}) {
+  if (!userId || !type) return;
+  // type 必须 ∈ NOTIFY_TYPES（错 type 静默落库 → 前端渲染空通知零可见）
+  const shape = NOTIFY_TYPES[type];
+  if (!shape) {
+    try { await logEvent(db, { action: 'notify.invalid_type', actorUserId: userId, entity: 'notification', detail: { type: String(type).slice(0, 60) } }); } catch { /* 留档失败不阻断 */ }
+    return;
+  }
+  // params 键必须 ⊆ shape（多余键 = 形状漂移，后续渲染可能读错键）
+  const extra = Object.keys(params || {}).filter(k => !(k in shape));
+  if (extra.length) {
+    try { await logEvent(db, { action: 'notify.invalid_params', actorUserId: userId, entity: 'notification', detail: { type, extra } }); } catch { /* 留档失败不阻断 */ }
+    return;
+  }
+  try {
+    await dbRun(db, 'INSERT INTO notifications (user_id, text, type, params) VALUES (?,?,?,?)',
+      [userId, '', type, JSON.stringify(params || {})]);
+    // 客户端数据版本协议已删除——通知插入不再 bump 数据域版本。
+  } catch (e) {
+    // 失败留档暴露缺口（原静默吞——交易结果通知（CONTRACT_SIGNED 等）D1 故障丢失无感知）
+    try { await logEvent(db, { action: 'notify.fail', actorUserId: userId, entity: 'notification', detail: { type, error: String((e && e.message) || e).slice(0, 200) } }); } catch { /* 留档失败不阻断 */ }
+    console.warn('notify failed:', e && e.message);
+  }
+}
+
+/**
+ * 管理员广播：一条 SELECT-INSERT 给全体用户各插一条，同批共享 batch_id（供整批删除）。
+ * 结构化：type='BROADCAST' + params {title, text}（标题前缀由客户端渲染拼装）；
+ * 正文截断 LIMITS.BROADCAST_TEXT_MAX；返回发送条数
+ */
+export async function dbBroadcastNotification(db, title, text) {
+  const t = String(text || '').trim().slice(0, LIMITS.BROADCAST_TEXT_MAX);
+  if (!t) return 0;
+  const titleC = String(title || '').trim().slice(0, LIMITS.BROADCAST_TITLE_MAX);
+  const batchId = genCode(8);
+  const params = JSON.stringify({ title: titleC, text: t });
+  // 已注销用户不收广播（否则 purge 后再广播会为墓碑用户补插幽灵通知）
+  const res = await dbRun(db, "INSERT INTO notifications (user_id, text, type, params, batch_id) SELECT id, '', 'BROADCAST', ?, ? FROM users WHERE deactivated=0", [params, batchId]);
+  return (res && res.meta && res.meta.changes) || 0;
+}
+
+/** Mapper 单点：解析结构化 params JSON 列（经 json.js 反序列化咽喉；损坏/标量回落 null），
+ * 并按 渲染 title/content/avatar_src（服务端渲染替代客户端渲染）。
+ * 旧行（type 缺失）无渲染条目 → title/avatar_src 走兜底、content 用存储 text。 */
+function mapNotification(row) {
+  const mapped = { ...row, params: safeJsonObject(row.params, null) };
+  const rendered = renderNotification(mapped.type, mapped.params);
+  mapped.title = rendered.title;
+  mapped.content = rendered.content || mapped.text || '';
+  mapped.avatar_src = rendered.avatar_src;
+  return mapped;
+}
+
+async function dbGetNotifications(db, userId) {
+  const rows = await dbAll(db,
+    `SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.NOTIF_LIST_MAX}`, [userId]);
+  return rows.map(mapNotification);
+}
+
+// 单条标记已读（#151：未读持久到点击消除；归属硬约束——只翻本人的通知行，跨用户调用静默 0 行）
+async function dbMarkNotificationRead(db, notifId, userId) {
+  await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE id=? AND user_id=? AND is_read=0', [notifId, userId]);
+}
+
+// GET /api/notifications → { notifications }（每行含 title/content/avatar_src 渲染字段，
+// 服务端已按用户偏好过滤——blockSystemNotifications 滤系统类通知、notifyBroadcastMuted 滤广播）
+export async function handleGetNotifications(db, req) {
+  const me = await authUser(db, req);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
+  // 偏好读取（users 列，settings 域 PUT /api/settings 写入；0/1 布尔）
+  const prefs = await dbGet(db, 'SELECT blockSystemNotifications, notifyBroadcastMuted FROM users WHERE id=?', [me.id]);
+  const blockSystem = !!(prefs && prefs.blockSystemNotifications);
+  const mutedBroadcast = !!(prefs && prefs.notifyBroadcastMuted);
+  let notifications = await dbGetNotifications(db, me.id);
+  if (blockSystem || mutedBroadcast) {
+    notifications = notifications.filter((n) => {
+      if (mutedBroadcast && n.type === 'BROADCAST') return false;
+      if (blockSystem && n.avatar_src === 'system') return false;
+      return true;
+    });
+  }
+  return json({ notifications });
+}
+
+// POST /api/notifications/:id/read → 单条已读（#151 取代原批量全读；纯个人游标，不 bump 版本域）
+export async function handleMarkNotificationRead(db, notifId, req) {
+  const me = await authUser(db, req);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
+  const id = /^\d+$/.test(String(notifId)) ? Number(notifId) : 0;
+  if (!id) return errorMsg('INVALID_PARAMS', 400);
+  await dbMarkNotificationRead(db, id, me.id);
+  return json({ ok: true });
+}
+
+// POST /api/notifications/read-all → 全部已读（2026-08-09 反馈：离开通知页时把本次已展示的未读批量标记，
+// 免逐条点击；纯个人游标，不 bump 版本域，与单条已读同口径。进入页面不再自动全读——未读呼吸先展示，切出才消）
+export async function handleMarkAllNotificationsRead(db, req) {
+  const me = await authUser(db, req);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
+  await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [me.id]);
+  return json({ ok: true });
+}
+
+// DELETE /api/admin/notifications/:id —— 删除一整批广播通知（广播 = 全体用户同文案同秒各插一行，
+// 同批共享 batch_id；传任一条的 id 即按 batch_id 删全批。历史行/单点推送无 batch_id 则单删。
+// backoffice 接口：前端无调用，供管理员误发公告的撤销
+export async function handleAdminDeleteNotification(db, notifId, req) {
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
+  const n = await dbGet(db, 'SELECT id, batch_id, text, params, created_at FROM notifications WHERE id=?', [notifId]);
+  if (!n) return json({ ok: true, count: 0 });
+  const res = n.batch_id
+    ? await dbRun(db, 'DELETE FROM notifications WHERE batch_id=?', [n.batch_id])
+    : await dbRun(db, 'DELETE FROM notifications WHERE id=?', [n.id]);
+  const count = (res && res.meta && res.meta.changes) || 0;
+  // 结构化行正文在 params.text（text 列留空），审计 len 取真实正文长
+  let bodyLen = (n.text || '').length;
+  if (!bodyLen && n.params) {
+    const p = safeJsonObject(n.params, null); // corrupt params treated as no body
+    if (p) bodyLen = String(p.text || '').length;
+  }
+  await logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'notification', entityId: notifId,
+    detail: { batch: count, len: bodyLen }, req });
+  return json({ ok: true, count });
+}

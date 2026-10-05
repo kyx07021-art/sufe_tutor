@@ -1,0 +1,146 @@
+/**
+ * 认证域数据层（从 server/db.js 提取）：users / invite_codes / 用户私有数据清理。
+ * 导入：core/util、core/crypto、src/shared/config（常量单源）。mapper 与 SQL 只在本文件。
+ */
+import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
+import { hashPassword } from '../../core/crypto.js';
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../shared/config.js';
+// 教师评分重算依赖：统计来自评价域、写库来自教师域（断线修复，补全两 helper）
+import { dbGetApprovedReviewStats } from '../reviews/repo.js';
+import { dbUpdateTeacherRating } from '../teacher/repo.js';
+
+// 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
+const USER_BY_USERNAME_SQL = 'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?';
+
+export async function dbFindUserByUsername(db, username) {
+  return await dbGet(db, USER_BY_USERNAME_SQL, [username]);
+}
+
+// 认证路由限流同批的用户查询语句（与 dbFindUserByUsername 同 SQL 单源；供 authRateBatch 的附加查询）
+export function dbUserLookupStmt(db, username) {
+  return db.prepare(USER_BY_USERNAME_SQL).bind(username);
+}
+export function dbUsernameExistsStmt(db, username) {
+  return db.prepare('SELECT id FROM users WHERE username=?').bind(username);
+}
+// 登录识别：手机号/邮箱哈希可查列定位 stmt（限流同批；hash 由调用方 tokenDigest 预计算；
+// 谓词单源 PHONE/EMAIL_HASH_COND，与 credential.js 登录识别同口径）
+export function dbUserPhoneHashStmt(db, hash) {
+  return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${PHONE_HASH_COND}`).bind(hash);
+}
+export function dbUserEmailHashStmt(db, hash) {
+  return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${EMAIL_HASH_COND}`).bind(hash);
+}
+
+// 用户卡片（公开名片 / 封禁态判定 / 管理员封禁 / 帖子作者留档 / 教师推送守卫共用）：
+// 固定列集，不含口令盐等凭证；调用点读 banned/deactivated 做守卫判定，勿再收窄列集（曾致封禁拦截静默失效）
+export async function dbGetUserById(db, id) {
+  return await dbGet(db, 'SELECT id, username, role, avatar, banned, deactivated FROM users WHERE id=?', [id]);
+}
+
+export async function dbCreateUser(db, username, hash, salt, role) {
+  const result = await dbRun(db,
+    'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
+    [username, hash, salt, role]);
+  return Number(result.meta.last_row_id);
+}
+
+// 注册邀请码消费输家的回滚：删除刚建的用户（子表 FK 均 ON DELETE CASCADE，无需逐表清）
+export async function dbDeleteUser(db, userId) {
+  await dbRun(db, 'DELETE FROM users WHERE id=?', [userId]);
+}
+
+// 注销账户：用户名墓碑化 + 凭证清空（含联系方式四列）+ 封禁/注销标记（墓碑全站展示 + 登录阻断）。
+// AE-1：清 phone/phone_hash/email/email_hash 释放唯一索引 idx_users_phone_hash/idx_users_email_hash——
+// 否则注销后同一手机号/邮箱无法再次注册（dbPhoneTaken/dbEmailTaken 命中 → 409 PHONE/EMAIL_ALREADY_BOUND）。
+// 注销账户本就不可再登录（deactivated=1 + password_hash 清空），清联系方式零副作用。
+export async function dbDeactivateUser(db, userId, tombstone) {
+  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='',
+    phone='', phone_hash='', email='', email_hash='', banned=1, deactivated=1 WHERE id=?`,
+    [tombstone, userId]);
+}
+
+// 教师评分重算（评价通过 / 已通过评价被拒绝或删除时统一调用；注销清理同款口径，单点下沉于此）
+export async function dbRecomputeTeacherRating(db, teacherUserId) {
+  const stats = await dbGetApprovedReviewStats(db, teacherUserId);
+  const cnt = stats?.cnt || 0;
+  const sum = stats?.total || 0;
+  const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
+  await dbUpdateTeacherRating(db, teacherUserId, rating, cnt, sum);
+}
+
+// 注销清理：吊销全部登录态 + 单方数据全删；双方共享数据（会话/聊天/合同）匿名化本人侧后保留，
+// JOIN username 处自然显示墓碑。学生侧需求（含联系方式）/自写评价一律删除
+// （网安报告 F-06：原实现漏删学生侧表，敏感数据永久保留；intents/pushes 归 S2 删，无清理面）。
+export async function dbPurgeUserOwnedData(db, userId, role) {
+  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM complaints WHERE user_id=?', [userId]); // R22：注销清理投诉记录
+  await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM post_favorites WHERE user_id=?', [userId]); // R23：注销清理收藏
+  await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
+
+  if (role === 'student') {
+    // 学生侧：删自建需求。S3 单科目：状态收敛 open/closed、合同不绑定需求（S5 独立化），
+    // 无「已签约保留」顾虑——无条件全删（原 contracted 保留/置 revoked 的 逻辑随旧状态机废止）。
+    await dbRun(db, 'DELETE FROM student_demands WHERE user_id=?', [userId]);
+    const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
+    await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
+    for (const rv of myReviews) await dbRecomputeTeacherRating(db, rv.teacher_user_id);
+  } else if (role === 'teacher') {
+    // 教师侧：被评价记录保留（评价格局归学生，教师不可自删）
+  }
+
+  // signing branch removed — the new-site model has no signing_contracts table (S5 contract
+  // independentization drops it). Deactivation no longer terminates pending signing requests.
+
+  // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。
+  // image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空（不只清 kind='text'），
+  // 注销者历史照片/文件会永久留在库中、可被会话对方经 attachment 接口无限期下载。
+  // contract 类型的合同事件气泡无隐私本体（body 为固定事件标记），保留以供聊天窗事件展示。
+  await dbRun(db, `UPDATE messages SET body='', name='' WHERE sender_user_id=? AND kind IN ('text','image','file')`, [userId]);
+}
+
+export async function dbUpdateUserAvatar(db, userId, avatar) {
+  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, userId]);
+}
+
+export async function dbSetUserBanned(db, userId, banned) {
+  await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
+}
+
+// ============================================================
+// 邀请码
+// ============================================================
+export async function dbFindValidInviteCode(db, code) {
+  // 邀请码无过期：一人使用并成功注册后失效（used_by 非空）
+  return await dbGet(db,
+    "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL",
+    [code]);
+}
+
+export async function dbUseInviteCode(db, code, userId) {
+  // 赢家模式：并发双注册同码时仅 changes>0 的一方消费成功（防一枚码两人用，调用方回滚输家）
+  const r = await dbRun(db,
+    "UPDATE invite_codes SET used_by=?, used_at=datetime('now') WHERE code=? AND used_by IS NULL",
+    [userId, code]);
+  return !!(r && r.meta && r.meta.changes > 0);
+}
+
+export async function dbCreateInviteCode(db, code, adminId) {
+  await dbRun(db,
+    'INSERT INTO invite_codes (code,created_by) VALUES (?,?)',
+    [code, adminId]);
+}
+
+// teacher_name display field is added by the teacher domain (S4) on the new site; safe-read here
+// so auth/me returns it once the column exists, and '' before that (frontend falls back to username).
+export async function dbGetTeacherName(db, userId) {
+  const cols = await dbAll(db, 'PRAGMA table_info(teacher_profiles)');
+  if (!cols.some(c => c.name === 'teacher_name')) return '';
+  const row = await dbGet(db, 'SELECT teacher_name FROM teacher_profiles WHERE user_id=?', [userId]);
+  return (row && row.teacher_name) || '';
+}

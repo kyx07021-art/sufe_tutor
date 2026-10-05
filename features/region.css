@@ -1,0 +1,88 @@
+/* ============================================================
+   地区赋分组件库样式（模块1：地区档案 + 赋分组件）
+   与 app-region.js 配套，需在 style.css 之后引入
+   （.gk-pill 对 .grade-option 的字号/内边距覆盖依赖层叠顺序）。
+   base 结构层，沿用 --paper / --ink / --lilac 令牌；圆角 / 投影 / 玻璃由 glass.css 覆盖。
+   与全站竖条 hover 母题。
+   ============================================================ */
+
+/* ---------- 通用提示 ---------- */
+
+/* 地区限制提示（非上海时），warn 色小字 */
+.region-hint {
+  margin: 6px 0 0;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--warn-deep);
+}
+
+/* 教师端：高考政策锁定条（灰底小字条，零圆角零投影，左竖条点题） */
+/* 满分 / 标准分旁注（warn 色小字） */
+.region-max-note {
+  margin-left: 4px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--warn-deep);
+}
+
+/* ---------- 学生端：等第制 / 分数制页签 ---------- */
+/* 收编到标准分段控件 .seg-tabs/.seg-tab（glass.css 单点）——本文件只留宽度变体
+   （成绩行内嵌需定宽，其余分段控件默认自适应）。分隔线删（新组件用 gap），hover 走引擎。 */
+.seg-tabs--score { display: inline-flex; width: 172px; flex-shrink: 0; }
+.seg-tabs--score .seg-tab { flex: 1 1 50%; padding: 5px 0; font-size: .72rem; font-weight: 700; letter-spacing: .06em; }
+
+/* 页签面板：等第 pill / 分数输入，换行独占整行 */
+.score-mode-pane {
+  flex: 1 1 100%;
+  padding: 6px 0 2px;
+}
+.score-mode-pane:not(.hidden) { animation: region-pane-in .18s var(--ease-out); }
+@keyframes region-pane-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 学生成绩行：极细分隔线分行，沿用编辑式细线母题 */
+.region-score-row + .region-score-row { border-top: 1px solid var(--line); }
+
+/* ---------- 教师端：单选 pill 组（首选科目 / 文理分科） ---------- */
+
+/* pill 容器；pill 本身复用 .grade-option，.gk-pill 放大字号与内边距 */
+.gk-pill-group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.gk-pill { padding: calc(5px * var(--ui-scale, 1)) calc(16px * var(--ui-scale, 1)); font-size: .78rem; } /* 需求六·item5：赋分 pill 随滑块 */
+
+/* G2：首选/文理 pill 底/影/hover 交还引擎（--g-fill/--g-lift/--g-hover），竖条住 ::after（玻璃体在元素自身） */
+.gk-first-pills .gk-pill,
+.gk-track-pills .gk-pill { position: relative; overflow: hidden; }
+.gk-first-pills .gk-pill::after,
+.gk-track-pills .gk-pill::after {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent);
+  transform: scaleY(0); transform-origin: top;
+  transition: transform var(--t-base) var(--ease-snap);
+}
+.gk-first-pills .gk-pill:hover::after,
+.gk-track-pills .gk-pill:hover::after { transform: scaleY(1); }
+.gk-first-pills .gk-pill.selected::after,
+.gk-track-pills .gk-pill.selected::after { background: var(--accent-bright); transform: scaleY(1); }
+
+/* 文理分科 pill 再放大一档，作为段落主操作 */
+.gk-track-pills .gk-pill { padding: calc(8px * var(--ui-scale, 1)) calc(26px * var(--ui-scale, 1)); font-size: .84rem; font-weight: 700; } /* 需求六·item5：文理分科 pill 随滑块 */
+
+/* 教师端勾选网格：与科目行数对齐（再选 4 门 / 选考 6-7 门） */
+
+/* 21 档等第下拉：收窄宽度，保留 .form-select 的聚焦底条擦入 */
+.gk-grade-select {
+  width: auto;
+  min-width: calc(190px * var(--ui-scale, 1));
+  padding: calc(7px * var(--ui-scale, 1)) calc(34px * var(--ui-scale, 1)) calc(7px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：等第下拉随滑块 */
+  font-size: .8rem;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 768px) {
+  .seg-tabs--score { width: 152px; }
+}

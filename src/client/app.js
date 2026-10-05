@@ -1,0 +1,74 @@
+/**
+ * v2 client entry. This batch wires core modules and exposes boot;
+ * feature registry starts empty (registerPage) and is filled in .
+ */
+import { state, loadSession, bindUiScaleWheel } from './core/state.js';
+import { initAppearance } from './core/appearance.js'; // root-cause fix (2026-08-19): boot must assemble appearance (applyTheme injects --g-grid & all theme vars; applyOrbs renders orbs)
+import { api, apiBatch, apiUpload, setEnsureAuth } from './core/api.js';
+import { escHtml, mdRender, delegate } from './core/dom.js';
+import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha, installUiBindings } from './core/ui.js';
+import { installFormBindings } from './core/ui-bindings.js';
+import { initReveals, installGlobalInteractions, installSiteReadyGate } from './core/anim.js';
+import { dhGet, dhBatchGet, dhInvalidateDomain } from './core/datahub.js';
+import { mountShell } from './core/shell.js';
+import { openCaptchaModal } from './core/captcha.js';
+import { matchDegree, matchDims, matchLevel, installBarWidthBindings } from './core/match.js';
+import { renderGlassLineChart } from './core/chart.js';
+import { subjectName } from './core/display.js';
+import { starsHtml } from './features/teacher/display.js';
+import { diffLines } from './features/contract/display.js';
+import { registerPage, enterClient, selectPage, showView, goHome, renderSidebar, updateNavbar, loadInto, setBadge } from './core/router.js';
+import { enterAbout } from './core/about.js';
+import authFeature from './features/auth/index.js';
+import regionFeature from './features/region/index.js';
+import postsFeature from './features/posts/index.js';
+import complaintsFeature from './features/complaints/index.js';
+import contractFeature from './features/contract/index.js';
+import chatFeature from './features/chat/index.js';
+import teacherFeature from './features/teacher/index.js';
+import studentFeature from './features/student/index.js';
+import settingsFeature from './features/settings/index.js';
+import adminFeature from './features/admin/index.js';
+import notifFeature from './features/notif/index.js';
+import onboardFeature from './features/onboard/index.js';
+import { showOnboardingIfNeeded } from './features/onboard/actions.js'; // first-visit modal wired into boot (v1 app-shell DOMContentLoaded parity)
+
+let booted = false;
+export function boot() {
+  if (booted) return { state, api, apiBatch, apiUpload }; // singleton: duplicate boot never rebinds globals
+  booted = true;
+  if (typeof document !== 'undefined') {
+    installGlobalInteractions(); // global delegation incl avatar data-action + stopPropagation
+    installUiBindings();         // seg-tabs dynamic bindings
+    installFormBindings();       // seg-input / time-slots dynamic bindings
+    installBarWidthBindings();   // matchRowsHtml data-bar-w auto -> --bar-w
+    bindUiScaleWheel();
+    mountShell(); // client frame + landing + per-page sections (static; features fill content on page enter)
+    initAppearance(); // root-cause fix: boot never assembled appearance -> --g-grid/glass vars not injected, zero orbs, homepage background layers gone
+    installSiteReadyGate(); // regression fix: v1 entry-animation gate (dropped with v1 shell) -> .site-ready gates hero span/entry entrance from opacity 0
+    [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, notifFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
+    const saved = loadSession();
+    if (saved) { state.user = saved.user; state.authToken = saved.authToken; enterClient(); } // v1 parity: restored session enters the client, not the landing
+    // first-visit modal. Runs AFTER the restore block so enterClient's
+    // selectPage -> closeAllModals cannot clear it (v1 app-shell called it via
+    // the post-restore `after` hook). isReturning()-guarded + sets the marker.
+    showOnboardingIfNeeded();
+  }
+  return { state, api, apiBatch, apiUpload };
+}
+
+export {
+  state, api, apiBatch, apiUpload, setEnsureAuth,
+  escHtml, mdRender, delegate,
+  openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha,
+  initReveals, dhGet, dhBatchGet, dhInvalidateDomain,
+  openCaptchaModal, matchDegree, matchDims, matchLevel, renderGlassLineChart,
+  subjectName, starsHtml, diffLines,
+  registerPage, enterClient, selectPage, showView, goHome, renderSidebar, updateNavbar, loadInto, setBadge,
+  enterAbout,
+};
+
+if (typeof document !== 'undefined' && !globalThis.SUFE_BOOTED) {
+  globalThis.SUFE_BOOTED = true;
+  boot();
+}

@@ -1,0 +1,531 @@
+/**
+ * admin feature actions: stats, users, demands, reviews, content, verifications, posts,
+ * contracts, feedback, invites, traffic. All admin pages are registered in index.js and wired
+ * via data-action delegation (U-3 series); each loader renders its per-page v1-parity card.
+ */
+import { TEXT } from '../../constants/text.js';
+import { ROLES } from '../../../shared/enums.js';
+import { api } from '../../core/api.js';
+import { dhGet, invalidate } from '../../core/datahub.js';
+import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml } from '../../core/ui.js';
+import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // post full-text modal via shared mdRender
+import { renderGlassLineChart } from '../../core/chart.js'; // traffic charts (shared chart component)
+import { renderDemandCard } from '../student/render.js'; // shared demand card (admin:true reuse)
+import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // contract diff/full-text modal (reuse)
+import { renderAdminUserRow, renderAdminReviewRow, contentTypeName, renderAdminContentRow, renderAdminPostRow, renderAdminContractRow, renderAdminFeedbackRow, renderVerifCard, renderVerifForm } from './render.js';
+
+// Re-export render helpers — loaders here call them directly; tests + index import them via actions.js.
+export { renderAdminUserRow, renderAdminReviewRow, contentTypeName, renderAdminContentRow, renderAdminPostRow, renderAdminContractRow, renderAdminFeedbackRow, renderVerifCard, renderVerifForm } from './render.js';
+
+function adminStatCards(pairs) {
+  return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
+}
+
+function adminOpsRows(items) {
+  return items.map(([k, v]) => `<div class="ops-row"><span>${escHtml(k)}</span><code>${escHtml(String(v ?? 0))}</code></div>`).join('');
+}
+
+// R-5b: structured stats panel replacing raw JSON dump (labels via TEXT single source).
+export async function loadAdminStats() {
+  try {
+    const [statsRes, dashRes] = await Promise.all([
+      api('/api/admin/stats', { method: 'GET' }),
+      api('/api/admin/dashboard', { method: 'GET' }),
+    ]);
+    const s = statsRes.stats || statsRes;
+    const d = dashRes.dashboard || dashRes;
+    const u = s.users || {}, r = s.reviews || {}, inv = s.invites || {}, t = s.todo || {};
+    const dt = d.todo || {}, mt = (d.metrics || {}).total || {};
+    const topPaths = (d.metrics || {}).topPaths || [];
+    const status = (d.metrics || {}).status || [];
+    const el = document.getElementById('admin-stats-box') || document.getElementById('admin-stats-content');
+    if (!el) return;
+    el.innerHTML =
+      `<div class="stats-grid">${adminStatCards([
+        [TEXT.ADMIN_STAT_TOTAL_USERS, u.total], [TEXT.ADMIN_STAT_STUDENTS, u.students],
+        [TEXT.ADMIN_STAT_TEACHERS, u.teachers], [TEXT.ADMIN_STAT_PROFILES, s.profiles],
+        [TEXT.ADMIN_STAT_DEMANDS, s.demands],
+      ])}</div>` +
+      `<div class="ops-detail">` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_REVIEWS)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_REVIEWS_TOTAL, r.total], [TEXT.ADMIN_STAT_REVIEWS_APPROVED, r.approved],
+          [TEXT.ADMIN_STAT_REVIEWS_PENDING, r.pending], [TEXT.ADMIN_STAT_REVIEWS_REJECTED, r.rejected],
+        ])}</div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_INVITES)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_INVITES_USED, inv.used], [TEXT.ADMIN_STAT_INVITES_ACTIVE, inv.active],
+        ])}<div class="ops-row ops-row--actions">
+          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.genInvite">${escHtml(TEXT.BTN_GENERATE_INVITE)}</button>
+          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.openInviteManager">${escHtml(TEXT.ADMIN_INVITE)}</button>
+        </div></div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TODO)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_VERIFY_PENDING, dt.verificationsPending],
+          [TEXT.ADMIN_STAT_REVIEWS_PENDING, dt.reviewsPending],
+          [TEXT.ADMIN_STAT_FEEDBACKS_OPEN, t.feedbacksOpen],
+          [TEXT.ADMIN_STAT_COMPLAINTS_OPEN, t.complaintsOpen],
+        ])}</div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TRAFFIC)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_REQUESTS, mt.requests], [TEXT.ADMIN_STAT_ERRORS, mt.errors],
+          [TEXT.ADMIN_STAT_SLOW, mt.slow], [TEXT.ADMIN_STAT_LIMITED, mt.limited],
+          [TEXT.ADMIN_STAT_AVG_MS, mt.avgMs],
+        ])}</div>` +
+      `</div>` +
+      (topPaths.length ? `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TOP_PATHS)}</h4>${adminOpsRows(topPaths.map(p => [p.path_group, p.count]))}</div>` : '') +
+      (status.length ? `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_STATUS)}</h4>${adminOpsRows(status.map(x => [x.status_group, x.count]))}</div>` : '');
+  } catch (err) { showToast(err.message); }
+}
+
+export async function loadAdminDashboard() {
+  try {
+    const data = await api('/api/admin/dashboard', { method: 'GET' });
+    const el = document.getElementById('admin-dashboard-box');
+    if (el) el.textContent = JSON.stringify(data.dashboard || data);
+  } catch (err) { showToast(err.message); }
+}
+
+// traffic dashboard — v1-parity range seg-tabs (24h/7d/30d) + two glass line charts
+// (requests + avg latency) via the shared renderGlassLineChart (reuse, core/chart.js).
+// The active range is driven by the seg-tab-change delegation in index.js (no internal state
+// — dropped the dead _trafficRange var). Buckets are guarded (`d.buckets || []`).
+const TRAFFIC_RANGES = [['24h', TEXT.TRAFFIC_RANGE_24H], ['7d', TEXT.TRAFFIC_RANGE_7D], ['30d', TEXT.TRAFFIC_RANGE_30D]];
+export async function loadAdminTraffic(range = '24h') {
+  const el = document.getElementById('admin-traffic-box');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+  try {
+    const d = await api(`/api/admin/traffic?range=${range}`);
+    el.innerHTML = segTabsHtml(TRAFFIC_RANGES.map(([r, label]) => ({ key: r, label })), range, { attr: 'range', containerId: 'admin-traffic-tabs' })
+      + `<p class="text-muted">${escHtml(TEXT.TRAFFIC_HINT)}</p>
+      <div id="traffic-chart-req"></div>
+      <div id="traffic-chart-lat"></div>`;
+    renderGlassLineChart(document.getElementById('traffic-chart-req'), {
+      title: TEXT.TRAFFIC_TITLE,
+      colorVar: '--chart-traffic',
+      data: (d.buckets || []).map(b => ({ label: b.label, value: b.requests })),
+      unit: d.unit,
+      baselineAtZero: true,
+      statFmt: total => TEXT.TRAFFIC_TOTAL_FMT.replace('{n}', Number(total).toLocaleString('zh-CN')),
+    });
+    renderGlassLineChart(document.getElementById('traffic-chart-lat'), {
+      title: TEXT.TRAFFIC_LATENCY_TITLE,
+      colorVar: '--chart-latency',
+      data: (d.buckets || []).map(b => ({ label: b.label, value: b.avgMs })),
+      unit: d.unit,
+      baselineAtZero: false,
+      valueFmt: v => (v == null ? '—' : `${Math.round(v)}${TEXT.TRAFFIC_MS_UNIT}`),
+      statFmt: (total, n) => (n ? TEXT.TRAFFIC_SAMPLE_FMT.replace('{n}', n) : ''),
+    });
+  } catch (err) {
+    if (document.getElementById('admin-traffic-box')) el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`;
+  }
+}
+
+export async function loadAdminUsers(role = ROLES.STUDENT, q = '') {
+  try {
+    const suffix = q ? `&q=${encodeURIComponent(q)}` : '';
+    const data = await dhGet(`/api/admin/users?role=${role}${suffix}`, { domain: 'admin' });
+    const el = document.getElementById(role === ROLES.TEACHER ? 'admin-teachers-list' : 'admin-students-list');
+    if (el) el.innerHTML = (data.users || []).map(u => renderAdminUserRow(u, role)).join('');
+  } catch (err) { showToast(err.message); }
+}
+
+export function loadAdminStudents() { return loadAdminUsers(ROLES.STUDENT); }
+export function loadAdminTeachers() { return loadAdminUsers(ROLES.TEACHER); }
+
+// debounced username search (300ms). Empty query falls back to the full list via the
+// server-side q branch (dbSearchUsersByRole single source). Timers cleared on re-entry.
+let _adminUsersSearchTimer = 0;
+export function adminUsersSearchDebounced(role, q) {
+  clearTimeout(_adminUsersSearchTimer);
+  _adminUsersSearchTimer = setTimeout(() => loadAdminUsers(role, String(q || '').trim()), 300);
+}
+
+
+// admin demand list reuses the shared renderDemandCard (admin:true) — v1 parity without
+// a second renderer. Keyset pagination via nextCursor + load-more (reset=true clears the cursor).
+let _adminDemandsCursor = null;
+let _adminDemandsAll = [];
+let _adminDemandsBusy = false; // in-flight guard — load-more double-click must not append twice (audit )
+export async function loadAdminDemands(reset = true) {
+  if (_adminDemandsBusy) return;
+  _adminDemandsBusy = true;
+  if (reset) { _adminDemandsCursor = null; _adminDemandsAll = []; }
+  try {
+    const qs = _adminDemandsCursor ? `?cursor=${encodeURIComponent(_adminDemandsCursor)}` : '';
+    const data = await api(`/api/admin/demands${qs}`, { method: 'GET' });
+    _adminDemandsAll = _adminDemandsAll.concat(data.demands || []);
+    _adminDemandsCursor = data.nextCursor || null;
+    const el = document.getElementById('admin-demands-list');
+    if (!el) return;
+    if (!_adminDemandsAll.length) { el.innerHTML = `<div class="empty-state"><p>${escHtml(TEXT.EMPTY_NO_DEMANDS)}</p></div>`; return; }
+    el.innerHTML = _adminDemandsAll.map(d => renderDemandCard(d, { admin: true })).join('')
+      + (_adminDemandsCursor ? `<div class="list-more-row"><button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.loadMoreDemands">${escHtml(TEXT.BTN_LOAD_MORE)}</button></div>` : '');
+  } catch (err) { showToast(err.message); }
+  finally { _adminDemandsBusy = false; }
+}
+
+export function loadMoreAdminDemands() { return loadAdminDemands(false); }
+
+export function adminDeleteDemand(id) {
+  confirm({ title: TEXT.BTN_DELETE_DEMAND, message: TEXT.CONFIRM_DELETE_DEMAND, onConfirm: () => {
+    api(`/api/admin/demands/${id}`, { method: 'DELETE', body: {} })
+      .then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminDemands(true); })
+      .catch(err => showToast(err.message)); // invalidate after write
+  }});
+}
+
+// review moderation — status filter (service GET /api/admin/reviews?status=) + v1-parity row
+// (teacher←reviewer + stars + status tag + comment + time; approve/reject only while PENDING).
+export async function loadAdminReviews(status = '') {
+  try {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const data = await dhGet(`/api/admin/reviews${qs}`, { domain: 'admin' });
+    const el = document.getElementById('admin-reviews-list');
+    if (el) el.innerHTML = (data.reviews || []).map(renderAdminReviewRow).join('');
+  } catch (err) { showToast(err.message); }
+}
+
+
+// unified content-review page (redo — audit fixed). Type list mirrors the
+// server CONTENT_SQL keys (admin/repo.js) — the server is the single source; the 10 labels
+// live in text.js. The seg-tabs container lives in shell.js as a bare #admin-content-tabs div
+// (no nested .seg-tabs — segTabsHtml owns the .seg-tabs class via containerId, same as
+// the traffic page). Filter wiring via seg-tab-change delegation in index.js.
+const ADMIN_CONTENT_TYPES = ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload', 'contract', 'signing'];
+let _adminContentType = ''; // current tab ('' = all); a penalty reloads into this tab
+
+export async function loadAdminContent(type = '') {
+  _adminContentType = type;
+  // The shell hosts a bare #admin-content-tabs-slot; segTabsHtml owns the only #admin-content-tabs
+  // (single id in the DOM — the redo audit flagged the previous duplicate-id HTML).
+  const tabsEl = document.getElementById('admin-content-tabs-slot');
+  if (tabsEl) tabsEl.innerHTML = segTabsHtml(
+    [{ key: '', label: TEXT.ADMIN_CONTENT_TYPE_ALL }].concat(ADMIN_CONTENT_TYPES.map(t => ({ key: t, label: contentTypeName(t) }))),
+    type, { attr: 'type', containerId: 'admin-content-tabs' });
+  const el = document.getElementById('admin-content-list');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+  try {
+    const data = await api(`/api/admin/content${type ? `?type=${encodeURIComponent(type)}` : ''}`);
+    const items = data.items || [];
+    if (!document.getElementById('admin-content-list')) return; // left the page mid-flight
+    if (!items.length) { el.innerHTML = `<div class="empty-state"><p>${escHtml(TEXT.ADMIN_CONTENT_EMPTY)}</p></div>`; return; }
+    el.innerHTML = items.map(renderAdminContentRow).join('');
+  } catch (err) {
+    if (document.getElementById('admin-content-list')) el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`;
+  }
+}
+
+
+export function openContentPenaltyModal(id, type) {
+  // v1-parity penalty modal — reason (required) + rule (offense ref) + delete/ban pair.
+  // teacher profiles offer ban only; type passes a whitelist before interpolation.
+  const onlyBan = type === 'teacher';
+  const t = /^[a-z]+$/.test(type) ? type : 'post';
+  openModal({
+    title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(t)).replace('{id}', id),
+    body: `<div class="form-group">
+        <label class="form-label">${TEXT.ADMIN_CONTENT_PENALTY_REASON} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="penalty-reason" maxlength="80" placeholder="${TEXT.ADMIN_PENALTY_REASON_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.ADMIN_CONTENT_PENALTY_RULE}</label>
+        <input type="text" class="form-input" id="penalty-rule" maxlength="30" placeholder="${TEXT.ADMIN_PENALTY_RULE_PLACEHOLDER}">
+      </div>
+      <p class="form-hint">${TEXT.ADMIN_CONTENT_PENALTY_HINT}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${TEXT.BTN_CANCEL}</button>
+      ${onlyBan ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.submitPenalty" data-id="${id}" data-type="${t}" data-action-type="remove">${TEXT.ADMIN_CONTENT_PENALTY_DELETE}</button>`}
+      <button type="button" class="btn glass glass--pressable" data-action="admin.submitPenalty" data-id="${id}" data-type="${t}" data-action-type="ban">${TEXT.ADMIN_CONTENT_PENALTY_BAN}</button>`,
+  });
+}
+
+// AF-7: per-type cache domains for content penalties. The server handleContentAction deletes
+// by type (post/demand/review/message/contract/feedback/complaint/upload/signing/teacher) but
+// bumps only [ADMIN] — cross-end stale data would linger until TTL/probe if we don't invalidate
+// the domain(s) the deleted row was rendered from (). Values are domain arrays.
+// AF-7b redo (): teacher content penalties are always 'ban' (server rejects delete/remove) —
+// invalidate both 'teachers' (student-side public list visibility) AND 'admin' (admin user list
+// ban state); single-value mapping would have silently dropped the 'admin' invalidation.
+const CONTENT_DOMAIN_BY_TYPE = {
+  post: ['posts'], contract: ['contracts'], message: ['chat'], demand: ['demands'],
+  teacher: ['teachers', 'admin'],
+};
+
+export async function performContentPenalty(id, type, action, reason, rule, capToken) {
+  // Write path exported for direct test (/): body shape matches server handleContentAction
+  // exactly — action whitelist ['delete','remove','ban'], reason required.
+  return api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule, capToken } });
+}
+
+export async function doSubmitContentPenalty(id, type, action) {
+  // reason-required toast uses the dedicated ADMIN_REASON_REQUIRED key. Reads reason + rule
+  // from the penalty form, closes it, then runs the capToken re-auth confirm (danger op).
+  const reason = document.getElementById('penalty-reason')?.value.trim();
+  if (!reason) { showToast(TEXT.ADMIN_REASON_REQUIRED, 'error'); return; }
+  const rule = document.getElementById('penalty-rule')?.value.trim() || '';
+  closeModal(); // close the penalty form before the re-auth confirm (two stacked modals are hostile)
+  confirm({
+    title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(type)).replace('{id}', id),
+    message: TEXT.ADMIN_PENALTY_CONFIRM.replace('{action}', action === 'ban' ? TEXT.ADMIN_CONTENT_PENALTY_BAN : TEXT.ADMIN_CONTENT_PENALTY_DELETE),
+    needReAuth: true,
+    onConfirm: async capToken => {
+      withCaptcha(async () => {
+        try {
+          const r = await performContentPenalty(id, type, action, reason, rule, capToken);
+          showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
+          closeModal();
+          (CONTENT_DOMAIN_BY_TYPE[type] || ['admin']).forEach(invalidate); // AF-7/AF-7b: invalidate every domain the deleted/penalized row was rendered from (server bumps only [ADMIN])
+          loadAdminContent(_adminContentType);
+        } catch (err) { showToast(err.message, 'error'); }
+      });
+    },
+  });
+}
+
+
+let _adminPostsCache = []; // post full-text modal data source (closure, not window)
+
+export async function loadAdminPosts() {
+  try {
+    // `/api/posts?sort=new` is shared with the posts domain; the cache key must carry
+    // domain 'posts' (datahub caches per-endpoint with a single domain slot). If an admin session
+    // writes domain='admin' first, invalidate('posts') misses and the list stays stale forever
+    // (server delete bumps only [POSTS]).
+    const data = await dhGet('/api/posts?sort=new', { domain: 'posts' });
+    _adminPostsCache = data.posts || []; // full-text modal data source (v1 parity: closure not window)
+    const el = document.getElementById('admin-posts-list');
+    if (el) el.innerHTML = _adminPostsCache.length ? _adminPostsCache.map(renderAdminPostRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_POSTS_EMPTY)}</p>`;
+  } catch (err) { showToast(err.message); }
+}
+
+// v1-parity admin post row — title + author + like count + created_at + view/remove
+// buttons (data-action delegation, zero inline). The remove button carries capToken via
+// adminDeletePost's needReAuth confirm (server now requires it for admin deletes).
+
+// full-text modal — shared mdRender (core/dom.js) renders the post body.
+export function openPostViewModal(id) {
+  const p = _adminPostsCache.find(x => x.id === id);
+  if (!p) { showToast(TEXT.ADMIN_POST_NOT_FOUND, 'error'); return; }
+  openModal({
+    title: p.title || '', cls: 'modal--wide',
+    body: `<p class="text-sm text-muted modal-sub-info">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
+      <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,
+    footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>`,
+  });
+}
+
+export function adminDeletePost(id) {
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performPostDelete(id, capToken));
+  }});
+}
+// actual post-delete write path (adminDeletePost confirm delegates here). Exported for
+// direct write-path testing — audit (/): the confirm path is captcha-gated, so the
+// write path is exercised directly, mirroring performVerifAction.
+export async function performPostDelete(id, capToken) {
+  try {
+    await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } });
+    invalidate('posts'); // invalidate after write (loadAdminPosts reads dhGet cache)
+    showToast(TEXT.ADMIN_DONE);
+    loadAdminPosts();
+  } catch (err) { showToast(err.message); }
+}
+
+// contract management — v1-parity row (student×teacher + status tag + drafter/method/
+// rate/time) + full-text modal with modification diff + remove (capToken via needReAuth confirm).
+let _adminContractsCache = []; // contract full-text/diff modal data source (closure, not window)
+
+export async function loadAdminContracts() {
+  try {
+    const data = await dhGet('/api/admin/contracts', { domain: 'contracts' }); // single slot for /api/admin/contracts (aligns DH_PREFETCH 'contracts' + invalidate('contracts'))
+    _adminContractsCache = data.contracts || [];
+    const el = document.getElementById('admin-contracts-list');
+    if (el) el.innerHTML = _adminContractsCache.length ? _adminContractsCache.map(renderAdminContractRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_CONTRACTS_EMPTY)}</p>`;
+  } catch (err) { showToast(err.message); }
+}
+
+
+// full-text modal — modified contracts (prev_business set) render a diff block first
+// (renderContractDiff + splitContractBiz), then the current body via shared mdRender, with the
+// internal marker stripped (stripContractMarker single source).
+export function adminViewContract(id) {
+  const c = _adminContractsCache.find(x => x.id === id);
+  if (!c) { showToast(TEXT.ADMIN_CONTRACT_NOT_FOUND, 'error'); return; }
+  const diffHtml = c.prev_business ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md)) : '';
+  openModal({
+    title: diffHtml ? TEXT.CONTRACT_VIEW_DIFF_TITLE : TEXT.BTN_VIEW_CONTRACT,
+    cls: 'modal--wide', bodyCls: 'contract-md',
+    body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(TEXT.CONTRACT_DIFF_HINT)}</div>
+      <div class="contract-diff">${diffHtml}</div>
+      <div class="contract-diff-divider"></div>` : ''}
+      ${mdRender(stripContractMarker(c.contract_md))}`,
+    footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>`,
+  });
+}
+export async function adminRemoveContract(id) {
+  // l1: v1-parity danger-op copy (permanent delete + audit trail kept) instead of the
+  // generic ADMIN_DELETE_CONFIRM — capToken ops should state the legal consequence.
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.CONFIRM_ADMIN_REMOVE_CONTRACT, needReAuth: true, onConfirm: async capToken => {
+    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_CONTRACT_REMOVED_TOAST); loadAdminContracts(); } catch (err) { showToast(err.message); } // invalidate after write
+  }});
+}
+
+// feedback review — v1-parity card (bug warning edge + resolved fade + kind/subject/status
+// tags + content + resolve button). Resolve stays a light action (no capToken; lists
+// logout/revoke/sign as danger ops — marking a feedback resolved is not one).
+export async function loadAdminFeedback() {
+  try {
+    const data = await dhGet('/api/feedbacks', { domain: 'admin' });
+    const el = document.getElementById('admin-feedback-list');
+    if (el) el.innerHTML = (data.feedbacks || []).length ? (data.feedbacks || []).map(renderAdminFeedbackRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_FEEDBACK_EMPTY)}</p>`;
+  } catch (err) { showToast(err.message); }
+}
+
+
+export async function resolveAdminFeedback(id) {
+  // dedicated toast (dead FEEDBACK_RESOLVED_TOAST key consumed) instead of generic ADMIN_DONE.
+  try { await api(`/api/feedbacks/${id}/resolve`, { method: 'POST', body: {} }); invalidate('admin'); showToast(TEXT.FEEDBACK_RESOLVED_TOAST); loadAdminFeedback(); } catch (err) { showToast(err.message); } // invalidate after write
+}
+
+export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
+  confirm({ title: TEXT.ADMIN_BAN, message: banned ? TEXT.ADMIN_BAN_CONFIRM : TEXT.ADMIN_UNBAN_CONFIRM, needReAuth: true, onConfirm: async capToken => {
+    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(role); } catch (err) { showToast(err.message); } // invalidate after write + refresh the list the ban came from ()
+  }});
+}
+
+// invite-code issuance/management — v1-parity but data-action delegated (zero inline
+// handlers, contract 6). Pure API consumers: POST /api/admin/invite, GET /api/admin/invites,
+// DELETE /api/admin/invites/:code (backend business capability, no frontend coupling).
+export async function generateInviteCode() {
+  try {
+    const data = await api('/api/admin/invite', { method: 'POST', body: {} });
+    const code = data.code || '';
+    const body = `<div class="invite-new">
+      <p class="invite-code-text" id="invite-code-text">${escHtml(code)}</p>
+      <p class="text-sm text-muted">${escHtml(TEXT.INVITE_NO_EXPIRY)}</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-soft glass glass--pressable" data-action="admin.copyInvite" data-code="${escHtml(code)}">${escHtml(TEXT.BTN_COPY_CODE)}</button>
+      </div>
+    </div>`;
+    openModal({ title: TEXT.ADMIN_INVITE, body, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+  } catch (err) { showToast(err.message); }
+}
+
+export function openInviteManager() {
+  openModal({ title: TEXT.ADMIN_INVITE, cls: 'modal--wide', body: `<div class="invite-manager" id="invite-manager-body"><div class="empty-state empty-state--small"><p>${loaderHtml('sm')}</p></div></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+  api('/api/admin/invites', { method: 'GET' }).then(data => {
+    const list = data.invites || [];
+    const el = document.getElementById('invite-manager-body');
+    if (!el) return;
+    if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(TEXT.INVITE_MANAGER_EMPTY)}</p>`; return; }
+    el.innerHTML = `<table class="invite-manager-table">
+      <thead><tr><th>${escHtml(TEXT.INVITE_MANAGER_CODE)}</th><th>${escHtml(TEXT.INVITE_MANAGER_STATUS)}</th><th>${escHtml(TEXT.INVITE_MANAGER_USED_BY)}</th><th>${escHtml(TEXT.INVITE_MANAGER_CREATED)}</th><th></th></tr></thead>
+      <tbody>${list.map(inv => `<tr>
+        <td class="invite-m-code">${escHtml(inv.code)}</td>
+        <td>${inv.used_by ? `<span class="tag tag-ok glass glass--solid">${escHtml(TEXT.INVITE_MANAGER_USED)}</span>` : `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.INVITE_MANAGER_ACTIVE)}</span>`}</td>
+        <td>${inv.used_by ? escHtml(inv.used_by_username || ('#' + inv.used_by)) : '—'}</td>
+        <td class="invite-m-meta">${fmtDateTime(inv.created_at)}</td>
+        <td>${inv.used_by ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.revokeInvite" data-code="${escHtml(inv.code)}">${escHtml(TEXT.INVITE_MANAGER_REVOKE)}</button>`}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }).catch(err => { const el = document.getElementById('invite-manager-body'); if (el) el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`; });
+}
+
+export function revokeInvite(code) {
+  confirm({ title: TEXT.INVITE_MANAGER_TITLE, message: TEXT.INVITE_REVOKE_CONFIRM, onConfirm: () => {
+    api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.INVITE_MANAGER_REVOKED); closeAllModals(); openInviteManager(); }).catch(err => showToast(err.message)); // closeAllModals first: avoid stale manager modal stacking under the fresh one (audit LOW-1)
+  }});
+}
+
+export function copyInviteCode(code) {
+  navigator.clipboard?.writeText(code).then(() => showToast(TEXT.SUCCESS_COPIED)).catch(() => showToast(TEXT.ERROR_COPY));
+}
+
+// verification review queue — v1-parity card (user + verify_type tag + status tag +
+// verify code + meta + admission preview + structured approve form / reject / revoke). All
+// danger ops wrapped in confirm needReAuth + captcha (server requires capToken per -s1).
+let _verifListCache = []; // admission-image lookup for viewAdmissionImage (v1 parity: closure, not window)
+
+export async function loadAdminVerifications(status) {
+  const el = document.getElementById('admin-verifications-list');
+  if (status === undefined) {
+    const sel = document.getElementById('admin-verif-status');
+    status = sel ? sel.value : 'all';
+  }
+  try {
+    const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+    const data = await dhGet(`/api/admin/verifications${qs}`, { domain: 'admin' });
+    _verifListCache = data.verifications || [];
+    if (el) el.innerHTML = _verifListCache.length ? _verifListCache.map(renderVerifCard).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_VERIF_EMPTY)}</p>`;
+  } catch (err) { showToast(err.message); }
+}
+
+
+export function verifApprove(id) {
+  const g = s => ((document.getElementById(s) || {}).value || '').trim();
+  const body = {
+    action: 'approve',
+    school: g(`verif-school-${id}`), level: g(`verif-level-${id}`),
+    major: g(`verif-major-${id}`), enrollment_status: g(`verif-status-${id}`),
+    enroll_year: g(`verif-year-${id}`),
+  };
+  if (!body.school || !body.level) { showToast(TEXT.ADMIN_VERIF_APPROVE_REQUIRED, 'error'); return; }
+  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, body, { capToken }));
+  }});
+}
+// L-1 (audit): reject collects an optional reason — server supports body.reason and sends
+// it in the VERIFY_REJECTED notification; without it the notified reason is always empty. The
+// optional reason is gathered in a modal, submit goes through needReAuth re-auth + captcha.
+export function verifReject(id) {
+  openModal({ title: TEXT.ADMIN_VERIF_REJECT_BTN, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_VERIF_REASON_LABEL)}</label><textarea id="verif-reject-reason" class="form-input" rows="3" placeholder="${escHtml(TEXT.ADMIN_VERIF_REASON_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CANCEL)}</button><button type="button" class="btn glass glass--pressable" data-action="admin.verifRejectConfirm" data-id="${id}">${escHtml(TEXT.BTN_CONFIRM)}</button>` });
+}
+export function verifRejectConfirm(id) {
+  const reason = document.getElementById('verif-reject-reason')?.value.trim() || '';
+  closeModal(); // close the reason modal before the reauth confirm (re-review obs: avoid two stacked modals)
+  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, { action: 'reject', reason }, { capToken }));
+  }});
+}
+export function verifRevoke(id) {
+  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, { action: 'revoke' }, { capToken }));
+  }});
+}
+// actual verification write path (all three confirm flows delegate here). Exported for
+// direct write-path testing — cache-invalidate-guard drives it, bypassing the confirm UI.
+export async function performVerifAction(id, body, { capToken } = {}) {
+  try {
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { ...body, capToken } });
+    invalidate('admin'); // invalidate after write
+    showToast(body.action === 'approve' ? TEXT.ADMIN_VERIF_APPROVED_OK : body.action === 'revoke' ? TEXT.ADMIN_VERIF_REVOKED_OK : TEXT.ADMIN_VERIF_REJECTED_OK, 'success');
+    loadAdminVerifications();
+  } catch (err) { showToast(err.message); }
+}
+
+export function viewAdmissionImage(id) {
+  const v = _verifListCache.find(x => x.id === id);
+  if (!v) { showToast(TEXT.ADMIN_VERIF_NOT_FOUND, 'error'); return; }
+  openModal({ title: TEXT.ADMIN_ADMISSION_IMAGE, body: v.admission_image ? `<img class="verif-admission-img" src="${escHtml(v.admission_image)}" alt="">` : `<p>${escHtml(TEXT.ADMIN_VERIF_EMPTY)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+}
+
+// rework (audit ): verify/unverify is a danger op (server handleVerifyTeacher requires
+// confirmDangerOtp) — wrap in confirm needReAuth + withCaptcha, aligned with the ban path.
+export function toggleTeacherVerify(userId, verified = true) {
+  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
+    withCaptcha(async () => {
+      try {
+        await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified, capToken } });
+        invalidate('admin'); invalidate('teachers'); // AF-9: 'admin' refreshes the admin list; 'teachers' refreshes the public verified badge in the student browse list (server bumps both, )
+        showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
+      } catch (err) { showToast(err.message); }
+    });
+  }});
+}
+
+// open the teacher profile panel from an admin row. Delegated via the profile-panel-open
+// event (pattern) so admin does not depend on the teacher feature module directly.
+export function openProfilePanel(userId) {
+  document.dispatchEvent(new CustomEvent('profile-panel-open', { detail: { userId } }));
+}
+
+export function closeModalAction() { closeModal(); }

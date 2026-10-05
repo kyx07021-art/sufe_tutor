@@ -1,0 +1,108 @@
+/**
+ * 文本审核咽喉 —— 全站自由文本字段统一审核入口（v1.5.0 起 fail-closed）
+ *
+ * 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
+ * 语义层（外接必配）：DeepSeek chat/completions（OpenAI 兼容）判断自由文本是否含可定位住址描述
+ * （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
+ *
+ * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
+ * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 。
+ */
+import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from '../../shared/config.js';
+import { getSecret } from './secrets.js';
+import { safeJsonObject } from './json.js'; // JSON deserialization single-point
+
+let AUDIT_ENV = null;
+/** 绑定审核环境（env 变更时调用；_worker.js initDb 时绑定） */
+export function bindTextAuditEnv(env) { AUDIT_ENV = env; }
+
+// ============================================================
+// 规则层
+// ============================================================
+// 数字谐音后缀表（用户实证「2788好」——「号」写成谐音字绕过门控）：好/昊/豪/浩/耗/壕
+const HOU_HARMONY = '号好昊豪浩耗壕';
+// 捕获组 1 = 完整数字串——匹配后 JS 排除 4 位 19xx/20xx 年份（「2019好老师」等合法年份+
+// 普通形容词不再误判；原正则命中任意 ≥2 位数字接谐音字即拦）。(?!线) 同 ADDRESS_GUARD：
+// 地铁/公交「十二号线」不误伤；g 标志供 matchAll 逐命中排除
+const HARMONIC_GUARD = new RegExp(
+  `((?:${NUM_T}${NUM_SEP}?)+${NUM_T})[${HOU_HARMONY}](?!线)`, 'g');
+// 4 位 19xx/20xx（半角/全角/中文数字）——年份不做门牌谐音拦截
+function isYearLike(numStr) {
+  const zh = { '〇': '0', '零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+  const a = [...String(numStr).replace(/[-\·、．.，, ]/g, '')]
+    .map(c => zh[c] ?? (c >= '０' && c <= '９' ? String.fromCharCode(c.charCodeAt(0) - 0xFEE0) : c)).join('');
+  return /^(19|20)[0-9]{2}$/.test(a);
+}
+
+// ============================================================
+// 语义层（v1.5.0：必配，fail-closed）
+// ============================================================
+const AUDIT_TIMEOUT_MS = TEXT_AUDIT.TIMEOUT_MS; // 超时 = 拒绝写入（不再 fail-open）
+const auditModel = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_MODEL') || '').trim() || TEXT_AUDIT.MODEL;
+const auditBaseUrl = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_BASE_URL') || '').trim() || TEXT_AUDIT.BASE_URL;
+const AUDIT_SYSTEM = `你是地址合规审核员。判断给定文本是否包含能定位到具体住址/门牌/房间的信息——
+门牌号、楼栋号、单元号、房间号，或足以唯一确定住址的方位描述（如「对门」「上二楼」「左转第一间」）。
+只输出 JSON：{"flagged": true或false, "reason": "简短原因"}。flagged=true 表示文本含可定位住址信息。`;
+
+const UNAVAILABLE = { ok: false, layer: 'error', reason: 'TEXT_AUDIT_UNAVAILABLE' };
+
+/** 调用语义层。任何不可用/不确定都返回 UNAVAILABLE（fail-closed），绝不返回 null 放行。 */
+async function auditSemantic(text) {
+  const key = String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_API_KEY') || '').trim();
+  if (!key) return UNAVAILABLE;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), AUDIT_TIMEOUT_MS);
+    try {
+      const res = await fetch(auditBaseUrl(), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: auditModel(),
+          messages: [
+            { role: 'system', content: AUDIT_SYSTEM },
+            { role: 'user', content: text },
+          ],
+          max_tokens: 80,
+          temperature: 0,
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return UNAVAILABLE;
+      const data = await res.json(); // 超时覆盖响应头 + 响应体读取全程
+      clearTimeout(timer);
+      const out = String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '');
+      const m = out.match(/\{[\s\S]*\}/); // 模型可能夹散文，取 JSON 块
+      const j = m ? safeJsonObject(m[0], null) : null; // LLM-response JSON block extraction (non-column parse; routed through single-point for uniformity)
+      if (!j || typeof j.flagged !== 'boolean') return UNAVAILABLE;
+      return j.flagged
+        ? { ok: false, layer: 'ai', reason: 'ADDRESS_TOO_DETAILED' }
+        : { ok: true, layer: 'ai' };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch { return UNAVAILABLE; }
+}
+
+// ============================================================
+// 统一入口
+// ============================================================
+/**
+ * 审核一段自由文本是否含可定位住址/门牌信息。
+ * @returns {Promise<{ok:boolean, layer:'rule'|'ai'|'error', reason?:string}>}
+ *   ok=false：layer='rule' → 调用方回 MSG.ADDRESS_TOO_DETAILED；
+ *             layer='error' → 调用方回 MSG.TEXT_AUDIT_UNAVAILABLE（审核服务不可用，fail-closed）。
+ */
+export async function auditFreeText(text) {
+  const s = String(text || '').trim();
+  if (!s) return { ok: true, layer: 'rule' }; // 空值放行（调用方自有必填校验）
+  // 谐音命中逐条排除 4 位 19xx/20xx 年份（任一非年份命中即拦——多命中场景不漏）
+  const harmonicHits = [...s.matchAll(HARMONIC_GUARD)];
+  if (ADDRESS_GUARD.test(s) || harmonicHits.some(m => !isYearLike(m[1]))) {
+    return { ok: false, layer: 'rule', reason: 'ADDRESS_TOO_DETAILED' };
+  }
+  return auditSemantic(s);
+}

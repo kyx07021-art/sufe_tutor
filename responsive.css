@@ -1,0 +1,153 @@
+/* responsive.css - global responsive + mobile overrides (V-2-5b); MUST load after all desktop rules. */
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 860px) {
+  /* 上下半区写死两等分行：下半区组件顶沿钉死在 50% 分界线，不再越界到上半区 */
+  .stage-grid { flex: 1; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-content: stretch; gap: 0; padding-block: 0; }
+  .landing-stage { flex-direction: column; min-height: 100dvh; } /* G8/G20：media 二分底色/减 nav 高度死代码删 */
+  .stage-nav { padding: 14px 16px; } /* G8：移动端浮顶导航收窄 */
+  .stage-left, .stage-right { max-width: 100%; margin-left: 0; min-height: 0; overflow: hidden; }
+  .stage-left { padding: clamp(72px, 12vh, 96px) 0 clamp(14px, 3vh, 28px); } /* 顶部让出浮导航 */
+  .stage-right { padding: clamp(20px, 4vh, 44px) 0 clamp(14px, 3vh, 32px); }
+  .stage-deco-grid { display: none; }
+  .landing-footer { position: static; border-top: 1px solid var(--line); margin-top: 0; }
+
+  /* 移动端放宽：除九宫格标题外缩小其余字号、压缩入口纵向、加大留白 */
+  .eyebrow { font-size: .66rem; margin-bottom: 16px; letter-spacing: .18em; }
+  .stage-copy { font-size: .88rem; line-height: 1.62; max-width: 30em; }
+  .stage-kicker { font-size: .72rem; margin-bottom: 18px; }
+  .stage-note { font-size: .72rem; margin-top: 18px; }
+  .entry-list { gap: 12px; }
+  .entry { padding: 14px 18px; gap: 12px; }
+  .entry-index { font-size: 1.15rem; }
+  .entry-title { font-size: 1rem; }
+  .entry-desc { font-size: .72rem; line-height: 1.4; }
+
+  /* Client 壳（移动端）：顶栏全删；侧边栏常驻窄栏（64px，只露数字编号 + 黑色选中块 + 头像），
+     顶部箭头（位置固定，旋转指向右/左）点一下向左呼出完整侧边栏覆盖内容，再点收起；
+     选中新模块由 selectPage→closeSidebar 自动收起 */
+  .client-shell { grid-template-columns: 64px 1fr; height: 100vh; height: 100dvh; }
+  .client-main { grid-column: 2; } /* 侧边栏转绝对定位后出流，内容区须显式钉在第 2 列 */
+  .sidebar-expand-toggle {
+    display: inline-flex; position: fixed; top: 8px; left: 14px; z-index: 160;
+    width: 36px; height: 36px; align-items: center; justify-content: center;
+    color: var(--ink);
+  }
+  .sidebar-expand-toggle .expand-caret { transform: rotate(-90deg); transition: transform .32s var(--ease-snap); } /* 指右：点击展开 */
+  body.sidebar-open .sidebar-expand-toggle .expand-caret { transform: rotate(90deg); }                          /* 指左：点击收起 */
+  .client-sidebar {
+    position: absolute; top: 0; bottom: 0; left: 0; z-index: 150;
+    width: 64px; padding-top: 48px; /* 给顶部箭头让位 */
+    transition: width .32s var(--ease-snap);
+  }
+  body.sidebar-open .client-sidebar { width: 220px; }
+  .sidebar-scroll { padding-top: 4px; }
+  /* 窄栏形态：条目只剩居中数字（黑色选中块照常停留），标签/简介/邀请/网格隐藏，用户块只露头像 */
+  .sidebar-nav { gap: calc(10px * var(--ui-scale, 1)); }
+  .sidebar-item { grid-template-columns: 1fr; justify-items: center; padding: calc(11px * var(--ui-scale, 1)) 0; }
+  .sidebar-item.active { padding: calc(13px * var(--ui-scale, 1)) 0; }
+  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
+  .sidebar-item-index { font-size: 1rem; }
+  .sidebar-user { padding: calc(10px * var(--ui-scale, 1)) 0; align-items: center; }
+  .sidebar-user-avatar { width: calc(38px * var(--ui-scale, 1)); height: calc(38px * var(--ui-scale, 1)); font-size: 1.05rem; }
+  .sidebar-close { display: none; }
+  /* 展开形态：恢复完整布局（宽度宽度过渡，内容淡入） */
+  body.sidebar-open .sidebar-item { grid-template-columns: auto 1fr; justify-items: stretch; padding: calc(13px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); }
+  body.sidebar-open .sidebar-item.active { padding: calc(17px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1)) calc(19px * var(--ui-scale, 1)); }
+  body.sidebar-open .sidebar-item-body { display: flex; animation: fade-in .22s ease .08s both; }
+  body.sidebar-open .sidebar-invite { display: block; }
+  body.sidebar-open .sidebar-user-text { display: block; }
+  body.sidebar-open .sidebar-deco-grid { display: block; }
+  body.sidebar-open .sidebar-item-index { font-size: 1.25rem; }
+  body.sidebar-open .sidebar-user { padding: calc(13px * var(--ui-scale, 1)) calc(18px * var(--ui-scale, 1)); align-items: stretch; }
+  body.sidebar-open .sidebar-footnote { display: block; }
+  .sidebar-backdrop { display: block; }
+  .client-main { padding: 20px 16px 40px; }
+  /* 信息卡移动端规则在桌面卡片规则之后统一定义（层叠顺序要求），见文末媒体查询 */
+}
+
+/* 移动竖屏：上下分块；蒙版旋转 90° 上下连接；删去流场；淡紫在下。
+   以 orientation 检测竖屏，自动切换入场组件方向为纵向。 */
+@media (max-width: 860px) and (orientation: portrait) {
+  .stage-grid { padding-block: clamp(32px, 7vh, 64px); }
+  .flow-field { display: none; }
+  .hand-part { background-image: url("/hand-mask-rot.png"); --mask-op: .12; }
+  .hand-part--a { clip-path: inset(0 0 50% 0); --from: translateY(clamp(-150px, -14vw, -64px)); }
+  .hand-part--b { clip-path: inset(50% 0 0 0); --from: translateY(clamp(64px, 14vw, 150px)); }
+}
+
+@media (max-width: 768px) {
+  .navbar-subtitle { display: none; }
+  .navbar-title { font-size: 1.05rem; }
+  .hero-title { font-size: clamp(36px, 11vw, 52px); }
+  .auth-card { padding: 32px 24px; }
+  .checkbox-grid { grid-template-columns: repeat(2, 1fr); }
+  .list-card-contact { flex-direction: column; gap: 6px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .filter-row { flex-direction: column; gap: 12px; }
+  .admin-row { flex-direction: column; gap: 10px; }
+}
+
+/* ============================================================
+   窄屏（≤860px）信息卡：必须置于桌面尺寸规则之后（层叠顺序！桌面
+   tc-* 规则在本块之前全部定义完，移动端覆写才能生效）
+   教师卡——头像缩小保持圆形；身份块（id/评分/简介）整块通栏置底（简介
+   随身份块 flex 流堆叠、全宽自然换行）；右信息列与头像同行、左对齐
+   需求卡——头像不再独占左半边，id 与三行信息在头像下方左对齐堆叠到卡片边缘
+   ============================================================ */
+@media (max-width: 860px) {
+  .list-card { padding: var(--card-pad-m); }
+
+  .list-card--teacher { gap: 8px; }
+  .tc-avatar { width: 48px; height: 48px; font-size: 1.2rem; }
+  .tc-username { font-size: .88rem; white-space: normal; }
+  .tc-school { font-size: .76rem; }
+  .tc-rating .stars { font-size: .74rem; }
+  .tc-rating-num { font-size: .8rem; }
+  .tc-num--price { font-size: 1.05rem; }
+  .tc-subjects { font-size: .7rem; }
+
+  /* 发送需求按钮右对齐 */
+  .tc-actions { align-self: flex-end; }
+
+  .list-card--demand { display: block; }
+  .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
+  .list-card-title { font-size: .95rem; }
+
+  /* 移动端防横向溢出：卡片头部/工具区/底栏一律允许换行，杜绝被 .list-card 的
+     overflow:hidden 裁切（表现为按钮/编号在右缘被切断）。标题可压缩，工具区独占整行自换行 */
+  .list-card-header { flex-wrap: wrap; row-gap: 6px; }
+  .list-card-title { min-width: 0; overflow-wrap: anywhere; }
+  .demand-card-tools { width: 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: 6px 10px; }
+  .demand-card-foot { row-gap: 8px; }
+  /* 匹配度按钮移动端独占一行（需求/教师卡统一） */
+  .list-card-title .tag-match { flex-basis: 100%; margin-left: 0; }
+}
+
+/* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
+/* 「主动发送」方边 tag 连根删；push-note-row 壳连根删——
+   说明文案与操作按钮下沉到卡片底栏（.demand-card-actions / .list-card-contact） */
+.push-note-text { font-size: .74rem; font-weight: 700; color: var(--accent-deep); }
+
+/* ============================================================
+   移动端覆写兜底：置于文件最末，保证同特异性下晚于一切桌面基础规则
+   （.push-note-row 等基础定义在本文件靠后位置，曾压住中部媒体查询里的移动端覆写，
+     导致推送行右对齐溢出被裁切——此为层叠顺序根治）
+   ============================================================ */
+@media (max-width: 860px) {
+  .demand-card-tools { display: flex; }                 /* 块级 flex，消除 inline-flex + width:100% 的尺寸歧义 */
+  .demand-card-foot .list-card-contact { min-width: 0; }
+  .demand-card-foot .btn-intent-toggle { flex-shrink: 0; } /* 意图展开按钮新类（原 .drop-toggle） */
+  /* 需求四·4b：试课意向行移动端整行纵向排布——用户名+星级一行、状态 tag 独立一行在用户名下方 */
+  .intent-row-line { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .intent-row-user { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* 需求四·4b（item7 纵向排布）：非学科项目报价行窄屏改纵向——项目名独占一行，两个报价输入全宽铺开 */
+  .nonacademic-price-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .na-project-name { flex: none; }
+  /* 需求四·4b（item7 纵向排布）：账户设置行窄屏改纵向——标签/值在上、操作按钮在下左对齐，杜绝右侧按钮被顶出 */
+  .settings-row:not(.settings-row--avatar) { flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
+  /* 需求六·item5：UI 大小滑块窄屏列向布局下 flex-basis 240px 落到主轴变控件盒高度——改定宽全宽（同 v0.25.1 复合组件隔离教训：布局值随容器方向泄漏） */
+  .ui-scale-control { flex: none; width: 100%; }
+}
+

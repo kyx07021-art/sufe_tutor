@@ -1,0 +1,30 @@
+/* features/chart.css - chart component (V-2-5b). */
+/* ============ 图表组件（app-chart.js，独立玻璃 SVG 面积折线图）============ */
+.chart-glass { padding: 18px 16px 12px; margin-bottom: 14px; }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.chart-title { font-weight: 700; font-size: .95rem; letter-spacing: .02em; }
+.chart-stat { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--chart-color, var(--accent)); font-size: .9rem; }
+.chart-plot { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; }
+.chart-svg .chart-grid line { stroke: var(--line); stroke-width: 1; }
+.chart-svg .chart-axis-y text, .chart-svg .chart-axis-x text { fill: var(--muted); font-size: calc(11px * var(--ui-scale, 1)); } /* 需求六·item5 自查补漏：坐标轴字号随 UI 滑块 */
+.chart-line { fill: none; stroke: var(--chart-color, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chart-end-dot, .chart-crosshair-dot { fill: var(--chart-color, var(--accent)); stroke: var(--paper); stroke-width: 2; }
+.chart-crosshair-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+/* tooltip 接入引擎（app-chart.js 挂 glass glass--float）——background 迁 --g-fill、
+   border-radius 迁 --g-r、box-shadow 迁 --g-lift；保持不透明纸面保图表可读；液体边/表面置透明占位 */
+.chart-tooltip { position: absolute; pointer-events: none; --g-fill: var(--paper-2); --g-r: 8px; --g-lift: var(--glass-lift-sm); --g-liquid: 0 0 0 0 transparent; --g-surface: 0 0 0 0 transparent; border: 1px solid var(--line); padding: 6px 10px; font-size: .78rem; display: flex; flex-direction: column; gap: 2px; z-index: 5; }
+.chart-tooltip strong { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.chart-tooltip span { color: var(--muted); }
+.chart-empty { padding: 28px 0; text-align: center; color: var(--muted); font-size: .85rem; }
+.chart-table { margin-top: 10px; font-size: .78rem; }
+.chart-table summary { color: var(--muted); cursor: pointer; user-select: none; }
+.chart-table table { width: 100%; margin-top: 6px; border-collapse: collapse; }
+.chart-table th, .chart-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.chart-table th { color: var(--muted); font-weight: 600; }
+.chart-table tbody tr:last-child td { border-bottom: none; }
+
+/* 流量监测页：范围切换（旧类连根删，收编标准分段控件 .seg-tabs） */
+.traffic-range { margin-bottom: 12px; }
+.traffic-range .seg-tab { padding: 6px 14px; font-size: .8rem; }
+
