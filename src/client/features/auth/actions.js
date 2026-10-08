@@ -10,7 +10,7 @@ import { state, saveSession, loadSession, clearSession, getDeviceId, runLogoutRe
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, closeAllModals, withCaptcha } from '../../core/ui.js';
 import { showView, stopBadgePoll, closeSidebar } from '../../core/router.js';
-import { afterAuthSuccess, setAuthReturnPage, roleHint } from './flow.js';
+import { afterAuthSuccess, getLoginContext, resetAuthFlow, roleHint } from './flow.js';
 import { classifyIdentifier, otpExhaustedReset } from './actions-otp.js';
 import { closeProfilePanel } from '../teacher/actions.js';
 
@@ -30,8 +30,9 @@ export function refreshAuthHeader() {
   const p = $('login-subtitle');
   if (!h || !p) return;
   const u = $('login-identifier');
+  const { role, returnToPage } = getLoginContext();
   if (u) {
-    const saved = state.guestRole ? loadSession(state.guestRole) : loadSession();
+    const saved = loadSession(role);
     const name = saved && saved.user ? saved.user.username : '';
     u.value = name;
     if (name) checkLoginUsernameDebounced();
@@ -48,15 +49,18 @@ export function refreshAuthHeader() {
   if (hint) { hint.textContent = ''; hint.classList.remove('login-hint--missing'); }
   if (link) link.textContent = TEXT.LOGIN_SWITCH_CODE;
   if (btn) { btn.disabled = true; btn.classList.add('disabled'); }
-  if (state.guestAuthMode && state.guestRole === ROLES.TEACHER) {
+  if (role === ROLES.TEACHER) {
     h.textContent = TEXT.AUTH_LOGIN_TITLE_TEACHER;
     p.textContent = TEXT.AUTH_LOGIN_SUB_TEACHER;
-  } else if (state.guestAuthMode && state.guestRole === ROLES.STUDENT) {
+  } else if (role === ROLES.STUDENT) {
     h.textContent = TEXT.AUTH_LOGIN_TITLE_STUDENT;
     p.textContent = TEXT.AUTH_LOGIN_SUB_STUDENT;
+  } else if (returnToPage) {
+    h.textContent = TEXT.AUTH_LOGIN_TITLE_GUEST;
+    p.textContent = TEXT.AUTH_LOGIN_SUB_GUEST;
   } else {
-    h.textContent = state.guestAuthMode ? TEXT.AUTH_LOGIN_TITLE_GUEST : TEXT.AUTH_LOGIN_TITLE;
-    p.textContent = state.guestAuthMode ? TEXT.AUTH_LOGIN_SUB_GUEST : TEXT.AUTH_LOGIN_SUB;
+    h.textContent = TEXT.AUTH_LOGIN_TITLE;
+    p.textContent = TEXT.AUTH_LOGIN_SUB;
   }
 }
 
@@ -175,9 +179,7 @@ export function handleLogout() {
   state.user = null;
   state.authToken = null;
   state.page = null;
-  state.guestRole = null;
-  state.guestAuthMode = false;
-  setAuthReturnPage(null);
+  resetAuthFlow();
   closeProfilePanel();
   state.allTeachers = [];
   state.myDemands = [];

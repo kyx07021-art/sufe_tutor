@@ -23,7 +23,7 @@
 import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS, ROLES } from '../../../shared/enums.js';
-import { state, isReturning, registerLogoutReset } from '../../core/state.js';
+import { state, registerLogoutReset } from '../../core/state.js';
 import { escHtml } from '../../core/dom.js';
 import { closeModal } from '../../core/ui.js';
 import { chat } from '../chat/chat-state.js';
@@ -41,15 +41,6 @@ let _tourDemoConvOpen = false;
 
 /** Register the script table (tours.js) — avoids an engine<->tours import cycle. */
 export function setTourScripts(scripts) { _tourScripts = scripts || {}; }
-
-/** Resolve the tour context: login state + role + first-visit flag. */
-export function onboardContext() {
-  return {
-    loggedIn: !!state.user,
-    role: state.user ? state.user.role : (state.guestRole || null),
-    firstVisit: !isReturning(),
-  };
-}
 
 /** Resolve a step target; null when unmounted or inside a .hidden ancestor.
  *  closeModal steps point at the modal body (.modal), not the full-screen overlay —
@@ -410,14 +401,11 @@ export function runTour(nameOrSteps) {
 /** Skip: global button + Esc share this (single teardown path). */
 export function skipTour() { _tourCleanup(); }
 
-/** "Replay the tour" entry: pick the script by login state + role
- *  (admin walks the moderation console; guest scripts only cover visible modules).
+/** "Replay the tour" entry: pick the script by role (admin walks the moderation console).
  *  Does NOT reset the sufe_returning first-visit marker. */
 export function startOnboardingTour() {
-  const ctx = onboardContext();
-  const script = ctx.loggedIn
-    ? (ctx.role === ROLES.ADMIN ? 'admin' : ctx.role === ROLES.TEACHER ? 'teacherUser' : 'studentUser')
-    : (ctx.role === ROLES.TEACHER ? 'teacherGuest' : 'studentGuest');
+  const role = state.user ? state.user.role : null;
+  const script = role === ROLES.ADMIN ? 'admin' : role === ROLES.TEACHER ? 'teacherUser' : 'studentUser';
   runTour(script);
 }
 

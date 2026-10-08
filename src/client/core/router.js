@@ -49,7 +49,7 @@ const CORE_PAGE_FIRST = {
   [ROLES.TEACHER]: ['resource-share', 'browse-demands'],
 };
 export function pagesForRole() {
-  const role = state.user ? state.user.role : state.guestRole;
+  const role = state.user.role;
   const all = [...builtinPages, ...featurePages].filter(p => !p.roles || !p.roles.length || p.roles.includes(role));
   const ranked = [];
   const core = CORE_PAGE_FIRST[role] || [];
@@ -64,7 +64,6 @@ export function pagesForRole() {
 // role-first ids (student=my-demands / teacher=browse-demands / admin=admin-stats).
 const ROLE_FIRST_PAGE = { [ROLES.STUDENT]: 'my-demands', [ROLES.TEACHER]: 'browse-demands', [ROLES.ADMIN]: 'admin-stats' };
 export function defaultPageFor() {
-  if (!state.user) return state.guestRole === ROLES.TEACHER ? 'browse-demands' : 'browse-teachers';
   const role = state.user.role;
   const roleFeatures = featurePages.filter(p => !p.roles || !p.roles.length || p.roles.includes(role));
   const first = roleFeatures[0];
@@ -100,15 +99,13 @@ export async function enterClient(pageId) {
   renderSidebar();
   showView('client');
   const stored = getLastPage();
-  const storedOk = stored && pagesForRole().some(p => p.id === stored && (state.user || p.auth === false));
+  const storedOk = stored && pagesForRole().some(p => p.id === stored);
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId
     : (storedOk ? stored : defaultPageFor());
   selectPage(valid);
   if (state.user) {
     dhPrefetch(state.user.role);
     startBadgePoll();
-  } else if (state.guestRole) {
-    dhPrefetch(state.guestRole === ROLES.TEACHER ? 'teacher-guest' : 'student-guest');
   }
   closeSidebar();
   const main = document.getElementById('client-main');
@@ -120,12 +117,9 @@ export function renderSidebar() {
   const isAdmin = u && u.role === ROLES.ADMIN;
   const userTarget = document.getElementById('sidebar-user');
   if (userTarget) {
-    const userBlock = u ? `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="open-profile" data-profile-user-id="${u.id}" title="${TEXT.PROFILE_PANEL_TITLE}">
+    const userBlock = `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="open-profile" data-profile-user-id="${u.id}" title="${TEXT.PROFILE_PANEL_TITLE}">
       ${renderAvatarHtml(u.avatar, u.username, 'sidebar-user-avatar')}
       <div class="sidebar-user-text"><div class="sidebar-user-name">${escHtml(u.username)}</div><div class="sidebar-user-role">${roleLabel(u.role)}</div></div>
-    </button>` : `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="auth-required">
-      <span class="avatar sidebar-user-avatar avatar--guest glass" aria-hidden="true">?</span>
-      <div class="sidebar-user-text"><div class="sidebar-user-name sidebar-user-name--guest">${TEXT.GUEST_NOT_LOGGED_IN}</div><div class="sidebar-user-role">${TEXT.GUEST_TAP_TO_LOGIN}</div></div>
     </button>`;
     userTarget.innerHTML = `${userBlock}
       <button type="button" class="sidebar-footnote" data-action="select-page" data-page="about">${escHtml(TEXT.ABOUT_FOOTNOTE.replace('{feedback}', TEXT.BTN_FEEDBACK))}</button>

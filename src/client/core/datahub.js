@@ -167,16 +167,6 @@ export const DH_PREFETCH = {
     ['/api/user/username/status', 'account'],
     ['/api/user/creds', 'account'],
   ],
-  'student-guest': [
-    ['/api/student/demands', 'demands'],
-    ['/api/teachers', 'teachers'],
-    ['/api/posts?sort=new', 'posts'],
-  ],
-  'teacher-guest': [
-    ['/api/student/demands', 'demands'],
-    ['/api/teachers', 'teachers'],
-    ['/api/posts?sort=new', 'posts'],
-  ],
 };
 
 export function dhPrefetch(role) {

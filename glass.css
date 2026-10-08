@@ -248,7 +248,6 @@ body { background: transparent; }
   --g-fill: var(--g-avatar-fill);
   border: 1.5px solid var(--g-avatar-border); --g-r: 50%; --g-lift: var(--glass-lift-sm);
 }
-.avatar--guest { --g-fill: var(--g-avatar-fill-ghost); border: 1.5px dashed var(--g-avatar-border-ghost); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
 /* 分段控件（
    容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
    统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn），

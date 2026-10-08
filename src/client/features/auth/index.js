@@ -5,7 +5,7 @@
  */
 import { TEXT } from '../../constants/text.js';
 import * as actions from './actions.js';
-import { handleFeatureClick } from './flow.js';
+import { setLoginShownHook } from './flow.js';
 import { loginViewHtml, registerViewHtml } from './render.js';
 import { state } from '../../core/state.js';
 import { setEnsureAuth } from '../../core/api.js';
@@ -14,11 +14,10 @@ import { closeModal, openPolicyModal } from '../../core/ui.js';
 
 const ACTION_MAP = {
   'auth.back': actions.authGoBack,
-  'auth.backLanding': () => showView('landing'),
-  'auth.viewLogin': () => { showView('login'); actions.refreshAuthHeader(); },
+  'auth.backLanding': actions.authGoBack,
+  'auth.viewLogin': actions.openLogin,
   'auth.viewRegister': () => showView('register'),
-  'auth.enterGuest': (el) => handleFeatureClick(el.dataset.role), // landing entry: student/teacher guest preview
-  'auth-required': () => showView('login'), // audit fix (2026-08-19): router sidebar guest bar data-action=auth-required had zero handler (v1 inline ensureAuth binding lost in ESM migration)
+  'auth.enterRole': (el) => { actions.enterRole(el.dataset.role); }, // landing entry: student/teacher → client when session exists, else login
   'auth.toggleLoginMode': actions.toggleLoginMode,
   'auth.checkLoginUsername': actions.checkLoginUsernameDebounced,
   'auth.checkRegisterContact': actions.checkRegisterContact,
@@ -112,25 +111,16 @@ function onLoad() {
   installed = true;
   mountView('view-login', loginViewHtml());
   mountView('view-register', registerViewHtml());
+  setLoginShownHook(actions.refreshAuthHeader);
   actions.refreshAuthHeader();
   actions.syncLoginCredGroups();
-  // A3 (v1→v2 migration regression, 2026-08-20): v1 showView('login') always called
-  // refreshAuthHeader() — login title switches by arrival path (guest redirected via
-  // ensureAuth shows guest-mode copy + form reset). v2 core/router.js showView is shared
-  // and must not depend on auth (circular-import ban), so the auth mount point wraps
-  // ensureAuth (still converging on the flow.js single gateway; "unique login path"
-  // contract preserved) — all three entry paths (selectPage auth marker / write-button
-  // guard / api 401 fallback) refresh the header through the wrapper.
-  const ensureAuth = () => {
-    const ok = actions.ensureAuth();
-    // Only refresh when the guard actually redirected to login (ok===false); an
-    // authenticated call must not touch the login form (it may not be mounted and
-    // refreshAuthHeader has async debounce tails that outlive the call).
-    if (!ok) actions.refreshAuthHeader();
-    return ok;
-  };
-  setRouterAuthGuard(ensureAuth);
-  setEnsureAuth(ensureAuth);
+  // A3 (v1→v2 migration regression, 2026-08-20): v1 showView('login') always refreshed the
+  // header (title switches by arrival path + form reset). v2 core/router.js showView is shared
+  // and must not depend on auth (circular-import ban), so flow.js owns every login-view entry
+  // (showLogin → setLoginShownHook) — selectPage auth marker / write-button guard / api 401
+  // fallback / landing role entry all converge there, "unique login path" contract preserved.
+  setRouterAuthGuard(actions.ensureAuth);
+  setEnsureAuth(actions.ensureAuth);
   const offs = [...bindDelegation(), installEntryGlow()];
   return () => { offs.forEach(off => off()); installed = false; };
 }

@@ -1,29 +1,25 @@
 /**
- * v2 onboard feature actions: first-visit modal, usage guide, guest browse and the
- * tour entry points. No inline handlers (archtest) — modal buttons carry data-action
+ * v2 onboard feature actions: first-visit modal, usage guide and the tour entry
+ * points. No inline handlers (archtest) — modal buttons carry data-action
  * handled by the onboard registry's click delegation.
- * auth/flow.js statically imports startOnboardingTour from this module, so the
- * enterRolePreview dependency is a call-time dynamic import (breaks the cycle).
+ * auth/flow.js statically imports startOnboardingTour from this module.
  */
 import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
-import { state, isReturning, setReturning } from '../../core/state.js';
+import { isReturning, setReturning } from '../../core/state.js';
 import { openModal, closeModal } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
-import { onboardContext, runTour, skipTour, startOnboardingTour, setTourScripts } from './engine.js';
+import { startOnboardingTour, setTourScripts } from './engine.js';
 import { TOUR_SCRIPTS } from './tours.js';
 
 setTourScripts(TOUR_SCRIPTS); // engine reads the script table through this registry
 
-/** First-visit modal (policy summary; primary button depends on login state:
- *  logged-in users dismiss; guests jump straight into the client as a student). */
+/** First-visit modal (policy summary; primary button dismisses — the client is
+ *  only reachable after login, and login/register buttons sit on the landing). */
 function openOnboarding() {
-  const ctx = onboardContext();
   const policyItems = (TEXT.ONBOARD_POLICY || []).map(p =>
     `<div class="onboard-policy-item"><span class="about-sec-mark glass" aria-hidden="true"></span><p>${escHtml(p)}</p></div>`).join('');
-  const primary = ctx.loggedIn
-    ? `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${escHtml(TEXT.ONBOARD_CONFIRM)}</button>`
-    : `<button type="button" class="btn glass glass--pressable" data-action="onboard.browseGuest">${escHtml(TEXT.ONBOARD_CONFIRM_BROWSE)}</button>`;
+  const primary = `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${escHtml(TEXT.ONBOARD_CONFIRM)}</button>`;
   openModal({
     title: TEXT.ONBOARD_TITLE,
     // (2026-08-19 user report: login/register clicks dead): the first-visit modal
@@ -67,19 +63,5 @@ export function openUsageGuide() {
   });
 }
 
-/** First-visit "browse the client": close modal -> enter the role preview (await
- *  render) -> auto-run the matching tour. Silent degrade on entry failure (network /
- *  script 404): the landing entries stay usable, no tour on error. */
-export async function browseAsGuest(role) {
-  try {
-    closeModal();
-    const { enterRolePreview } = await import('../auth/flow.js'); // call-time: breaks the auth/flow <-> onboard cycle
-    await enterRolePreview(role);
-    startOnboardingTour();
-  } catch (err) {
-    console.warn('browseAsGuest', err);
-  }
-}
-
-export { startOnboardingTour, runTour, skipTour };
+export { startOnboardingTour };
 export function closeOnboard() { closeModal(); }

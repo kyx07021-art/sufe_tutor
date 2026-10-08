@@ -878,8 +878,6 @@ textarea.form-input {
 .sidebar-user-top { display: flex; align-items: center; gap: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：用户卡间距随滑块 */
 /* 用户块整体可点（登录态 → 个人信息右栏；访客态 → 登录通路）：button 复位为纯容器 */
 .sidebar-user-btn { width: 100%; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
-.sidebar-user-name--guest { color: var(--muted); font-weight: 700; }
-.avatar--guest { color: var(--muted); } /* S8/G30：边框唯一主人 = glass.css；元素 background none 与引擎 .glass 基类重复，删 */
 .sidebar-user-avatar { width: calc(42px * var(--ui-scale, 1)); height: calc(42px * var(--ui-scale, 1)); font-size: 1.15rem; } /* 需求六·item5：头像随滑块 */
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -1415,4 +1413,3 @@ html[data-ui-reflowing] [data-ui-reflow-unit] { transition: none !important; }
 /* M11：投诉与反馈通道选择浮窗——大按钮竖排 */
 .chooser-grid { display: flex; flex-direction: column; gap: 10px; padding: 4px 0; }
 .chooser-item { justify-content: center; }
-

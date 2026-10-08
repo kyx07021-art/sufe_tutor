@@ -12,7 +12,6 @@ export const state = {
   allTeachers: [],
   myDemands: [], editingDemandId: null, myContracts: [],
   validatedInviteCode: null, // read/written only by logout reset
-  guestRole: null, guestAuthMode: false,
 };
 
 export const loadSeqs = {};
@@ -107,11 +106,8 @@ export function clearSession(role) {
 }
 
 const PAGE_STATE_KEY = 'sufe_last_page';
-const GUEST_ROLE_KEY = 'sufe_last_guest_role';
 export function savePageState(pageId) { if (!pageId) return; safeSet(localStorage, PAGE_STATE_KEY, pageId); }
 export function getLastPage() { return safeGet(localStorage, PAGE_STATE_KEY); }
-export function setLastGuestRole(role) { role ? safeSet(localStorage, GUEST_ROLE_KEY, role) : safeRemove(localStorage, GUEST_ROLE_KEY); }
-export function getLastGuestRole() { const r = safeGet(localStorage, GUEST_ROLE_KEY); return Object.values(ROLES).includes(r) ? r : null; }
 
 export function getDeviceId() {
   try {

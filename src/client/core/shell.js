@@ -25,7 +25,7 @@ function page(id, title, { actions = '', body = '', flush = false } = {}) {
 const filterToggleBtn = (action, id) => `<button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="${id}" data-action="${action}">${escHtml(TEXT.FILTER_TOGGLE)} <span class="drop-caret">${CARET_SVG}</span></button>`;
 const btnNewDemand = `<button type="button" class="btn btn-sm glass glass--pressable" id="btn-new-demand" data-action="student.openModal">+ ${escHtml(TEXT.BTN_NEW_DEMAND)}</button>`;
 const notifBlockBtn = `<button type="button" class="btn btn-sm glass glass--pressable notif-block-btn" id="btn-notif-block" data-action="notif.toggleBlock">${escHtml(TEXT.NOTIF_BLOCK_OFF)}</button>`;
-const entry = (idx, title, desc, role) => `<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="${role}">
+const entry = (idx, title, desc, role) => `<button type="button" class="entry glass" data-action="auth.enterRole" data-role="${role}">
   <span class="entry-glow" aria-hidden="true"></span>
   <span class="entry-index">${idx}</span>
   <span class="entry-body">

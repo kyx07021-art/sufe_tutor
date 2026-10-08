@@ -1,14 +1,11 @@
 /**
- * v2 captcha core: parity migration of app-captcha.js sliding puzzle gate.
+ * v2 captcha core: sliding puzzle gate.
+ * AK-A1b 定案：拼图是纯前端反滥用 UX 门禁，对齐即放行——服务端没有验证端点
+ * （真实防线 = 登录凭证 + 服务端限流），故本地判定，不做任何网络往返。
  * setPointerCapture is guarded for jsdom; browser semantics unchanged.
  */
-import { CONFIG } from '../../shared/config.js';
 import { TEXT } from '../constants/text.js';
 import { openModal, closeModal } from './ui-modal.js';
-import { api } from './api.js'; // static import: a runtime import() here would fetch a chunk on every
-// verify (slider drag) — a stale page referencing a deleted chunk gets a text/html fallback and
-// throws "'text/html' is not a valid JavaScript MIME type." (production report). No import cycle
-// (api.js does not import captcha), so the static form is safe and eliminates the runtime fetch.
 
 const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
 const CAPTCHA_MAX_X = CAPTCHA_W - SLIDER_W;
@@ -19,20 +16,12 @@ let _captchaOnPass = null;
 let _captchaTarget = 0;
 let _captchaOffset = 0;
 let _captchaDrag = null;
-let _captchaTrack = [];
-let _captchaIdStr = '';
 let _captchaResetTimer = null;
 
 function _randHex() {
   const b = new Uint8Array(3);
   crypto.getRandomValues(b);
   return '#' + Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
-}
-
-function _captchaId() {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 }
 
 export function openCaptchaModal({ title = TEXT.CAPTCHA_TITLE, onPass = null } = {}) {
@@ -94,7 +83,6 @@ function paintCaptcha() {
   const cutX = _captchaTarget * CAPTCHA_MAX_X, cutY = (H - SLIDER_H) / 2;
   const shape = GAP_SHAPES[Math.floor(Math.random() * GAP_SHAPES.length)];
   const R = SLIDER_W / 2 - 4;
-  _captchaIdStr = _captchaId();
   const pz = document.getElementById('captcha-puzzle');
   if (pz) {
     const pctx = pz.getContext('2d');
@@ -158,7 +146,7 @@ function paintCaptcha() {
     drawGapShape(ctx, f.x + SLIDER_W / 2, f.y + SLIDER_H / 2, R, fs);
     ctx.stroke();
   });
-  _captchaOffset = 0; _captchaTrack = [];
+  _captchaOffset = 0;
   const track = document.getElementById('captcha-track');
   const box = document.getElementById('captcha-box') || track;
   box.style.setProperty('--captcha-x', '0px');
@@ -173,8 +161,7 @@ function bindCaptchaDrag() {
   const down = (e) => {
     if (knob.classList.contains('captcha--pass')) return;
     if (_captchaResetTimer) { clearTimeout(_captchaResetTimer); _captchaResetTimer = null; }
-    _captchaDrag = { startClientX: e.clientX, startX: _captchaOffset * max, startT: Date.now() };
-    _captchaTrack = [];
+    _captchaDrag = { startClientX: e.clientX, startX: _captchaOffset * max };
     if (typeof knob.setPointerCapture === 'function') knob.setPointerCapture(e.pointerId);
     track.classList.add('captcha--dragging');
   };
@@ -183,7 +170,6 @@ function bindCaptchaDrag() {
     const next = Math.max(0, Math.min(max, _captchaDrag.startX + (e.clientX - _captchaDrag.startClientX)));
     _captchaOffset = next / max;
     box.style.setProperty('--captcha-x', `${next}px`);
-    if (_captchaTrack.length < 128) _captchaTrack.push({ t: Date.now() - _captchaDrag.startT, x: e.clientX, y: e.clientY });
   };
   const up = () => {
     if (!_captchaDrag) return;
@@ -197,37 +183,25 @@ function bindCaptchaDrag() {
   knob.addEventListener('pointercancel', up);
 }
 
-async function verifyCaptcha() {
+function verifyCaptcha() {
   const track = document.getElementById('captcha-track');
   const tip = document.getElementById('captcha-tip');
   const knob = document.getElementById('captcha-knob');
   if (!track || !tip || !knob) return;
-  const diff = Math.abs(_captchaOffset - _captchaTarget);
-  if (diff <= CAPTCHA_TOLERANCE) {
-    try {
-      const r = await api('/api/captcha/verify', {
-        method: 'POST',
-        body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },
-      });
-      if (!r || !r.ok) { failCaptcha(track, tip, knob, r && r.message); return; }
-    } catch (err) { failCaptcha(track, tip, knob, err && err.message); return; }
-    knob.classList.add('captcha--pass');
-    tip.textContent = TEXT.CAPTCHA_PASS;
-    tip.classList.remove('captcha-tip--fail');
-    tip.classList.add('captcha-tip--pass');
-    const cb = _captchaOnPass;
-    _captchaOnPass = null;
-    setTimeout(() => { closeModal(); if (cb) cb(); }, 260);
-    return;
-  }
-  failCaptcha(track, tip, knob);
+  if (Math.abs(_captchaOffset - _captchaTarget) > CAPTCHA_TOLERANCE) { failCaptcha(track, tip, knob); return; }
+  knob.classList.add('captcha--pass');
+  tip.textContent = TEXT.CAPTCHA_PASS;
+  tip.classList.remove('captcha-tip--fail');
+  tip.classList.add('captcha-tip--pass');
+  const cb = _captchaOnPass;
+  _captchaOnPass = null;
+  setTimeout(() => { closeModal(); if (cb) cb(); }, 260);
 }
 
-function failCaptcha(track, tip, knob, detail) {
+function failCaptcha(track, tip, knob) {
   knob.classList.add('captcha--fail');
   track.classList.add('captcha--shake');
-  // R-3d: show the server-side reason (trajectory score detail) when present, else the generic text.
-  tip.textContent = detail || TEXT.CAPTCHA_FAIL;
+  tip.textContent = TEXT.CAPTCHA_FAIL;
   tip.classList.add('captcha-tip--fail');
   if (_captchaResetTimer) clearTimeout(_captchaResetTimer);
   _captchaResetTimer = setTimeout(() => {
@@ -249,5 +223,5 @@ export function withCaptcha(action) {
 
 /** Test-only hook: expose paint state for real-browser pixel verification (pattern: _dhResetForTests). */
 export function _captchaStateForTests() {
-  return { target: _captchaTarget, id: _captchaIdStr };
+  return { target: _captchaTarget };
 }

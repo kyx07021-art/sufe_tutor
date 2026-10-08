@@ -110,8 +110,7 @@ export async function chatPlusDraft() {
   if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; }
   if (chat.convId) {
     // AB-O1: silent degrade on lazy-import failure (deploy-race stale-tab chunk 404 — the
-    // SPA-fallback guard already turns the MIME error into a clean 404). Aligns with
-    // onboard/actions.js browseAsGuest precedent.
+    // SPA-fallback guard already turns the MIME error into a clean 404).
     try {
       const mod = await import('../contract/index.js');
       mod.actions.openContractDraftModal(chat.convId);

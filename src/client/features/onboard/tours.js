@@ -100,7 +100,6 @@ const tourStepDemandWizard = () => ({ module: 'my-demands', target: { sel: '#dem
 const tourStepNewDemandModal = () => ({ module: 'my-demands', target: { closeModal: true }, text: TEXT.TOUR_STEP_NEW_DEMAND_MODAL });
 
 // ---- final steps (module 'end', not counted) ----
-const tourStepGuestLogin = () => ({ module: 'end', target: { self: true }, text: TEXT.TOUR_STEP_GUEST_LOGIN });
 const tourStepUserBar = () => ({ module: 'end', target: { self: true }, text: TEXT.TOUR_STEP_USER_BAR });
 
 // ---- admin (v2: single admin-stats page, JSON-dump stub until admin parity) ----
@@ -114,45 +113,6 @@ export const TOUR_SCRIPTS = {
     tourStepAdminStats(),
     tourStepAdminData(),
     tourStepAdminEnd(),
-  ],
-  // Teacher before login: accessible areas (demand hall / teacher peers / resource
-  // share / about) + final step to login
-  teacherGuest: () => [
-    tourStepBrowseDemands(),
-    tourStepDemandList(),
-    tourStepDemandCard(),
-    tourStepDemandDetail(),
-    tourStepDemandDetailClose(),
-    tourStepDemandIdTag(),
-    tourStepBrowseTeachersPeer(),
-    tourStepTeachersList(),
-    tourStepFilterToggle(),
-    tourStepTeacherUsername(),
-    tourStepProfileClose(),
-    tourStepResourceShare(),
-    tourStepPostsList(),
-    tourStepPostsSearch(),
-    tourStepPostsSort(),
-    tourStepAbout(),
-    tourStepAboutWho(),
-    tourStepAboutFlow(),
-    tourStepAboutSecurity(),
-    tourStepAboutFeedback(),
-    tourStepGuestLogin(),
-  ],
-  // Student before login: teacher plaza / about + final step to login
-  studentGuest: () => [
-    tourStepBrowseTeachers(),
-    tourStepTeachersList(),
-    tourStepFilterToggle(),
-    tourStepTeacherUsername(),
-    tourStepProfileClose(),
-    tourStepAbout(),
-    tourStepAboutWho(),
-    tourStepAboutFlow(),
-    tourStepAboutSecurity(),
-    tourStepAboutFeedback(),
-    tourStepGuestLogin(),
   ],
   // Teacher logged in: every module, walked deep + final user bar
   teacherUser: () => [
